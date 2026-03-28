@@ -158,9 +158,10 @@
             </div>
             <!-- Transcript StatusBar & Upload -->
             <div class="transcript-footer" style="display:flex; align-items:center; background:var(--bg-secondary); border-top:1px solid var(--border); padding:8px 15px; font-size:var(--font-size-xs); color:var(--text-muted); flex-shrink:0;">
-                <button class="btn btn--ghost btn--sm" onclick="openUploadModal()" title="Upload Custom Subtitle" style="padding:4px; margin-right:15px; opacity:0.7;">
+                <button class="btn btn--ghost btn--sm" onclick="openSubtitleManager()" title="Manage Subtitles" style="padding:4px; margin-right:15px; opacity:0.7;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                 </button>
+
                 <div id="transcriptStatus" style="flex: 1; text-align: left; font-size: 10px;">Ready</div>
                 <button class="btn btn--accent btn--sm" id="loadSubsBtn" onclick="loadDisplaySubtitles()" style="margin-left: 10px; padding: 4px 10px;">Show</button>
             </div>
@@ -200,39 +201,109 @@
 </div>
 
 
-<!-- Upload Modal -->
-<div id="uploadModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
-    <div class="modal-content" style="background:var(--bg-secondary); padding:24px; border-radius:16px; width:400px; max-width:90%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 40px rgba(0,0,0,0.5);">
-        <h3 style="margin-top:0; margin-bottom: 20px;">Upload Subtitle</h3>
-        <div style="display:flex; flex-direction:column; gap:15px;">
-            <div style="display:flex; flex-direction:column; gap:6px;">
-                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Language:</label>
-                <select id="importLang" class="lang-select" style="width: 100%;"></select>
+<!-- Subtitle Manager Modal -->
+<div id="subtitleManagerModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
+    <div class="modal-content" style="background:var(--bg-secondary); padding:24px; border-radius:18px; width:500px; max-width:95%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 15px 50px rgba(0,0,0,0.6); display:flex; flex-direction:column; max-height: 85vh;">
+        <h3 style="margin-top:0; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 15px; display:flex; gap:10px; align-items:center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Subtitle Manager
+        </h3>
+
+        <div class="modal-tabs" style="margin-bottom: 20px; overflow-x: auto; white-space: nowrap; display: flex; gap: 5px;">
+            <div class="modal-tab active" id="subTab-manage" onclick="switchSubTab('manage')">Available</div>
+            <div class="modal-tab" id="subTab-youtube" onclick="switchSubTab('youtube')">YouTube Fetch</div>
+            <div class="modal-tab" id="subTab-manual" onclick="switchSubTab('manual')">Upload File</div>
+            <div class="modal-tab" id="subTab-external" onclick="switchSubTab('external')">External Web</div>
+        </div>
+
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
+            <!-- Tab: Manage -->
+            <div id="subPane-manage" class="sub-pane">
+                <div id="existingSubsList" style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="text-align:center; padding:20px; color:var(--text-muted);">Loading available tracks...</div>
+                </div>
             </div>
-            
-            <div style="display:flex; flex-direction:column; gap:6px;">
-                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Your Display Name (Optional):</label>
-                <input type="text" id="uploadSubName" class="note-input" placeholder="e.g. Translated by Hieu" style="padding: 10px; font-size: 14px; margin-bottom: 0;">
+
+            <!-- Tab: YouTube Fetch -->
+            <div id="subPane-youtube" class="sub-pane" style="display:none;">
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                        <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px; line-height:1.4;">
+                            Connect directly to YouTube to pull official or auto-generated captions for this video.
+                        </p>
+                        <button id="btnFetchYtSubs" class="btn btn--primary btn--sm" style="width:100%;" onclick="fetchYoutubeSubs()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 12 12 12 8"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            Fetch List from YouTube
+                        </button>
+                    </div>
+                    <div id="youtubeSubsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+                </div>
             </div>
-            
-            <div style="display:flex; flex-direction:column; gap:6px;">
-                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Description / Version Note (Optional):</label>
-                <input type="text" id="uploadSubNote" class="note-input" placeholder="e.g. Official V2 translation" style="padding: 10px; font-size: 14px; margin-bottom: 0;">
+
+            <!-- Tab: Manual Upload -->
+            <div id="subPane-manual" class="sub-pane" style="display:none;">
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Language:</label>
+                        <select id="importLang" class="lang-select" style="width: 100%;"></select>
+                    </div>
+                    
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Select File:</label>
+                        <label for="subtitleFile" class="btn btn--secondary" style="text-align:center; cursor:pointer; padding:12px; background:rgba(255,255,255,0.03);">
+                            📁 Choose .vtt or .srt
+                        </label>
+                        <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;" onchange="handleFileSelect(event)">
+                        <span id="fileNameDisplay" style="font-size:12px; color:var(--text-muted); text-align:center; margin-top:5px;">None selected</span>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Uploader Name:</label>
+                            <input type="text" id="uploadSubName" class="note-input" placeholder="e.g. Hieu" style="padding: 8px; font-size: 13px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Note:</label>
+                            <input type="text" id="uploadSubNote" class="note-input" placeholder="e.g. V2 Fix" style="padding: 8px; font-size: 13px;">
+                        </div>
+                    </div>
+
+                    <button class="btn btn--primary" id="uploadSubsBtn" onclick="uploadSubtitle()" disabled style="width:100%; margin-top:10px;">
+                        Upload & Save
+                    </button>
+                </div>
             </div>
-            
-            <div style="display:flex; flex-direction:column; gap:6px;">
-                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Select File:</label>
-                <label for="subtitleFile" class="btn btn--secondary" style="text-align:center; cursor:pointer;">📁 Choose .vtt or .srt</label>
-                <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;" onchange="handleFileSelect(event)">
-                <span id="fileNameDisplay" style="font-size:12px; color:var(--text-muted); text-align:center;">None selected</span>
+
+            <!-- Tab: External Web Fallback -->
+            <div id="subPane-external" class="sub-pane" style="display:none;">
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <p style="font-size:12px; color:var(--text-secondary); line-height:1.5; margin-bottom:5px;">
+                        Hệ thống tự động đang bị YouTube giới hạn. Bạn có thể sử dụng các công cụ bên dưới để lấy file phụ đề (hệ thống đã tự gắn link video hiện tại).
+                        <br><br>👉 Tải file dạng <b>.vtt</b> hoặc <b>.srt</b> sau đó dùng tab <b>Upload File</b>.
+                    </p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <button class="btn btn--secondary" style="justify-content:flex-start; height:auto; padding:12px;" onclick="openExternalDownloader('downsub')">
+                            <span style="font-size:18px; margin-right:10px;">🌐</span> Tải qua DownSub.com
+                        </button>
+                        <button class="btn btn--secondary" style="justify-content:flex-start; height:auto; padding:12px;" onclick="openExternalDownloader('savesubs')">
+                            <span style="font-size:18px; margin-right:10px;">🌍</span> Tải qua SaveSubs.com
+                        </button>
+                        <button class="btn btn--secondary" style="justify-content:flex-start; height:auto; padding:12px;" onclick="openExternalDownloader('yousubtitles')">
+                            <span style="font-size:18px; margin-right:10px;">📺</span> Tải qua YouSubtitles.com
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:25px;">
-            <button class="btn btn--ghost" onclick="closeModals()">Cancel</button>
-            <button class="btn btn--primary" id="uploadSubsBtn" onclick="uploadSubtitle()" disabled>Upload</button>
+
+
+        <div style="display:flex; justify-content:flex-end; margin-top:20px; padding-top:15px; border-top: 1px solid rgba(255,255,255,0.05);">
+            <button class="btn btn--ghost" onclick="closeSubtitleManager()">Close</button>
         </div>
     </div>
 </div>
+
 
 <!-- Options Modal -->
 <div id="optionsModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
@@ -566,10 +637,15 @@
 </div>
 <script>
     function closeModals() {
-        document.getElementById('uploadModal').style.display = 'none';
+        document.getElementById('subtitleManagerModal').style.display = 'none';
         document.getElementById('optionsModal').style.display = 'none';
         document.body.style.overflow = 'auto';
     }
+    function closeSubtitleManager() {
+        document.getElementById('subtitleManagerModal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+
     function closeNoteEditModal() {
         document.getElementById('noteEditModal').style.display = 'none';
         document.body.style.overflow = 'auto';

@@ -849,18 +849,198 @@ function toggleOverlay(type) {
 
 
 // ── Modals ────────────────────────────────────────────────────
-function openUploadModal() {
-    document.getElementById('uploadModal').style.display = 'flex';
-}
-
 function openOptionsModal() {
     document.getElementById('optionsModal').style.display = 'flex';
 }
 
 function closeModals() {
-    document.getElementById('uploadModal').style.display = 'none';
+    document.getElementById('subtitleManagerModal').style.display = 'none';
     document.getElementById('optionsModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
 }
+
+// ── Subtitle Manager Logic ────────────────────────────────────
+
+function switchSubTab(tabName) {
+    // Buttons
+    document.querySelectorAll('#subtitleManagerModal .modal-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(`subTab-${tabName}`).classList.add('active');
+
+    // Panes
+    document.querySelectorAll('#subtitleManagerModal .sub-pane').forEach(p => p.style.display = 'none');
+    document.getElementById(`subPane-${tabName}`).style.display = 'block';
+}
+
+async function openSubtitleManager() {
+    document.getElementById('subtitleManagerModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    
+    // Always start on Manage tab
+    switchSubTab('manage');
+    
+    const listEl = document.getElementById('existingSubsList');
+    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">Loading...</div>';
+
+    try {
+        const res = await fetch(`/api/subtitles/available/${LESSON_ID}`, {
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        const data = await res.json();
+
+        if (!data.subtitles || data.subtitles.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No tracks found. Upload or Fetch one!</div>';
+            return;
+        }
+
+        let html = '';
+        data.subtitles.forEach(sub => {
+            html += `
+                <div style="background:rgba(255,255,255,0.03); padding:12px 15px; border-radius:10px; border:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-weight:600; font-size:14px; color:var(--text-primary);">
+                            ${sub.language_code.toUpperCase()} 
+                            <span style="font-weight:400; font-size:11px; opacity:0.6; margin-left:5px;">${sub.is_auto_generated ? '(Auto)' : ''}</span>
+                        </div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                            ${sub.line_count} lines • by ${sub.uploader_name}
+                        </div>
+                    </div>
+                    <button class="btn btn--ghost btn--sm" onclick="deleteSubtitle(${sub.id})" title="Delete track" style="color:var(--danger); padding:6px; min-width:auto;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </div>
+            `;
+        });
+        listEl.innerHTML = html;
+
+    } catch (err) {
+        listEl.innerHTML = `<div style="color:var(--danger); padding:20px;">Error: ${err.message}</div>`;
+    }
+}
+
+async function fetchYoutubeSubs() {
+    const listEl = document.getElementById('youtubeSubsList');
+    const btn = document.getElementById('btnFetchYtSubs');
+    
+    btn.disabled = true;
+    btn.innerHTML = 'Connecting to YouTube...';
+    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">Querying YouTube catalog...</div>';
+
+    try {
+        const res = await fetch(`/api/youtube/subtitles-list/${YOUTUBE_ID}`);
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+
+        if (!data.subtitles || data.subtitles.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No captions found on YouTube for this video.</div>';
+            return;
+        }
+
+        let html = '<div style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Found ' + data.subtitles.length + ' tracks:</div>';
+        data.subtitles.forEach(sub => {
+            html += `
+                <div style="background:rgba(255,255,255,0.02); padding:10px 15px; border-radius:10px; border:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:13px; color:var(--text-primary);">
+                        <strong>${sub.lang_code.toUpperCase()}</strong> - ${sub.name}
+                    </div>
+                    <button class="btn btn--accent btn--sm" onclick="downloadYoutubeSub('${sub.lang_code}', ${sub.is_auto})" style="padding:4px 12px; font-size:11px; min-width:80px;">
+                        Download
+                    </button>
+                </div>
+            `;
+        });
+        listEl.innerHTML = html;
+
+    } catch (err) {
+        listEl.innerHTML = `<div style="color:var(--danger); padding:20px;">Fetching failed: ${err.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 12 12 12 8"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            Fetch List from YouTube
+        `;
+    }
+}
+
+async function downloadYoutubeSub(langCode, isAuto) {
+    if (!confirm(`Download and import ${langCode.toUpperCase()} subtitle from YouTube?`)) return;
+
+    try {
+        console.log(`[PodLearn] Downloading yt sub: ${langCode} (auto=${isAuto})`);
+        
+        const res = await fetch(`/api/youtube/subtitles-download/${LESSON_ID}`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ lang_code: langCode, is_auto: isAuto })
+        });
+
+        const data = await res.json();
+        
+        if (!res.ok) {
+            alert(data.error || "Download failed.");
+            return;
+        }
+
+        if (data.success) {
+            alert(`Imported ${langCode.toUpperCase()} successfully!`);
+            await loadAvailableLanguages();
+            await openSubtitleManager(); 
+        }
+    } catch (err) {
+        console.error("[PodLearn] Download error:", err);
+        alert("Error: " + err.message);
+    }
+}
+
+
+async function deleteSubtitle(id) {
+    if (!confirm("Are you sure you want to PERMANENTLY delete this subtitle track from the database?")) return;
+
+    try {
+        const res = await fetch(`/api/subtitles/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+
+        if (res.ok) {
+            await loadAvailableLanguages();
+            await openSubtitleManager(); // Refresh UI
+        } else {
+            alert("Failed to delete.");
+        }
+    } catch (err) {
+        console.error("[PodLearn] Delete error:", err);
+    }
+}
+
+// ── External Downloaders ──────────────────────────────────────
+function openExternalDownloader(site) {
+    if (typeof YOUTUBE_ID === 'undefined' || !YOUTUBE_ID) {
+        alert('Không tìm thấy ID Video. Vui lòng tải lại trang.');
+        return;
+    }
+    
+    const videoUrl = encodeURIComponent(`https://www.youtube.com/watch?v=${YOUTUBE_ID}`);
+    let targetUrl = '';
+    
+    if (site === 'downsub') {
+        targetUrl = `https://downsub.com/?url=${videoUrl}`;
+    } else if (site === 'savesubs') {
+        targetUrl = `https://savesubs.com/process?url=${videoUrl}`;
+    } else if (site === 'yousubtitles') {
+        targetUrl = `https://www.yousubtitles.com/search?q=${videoUrl}`;
+    }
+    
+    if (targetUrl) {
+        window.open(targetUrl, '_blank');
+    }
+}
+
+
 
 // Ensure the buttons in the right pane tabs are conditionally visible
 const originalSwitchTab = switchRightTab;

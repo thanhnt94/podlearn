@@ -12,8 +12,10 @@ from werkzeug.utils import secure_filename
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
+import yt_dlp
 from deep_translator import GoogleTranslator
 import pykakasi
+
 
 from ..extensions import db
 from ..models.user import User
@@ -216,6 +218,7 @@ def get_available_subtitles(lesson_id):
     results = []
     for t in tracks:
         results.append({
+            'id': t.id,
             'language_code': t.language_code,
             'is_auto_generated': t.is_auto_generated,
             'uploader_name': t.uploader_name or "Unknown",
@@ -223,6 +226,174 @@ def get_available_subtitles(lesson_id):
             'line_count': len(t.content_json) if t.content_json else 0
         })
     return jsonify({'subtitles': results})
+
+@api_bp.route('/subtitles/<int:sub_id>', methods=['DELETE'])
+@login_required
+def delete_subtitle(sub_id):
+    """Delete a subtitle track from the DB."""
+    track = SubtitleTrack.query.get_or_404(sub_id)
+    
+    # Optional: Only allow downloader or admin? 
+    # For now, if you are studying the lesson, you can manage its video tracks.
+    db.session.delete(track)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/youtube/subtitles-list/<video_id>', methods=['GET'])
+@login_required
+def get_youtube_subs_list(video_id):
+    """Fetch available subtitle languages from YouTube using yt-dlp."""
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    
+    # Đảm bảo đường dẫn tuyệt đối cho cookies
+    cookie_path = os.path.abspath(os.path.join(os.getcwd(), 'youtube_cookies.txt'))
+    if not os.path.exists(cookie_path):
+        print(f"[API ERROR] Cookie file not found at: {cookie_path}")
+        return jsonify({"error": f"Không tìm thấy file youtube_cookies.txt tại {cookie_path}. Vui lòng kiểm tra lại vị trí file."}), 500
+
+    ydl_opts = {
+        'skip_download': True,
+        'quiet': True,
+        'no_warnings': True,
+        'cookiefile': cookie_path, # Kích hoạt bypass bằng cookies
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+    }
+
+
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            
+            subs = info.get('subtitles', {})
+            autos = info.get('automatic_captions', {})
+            
+            # Formulate a simplified list
+            available = []
+            
+            # Manual subs
+            for code, formats in subs.items():
+                available.append({
+                    'lang_code': code,
+                    'name': formats[0].get('name', code) if formats else code,
+                    'is_auto': False
+                })
+            
+            for code, formats in autos.items():
+                if any(a['lang_code'] == code for a in available): continue
+                available.append({
+                    'lang_code': code,
+                    'name': (formats[0].get('name', code) if formats else code) + " (Auto)",
+                    'is_auto': True
+                })
+                
+            return jsonify({'subtitles': available})
+            
+    except yt_dlp.utils.DownloadError as e:
+        error_msg = str(e)
+        if '429' in error_msg or 'Too Many Requests' in error_msg:
+            return jsonify({"error": "YouTube đang chặn yêu cầu của máy chủ (Lỗi 429). Vui lòng thử lại sau hoặc Upload file thủ công."}), 429
+        return jsonify({"error": f"YouTube Error: {error_msg}"}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/youtube/subtitles-download/<int:lesson_id>', methods=['POST'])
+@login_required
+def download_youtube_sub(lesson_id):
+    """Download subtitle from YouTube, parse, and save to DB."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+    lang_code = data.get('lang_code')
+    is_auto = data.get('is_auto', False)
+    
+    if not lang_code:
+        return jsonify({'error': 'lang_code is required'}), 400
+        
+    v_id = lesson.video.youtube_id
+    url = f"https://www.youtube.com/watch?v={v_id}"
+    
+    # Đảm bảo đường dẫn tuyệt đối cho cookies
+    cookie_path = os.path.abspath(os.path.join(os.getcwd(), 'youtube_cookies.txt'))
+    if not os.path.exists(cookie_path):
+        print(f"[API ERROR] Cookie file not found at: {cookie_path}")
+        return jsonify({"error": "Máy chủ thiếu cấu hình youtube_cookies.txt để vượt qua chặn từ YouTube."}), 500
+
+    # yt-dlp options specifically for fetching the vtt
+    temp_dir = tempfile.gettempdir()
+    ydl_opts = {
+        'skip_download': True,
+        'writesubtitles': not is_auto,
+        'writeautomaticsub': is_auto,
+        'subtitleslangs': [lang_code],
+        'subtitlesformat': 'vtt',
+        'outtmpl': os.path.join(temp_dir, f'sub_%(id)s_%(lang)s'),
+        'quiet': True,
+        'cookiefile': cookie_path, # Kích hoạt bypass bằng cookies
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+    }
+
+
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+            
+            target_path = os.path.join(temp_dir, f'sub_{v_id}_{lang_code}.vtt')
+            
+            if not os.path.exists(target_path):
+                import glob
+                matches = glob.glob(os.path.join(temp_dir, f'sub_{v_id}_*.vtt'))
+                if matches:
+                    target_path = matches[0]
+                else:
+                    return jsonify({'error': 'Failed to find downloaded subtitle file'}), 500
+
+            parsed_lines = []
+            for caption in webvtt.read(target_path):
+                s = caption.start_in_seconds
+                e = caption.end_in_seconds
+                parsed_lines.append({
+                    'start': round(s, 3),
+                    'end': round(e, 3),
+                    'duration': round(e - s, 3),
+                    'text': caption.text.replace('\n', ' ').strip()
+                })
+            
+            if os.path.exists(target_path):
+                os.remove(target_path)
+
+            if not parsed_lines:
+                return jsonify({'error': 'Parsed lines were empty'}), 500
+
+            track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code).first()
+            if not track:
+                track = SubtitleTrack(video_id=lesson.video.id, language_code=lang_code)
+                db.session.add(track)
+            
+            track.content_json = parsed_lines
+            track.is_auto_generated = is_auto
+            track.uploader_name = "YouTube"
+            track.fetched_at = datetime.now(timezone.utc)
+            
+            db.session.commit()
+            return jsonify({'success': True, 'line_count': len(parsed_lines)})
+
+    except yt_dlp.utils.DownloadError as e:
+        error_msg = str(e)
+        if '429' in error_msg or 'Too Many Requests' in error_msg:
+            return jsonify({"error": "YouTube đang chặn tải tự động (Lỗi 429). Vui lòng tải file vtt về máy và sử dụng Tab 'Upload File' để nộp thủ công."}), 429
+        return jsonify({"error": f"Lỗi tải phụ đề: {error_msg}"}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 def _parse_timestamp(ts):
     """Convert SRT/VTT timestamp to seconds."""
