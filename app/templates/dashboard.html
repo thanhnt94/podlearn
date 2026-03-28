@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}My Library — PodLearn{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <header class="dashboard-header">
+        <div class="dashboard-header__left">
+            <h1 class="brand-logo" style="display:flex; align-items:center; gap:10px; font-weight:700; font-size:24px; color:var(--text-primary); margin:0;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span style="letter-spacing: -0.5px;">Pod<span style="color:var(--accent);">Learn</span></span>
+            </h1>
+        </div>
+        <div class="dashboard-header__right">
+            <span class="dashboard-header__user">{{ current_user.username }}</span>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn--ghost btn--sm" id="logoutBtn">Logout</a>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <div class="dashboard-toolbar">
+            <h2>My Library</h2>
+            <button class="btn btn--primary btn--sm" id="addLessonToggle" onclick="toggleAddForm()">
+                + Add Video
+            </button>
+        </div>
+
+        <!-- Add Lesson Form -->
+        <div class="add-lesson-form" id="addLessonForm" style="display: none;">
+            <form method="POST" action="{{ url_for('dashboard.add_lesson') }}" class="add-lesson-form__inner" id="addForm">
+                <div class="form-group" style="flex: 1;">
+                    <input type="text" name="youtube_url" id="youtubeUrl"
+                           placeholder="Paste a YouTube URL (e.g. https://youtube.com/watch?v=...)"
+                           required autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn--primary" id="addLessonBtn">
+                    <span class="btn-text">Add to Library</span>
+                    <span class="btn-loading" style="display: none;">Adding...</span>
+                </button>
+                <button type="button" class="btn btn--ghost" onclick="toggleAddForm()">Cancel</button>
+            </form>
+        </div>
+
+        <!-- Lesson Grid -->
+        <div class="lesson-grid" id="lessonGrid">
+            {% if lessons %}
+                {% for lesson in lessons %}
+                <div class="lesson-card" id="lessonCard{{ lesson.id }}">
+                    <a href="{{ url_for('player.view', lesson_id=lesson.id) }}" class="lesson-card__link">
+                        <img src="{{ lesson.video.thumbnail_url }}" 
+                             alt="{{ lesson.video.title }}" 
+                             class="lesson-card__thumb"
+                             loading="lazy">
+                        <div class="lesson-card__body">
+                            <h3 class="lesson-card__title">{{ lesson.video.title }}</h3>
+                            <div class="lesson-card__meta">
+                                <span class="lesson-card__duration">{{ lesson.video.duration_seconds | duration }}</span>
+                                {% if lesson.original_lang_code %}
+                                <span class="lesson-card__langs">{{ lesson.original_lang_code }} → {{ lesson.target_lang_code or '?' }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                    <div class="lesson-card__actions">
+                        <form method="POST" action="{{ url_for('dashboard.delete_lesson', lesson_id=lesson.id) }}" 
+                              onsubmit="return confirm('Remove this lesson?')">
+                            <button type="submit" class="btn btn--danger btn--sm" id="deleteLesson{{ lesson.id }}" title="Remove">
+                                ✕
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state__icon">📚</div>
+                    <p>No lessons yet.</p>
+                    <p class="empty-state__hint">Click <strong>+ Add Video</strong> to get started!</p>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleAddForm() {
+        const form = document.getElementById('addLessonForm');
+        const isHidden = form.style.display === 'none';
+        form.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) {
+            document.getElementById('youtubeUrl').focus();
+        }
+    }
+
+    // Show loading state on submit
+    document.getElementById('addForm').addEventListener('submit', function() {
+        const btn = document.getElementById('addLessonBtn');
+        btn.querySelector('.btn-text').style.display = 'none';
+        btn.querySelector('.btn-loading').style.display = 'inline';
+        btn.disabled = true;
+    });
+</script>
+{% endblock %}

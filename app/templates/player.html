@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.video.title }} — PodLearn{% endblock %}
+{% block body_class %}player-page{% endblock %}
+
+{% block content %}
+<div class="player-layout">
+    <!-- ═══ LEFT PANE: Video ═══ -->
+    <div class="player-left">
+        <!-- Top bar with Brand Logo -->
+        <div class="player-topbar" style="display: flex; align-items: center; width: 100%;">
+            <!-- Nice Branding Logo -->
+            <a href="{{ url_for('dashboard.index') }}" class="brand-logo" style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; color:var(--text-primary); margin-right:20px; text-decoration: none;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span style="letter-spacing: -0.5px;">Pod<span style="color:var(--accent);">Learn</span></span>
+            </a>
+            
+            <h2 class="player-topbar__title" title="{{ lesson.video.title }}" style="color: var(--text-muted); font-size: var(--font-size-xs); flex: 1; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                | &nbsp;&nbsp; {{ lesson.video.title }}
+            </h2>
+            
+            <!-- NEW: Options inside Player Topbar -->
+            <button class="btn btn--ghost btn--sm" onclick="openOptionsModal()" style="margin-left: 15px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                Options
+            </button>
+        </div>
+
+        <!-- YouTube Player Container (Pure 16:9) -->
+        <div class="player-video-wrap">
+            <div class="player-video" id="playerContainer">
+                <div id="ytPlayer"></div>
+            </div>
+            
+            <!-- NEW: Video Overlay for Script -->
+            <div class="video-sub-overlay" id="videoSubOverlay" style="display: none;">
+            </div>
+
+            <!-- Video Overlay for active note -->
+            <div class="video-note-overlay" id="notePopup">
+                <span class="video-note-overlay__text" id="notePopupText"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ RIGHT PANE: Tabs (Transcript & Notes) ═══ -->
+    <div class="player-right">
+        <!-- Right Pane Tab Controls -->
+        <div class="right-pane-tabs" style="display: flex; justify-content: space-between; align-items: center; padding-right: 10px;">
+            <div style="display: flex; flex: 1;">
+                <button class="pane-tab active" onclick="switchRightTab('transcript')" id="tabBtn-transcript">Transcript</button>
+                <button class="pane-tab" onclick="switchRightTab('notes')" id="tabBtn-notes">My Notes</button>
+            </div>
+        </div>
+
+        <!-- TRANSCRIPT TAB CONTENT -->
+        <div id="pane-transcript" class="pane-content active-pane">
+            <!-- Transcript List -->
+            <div class="transcript-body" id="transcriptBody" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding-top: 10px;">
+                <div class="transcript-empty" id="transcriptEmpty">
+                    <p>Click <strong>Options</strong> to choose subtitle languages.</p>
+                </div>
+                <div class="transcript-lines" id="transcriptLines" style="display: none;"></div>
+            </div>
+            <!-- Transcript StatusBar & Upload -->
+            <div class="transcript-footer" style="display:flex; align-items:center; background:var(--bg-secondary); border-top:1px solid var(--border); padding:8px 15px; font-size:var(--font-size-xs); color:var(--text-muted); flex-shrink:0;">
+                <button class="btn btn--ghost btn--sm" onclick="openUploadModal()" title="Upload Custom Subtitle" style="padding:4px; margin-right:15px; opacity:0.7;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+                <div id="transcriptStatus" style="flex: 1; text-align: left;">No subtitles loaded</div>
+            </div>
+        </div>
+
+        <!-- NOTES TAB CONTENT -->
+        <div id="pane-notes" class="pane-content" style="display: none;">
+            <div class="player-notes-area" style="height: 100%; padding: 0;">
+                <div class="notes-header">
+                    <h3>📝 My Notes</h3>
+                    <span class="notes-count" id="notesCount">0 notes</span>
+                </div>
+                <div class="notes-form">
+                    <button class="btn btn--secondary btn--sm" id="addNoteBtn" onclick="handleAddNoteClick()" title="Add note at current time" style="width: 100%;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v8M8 12h8"></path></svg>
+                        Write Note @ <span id="currentNoteTime">0:00</span>
+                    </button>
+                    <div class="note-input-group" id="noteInputGroup" style="display: none; margin-top: 10px;">
+                        <textarea id="noteInput" class="note-input" placeholder="Type your note here..." rows="3"></textarea>
+                        <div class="note-actions">
+                            <button class="btn btn--ghost btn--sm" onclick="cancelNote()">Cancel</button>
+                            <button class="btn btn--primary btn--sm" onclick="saveNote()">Save Note</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="notes-list" id="notesList" style="flex: 1; overflow-y: auto;">
+                    <div class="notes-empty" id="notesEmpty">No notes yet. Click the + button to add one.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
+    <div class="modal-content" style="background:var(--bg-secondary); padding:24px; border-radius:16px; width:400px; max-width:90%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+        <h3 style="margin-top:0; margin-bottom: 20px;">Upload Subtitle</h3>
+        <div style="display:flex; flex-direction:column; gap:15px;">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Language:</label>
+                <select id="importLang" class="lang-select" style="width: 100%;"></select>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Your Display Name (Optional):</label>
+                <input type="text" id="uploadSubName" class="note-input" placeholder="e.g. Translated by Hieu" style="padding: 10px; font-size: 14px; margin-bottom: 0;">
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Description / Version Note (Optional):</label>
+                <input type="text" id="uploadSubNote" class="note-input" placeholder="e.g. Official V2 translation" style="padding: 10px; font-size: 14px; margin-bottom: 0;">
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Select File:</label>
+                <label for="subtitleFile" class="btn btn--secondary" style="text-align:center; cursor:pointer;">📁 Choose .vtt or .srt</label>
+                <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;" onchange="handleFileSelect(event)">
+                <span id="fileNameDisplay" style="font-size:12px; color:var(--text-muted); text-align:center;">None selected</span>
+            </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:25px;">
+            <button class="btn btn--ghost" onclick="closeModals()">Cancel</button>
+            <button class="btn btn--primary" id="uploadSubsBtn" onclick="uploadSubtitle()" disabled>Upload</button>
+        </div>
+    </div>
+</div>
+
+<!-- Options Modal -->
+<div id="optionsModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
+    <div class="modal-content" style="background:var(--bg-secondary); padding:24px; border-radius:18px; width:540px; max-width:95%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 15px 50px rgba(0,0,0,0.6);">
+        <h3 style="margin-top:0; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 15px; display:flex; gap:10px; align-items:center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Display Options
+        </h3>
+        
+        <div style="max-height: 60vh; overflow-y: auto; padding-right: 5px; display:flex; flex-direction:column; gap:20px;">
+            
+            <!-- SUBTITLES SECTION -->
+            <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                    <h4 style="margin:0; color:var(--text-primary); font-size: 16px;">📺 Video Subtitles</h4>
+                    <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px;">
+                        <input type="checkbox" id="toggleScriptOverlay" onchange="toggleOverlay('script')"> Show
+                    </label>
+                </div>
+                
+                <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:15px; border-bottom: 1px dotted rgba(255,255,255,0.1); padding-bottom: 15px;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                        <select id="displaySub1" class="lang-select"><option value="">- Subtitle 1 -</option></select>
+                        <select id="displaySub2" class="lang-select"><option value="">- Subtitle 2 -</option></select>
+                        <select id="displaySub3" class="lang-select"><option value="">- Subtitle 3 -</option></select>
+                    </div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns: 1fr; gap:12px; margin-bottom: 12px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:12px; color:var(--text-secondary);">Layout Position:</label>
+                        <select id="optSubPos" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="bottom" selected>Bottom Center</option>
+                            <option value="top">Top Center</option>
+                            <option value="bottom-left">Bottom Left</option>
+                            <option value="bottom-right">Bottom Right</option>
+                            <option value="top-left">Top Left</option>
+                            <option value="top-right">Top Right</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 15px; border-bottom: 1px dotted rgba(255,255,255,0.05); padding-bottom: 15px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">Color Sub 1:</label>
+                        <select id="optSubColor1" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="#ffffff" selected>White</option>
+                            <option value="#f1c40f">Yellow</option>
+                            <option value="#00cec9">Cyan</option>
+                            <option value="#ff7675">Pink</option>
+                            <option value="#55efc4">Green</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">Color Sub 2:</label>
+                        <select id="optSubColor2" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="#ffffff">White</option>
+                            <option value="#f1c40f" selected>Yellow</option>
+                            <option value="#00cec9">Cyan</option>
+                            <option value="#ff7675">Pink</option>
+                            <option value="#55efc4">Green</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">Color Sub 3:</label>
+                        <select id="optSubColor3" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="#ffffff">White</option>
+                            <option value="#f1c40f">Yellow</option>
+                            <option value="#00cec9" selected>Cyan</option>
+                            <option value="#ff7675">Pink</option>
+                            <option value="#55efc4">Green</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 15px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">BG Sub 1:</label>
+                        <select id="optSubBg1" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="rgba(0,0,0,0.75)">Glass</option>
+                            <option value="transparent">None</option>
+                            <option value="#000000">Solid</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">BG Sub 2:</label>
+                        <select id="optSubBg2" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="rgba(0,0,0,0.75)" selected>Glass</option>
+                            <option value="transparent">None</option>
+                            <option value="#000000">Solid</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">BG Sub 3:</label>
+                        <select id="optSubBg3" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="rgba(0,0,0,0.75)" selected>Glass</option>
+                            <option value="transparent">None</option>
+                            <option value="#000000">Solid</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">Size Sub 1:</label>
+                        <select id="optSubSize1" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="18px">Small</option>
+                            <option value="24px" selected>Medium</option>
+                            <option value="32px">Large</option>
+                            <option value="42px">XL</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">Size Sub 2:</label>
+                        <select id="optSubSize2" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="16px">Small</option>
+                            <option value="20px" selected>Medium</option>
+                            <option value="28px">Large</option>
+                            <option value="36px">XL</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">Size Sub 3:</label>
+                        <select id="optSubSize3" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="14px">Small</option>
+                            <option value="18px" selected>Medium</option>
+                            <option value="24px">Large</option>
+                            <option value="30px">XL</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NOTES SECTION -->
+            <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                    <h4 style="margin:0; color:var(--text-primary); font-size: 16px;">💡 Note Popups</h4>
+                    <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px;">
+                        <input type="checkbox" id="toggleNoteOverlay" onchange="toggleOverlay('note')" checked> Show
+                    </label>
+                </div>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:12px; color:var(--text-secondary);">Size:</label>
+                        <select id="optNoteSize" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="13px">Small</option>
+                            <option value="16px" selected>Medium</option>
+                            <option value="22px">Large</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:12px; color:var(--text-secondary);">Theme:</label>
+                        <select id="optNoteColor" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="dark" selected>Dark Glass</option>
+                            <option value="light">Light Card</option>
+                            <option value="yellow">Yellow Sticky</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <label style="font-size:12px; color:var(--text-secondary);">Position:</label>
+                        <select id="optNotePos" class="lang-select" onchange="applyVisualOptions()">
+                            <option value="top-right" selected>Top Right</option>
+                            <option value="top-left">Top Left</option>
+                            <option value="bottom-right">Bottom Right</option>
+                            <option value="bottom-left">Bottom Left</option>
+                            <option value="mid-left">Middle Left</option>
+                            <option value="mid-right">Middle Right</option>
+                            <option value="center">Center</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+            <button class="btn btn--ghost" onclick="closeModals()">Discard</button>
+            <button class="btn btn--primary" id="loadSubsBtn" onclick="applyVisualOptions(); loadDisplaySubtitles(); closeModals();" style="min-width: 120px;">
+                Apply Settings
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Note Edit Modal -->
+<div id="noteEditModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.2); z-index:1000; justify-content:flex-end; align-items:flex-end; padding: 40px; pointer-events: none;">
+    <div class="modal-content note-edit-card" style="background:rgba(15, 23, 42, 0.95); padding:24px; border-radius:18px; width:380px; max-width:90%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 20px 60px rgba(0,0,0,0.5); pointer-events: auto;">
+        <h3 style="margin-top:0; margin-bottom: 20px; font-size: 20px; display:flex; align-items:center; gap:10px; color:#fff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            Edit Note
+        </h3>
+        <input type="hidden" id="editNoteId">
+        <div style="display:flex; flex-direction:column; gap:18px;">
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label style="font-size: 13px; color: #ccc;">Timestamp:</label>
+                    <input type="number" id="editNoteTime" class="note-input" step="0.1" style="width: 70px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 13px; text-align: center;" oninput="syncEditSliderFromInput()">
+                </div>
+                <input type="range" id="editNoteSlider" style="width:100%; height:4px; accent-color:var(--accent);" oninput="syncEditInputFromSlider()">
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#666; margin-top:-2px;">
+                    <span>0s</span>
+                    <span id="editNoteDurationText">0s</span>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <label style="font-size: 13px; color: #ccc;">Content:</label>
+                <textarea id="editNoteContent" class="note-input" rows="3" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 10px; border-radius: 10px; font-size: 14px; resize: none;"></textarea>
+            </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:25px;">
+            <button class="btn btn--ghost btn--sm" onclick="closeNoteEditModal()">Cancel</button>
+            <button class="btn btn--primary btn--sm" onclick="saveNoteEdit()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Transcript Edit Modal -->
+<div id="transcriptEditModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.2); z-index:1000; justify-content:flex-end; align-items:flex-end; padding: 40px; pointer-events: none;">
+    <div class="modal-content note-edit-card" style="background:rgba(15, 23, 42, 0.95); padding:24px; border-radius:18px; width:380px; max-width:90%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 20px 60px rgba(0,0,0,0.5); pointer-events: auto;">
+        <h3 style="margin-top:0; margin-bottom: 20px; font-size: 20px; display:flex; align-items:center; gap:10px; color:#fff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            Edit Transcript
+        </h3>
+        <input type="hidden" id="editTransLineIndex">
+        <input type="hidden" id="editTransTrackIndex">
+        <input type="hidden" id="editTransLangCode">
+        <div style="display:flex; flex-direction:column; gap:18px;">
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label style="font-size: 13px; color: #ccc;">Start Time:</label>
+                    <input type="number" id="editTransTime" class="note-input" step="0.1" style="width: 70px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 13px; text-align: center;" oninput="syncTransSliderFromInput()">
+                </div>
+                <input type="range" id="editTransSlider" style="width:100%; height:4px; accent-color:var(--accent);" oninput="syncTransInputFromSlider()">
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#666; margin-top:-2px;">
+                    <span>0s</span>
+                    <span id="transDurationText">0s</span>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <label id="editTransLabel" style="font-size: 13px; color: #ccc;">Text:</label>
+                <textarea id="editTransContent" class="note-input" rows="3" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 10px; border-radius: 10px; font-size: 14px; resize: none;"></textarea>
+            </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:25px;">
+            <button class="btn btn--ghost btn--sm" onclick="closeTransEditModal()">Cancel</button>
+            <button class="btn btn--primary btn--sm" onclick="saveTransEdit()">Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function closeModals() {
+        document.getElementById('uploadModal').style.display = 'none';
+        document.getElementById('optionsModal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+    function closeNoteEditModal() {
+        document.getElementById('noteEditModal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+    function closeTransEditModal() {
+        document.getElementById('transcriptEditModal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- YouTube API dynamically injected inside player.js to prevent race conditions -->
+
+<script>
+    // ── Global config passed from server ──
+    const LESSON_ID = {{ lesson.id }};
+    const YOUTUBE_ID = '{{ lesson.video.youtube_id }}';
+    const SAVED_ORIGINAL = '{{ lesson.original_lang_code or "" }}';
+    const SAVED_TARGET = '{{ lesson.target_lang_code or "" }}';
+    const SAVED_THIRD = '{{ lesson.third_lang_code or "" }}';
+    const SAVED_SETTINGS = JSON.parse('{{ lesson.settings_json | safe if lesson.settings_json else "{}" }}');
+</script>
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/transcript.js') }}"></script>
+<script src="{{ url_for('static', filename='js/notes.js') }}"></script>
+{% endblock %}
