@@ -10,3 +10,4 @@ celery==5.4.0
 redis==5.0.1
 webvtt-py==0.5.1
 deep-translator==1.11.4
+pykakasi

@@ -30,6 +30,12 @@ let isShadowingMode = false;
 let lastShadowedIndex = -1;
 let shadowingPauseTimeout = null;
 
+// Tracking State
+let activeStudySeconds = 0;
+let lastSyncTime = Date.now();
+const SYNC_INTERVAL_MS = 30000; // 30 seconds
+
+
 // Activity / AFK Logic
 
 let lastActivityTime = Date.now();
@@ -55,9 +61,21 @@ function onYouTubeIframeAPIReady() {
         document.getElementById('optShadowExtra').value = SHADOW_EXTRA;
         const valLabel = document.getElementById('valShadowExtra');
         if (valLabel) valLabel.textContent = SHADOW_EXTRA + 's';
-    }
-    if (typeof SHADOW_HIDE !== 'undefined' && document.getElementById('toggleShadowHideSubs')) {
-        document.getElementById('toggleShadowHideSubs').checked = SHADOW_HIDE;
+        if (SAVED_SETTINGS.shadowing_hide_subs !== undefined && document.getElementById('toggleShadowHideSubs')) {
+            document.getElementById('toggleShadowHideSubs').checked = SAVED_SETTINGS.shadowing_hide_subs;
+        }
+        if (SAVED_SETTINGS.shadow_accuracy && document.getElementById('optShadowAccuracy')) {
+            document.getElementById('optShadowAccuracy').value = SAVED_SETTINGS.shadow_accuracy;
+            document.getElementById('valShadowAccuracy').textContent = SAVED_SETTINGS.shadow_accuracy + '%';
+        }
+        if (SAVED_SETTINGS.shadow_language && document.getElementById('optShadowLanguage')) {
+            document.getElementById('optShadowLanguage').value = SAVED_SETTINGS.shadow_language;
+        }
+        if (SAVED_SETTINGS.shadow_interactive !== undefined) {
+            syncShadowInteractive(SAVED_SETTINGS.shadow_interactive);
+        }
+        
+        // Show/Hide Toggles
     }
 
     console.log('[PodLearn] UI State restored from saved config');
@@ -207,43 +225,308 @@ function toggleShadowingMode() {
     }
 }
 
+let currentShadowingLine = null;
+let shadowRecognition = null;
+let isMinTimePassed = false;
+let safetyTimeout = null;
+let minTimeTimer = null;
+let finalTranscript = '';
+
+function syncShadowInteractive(checked) {
+    const hudToggle = document.getElementById('toggleShadowInteractive');
+    const modalToggle = document.getElementById('toggleShadowInteractiveModal');
+    
+    if (hudToggle) hudToggle.checked = checked;
+    if (modalToggle) modalToggle.checked = checked;
+    
+    toggleShadowingTypeUI();
+}
+
+function toggleShadowingTypeUI() {
+    const isInteractive = document.getElementById('toggleShadowInteractive')?.checked || false;
+    const micContainer = document.getElementById('shadowMicContainer');
+    if (micContainer) micContainer.style.display = isInteractive ? 'flex' : 'none';
+    
+    // If we were in the middle of a pause, toggle behavior
+    if (isShadowingMode && currentShadowingLine) {
+        if (isInteractive) {
+            if (shadowingPauseTimeout) { clearTimeout(shadowingPauseTimeout); shadowingPauseTimeout = null; }
+            startShadowSpeechRecognition();
+        } else {
+            // Re-trigger pause logic to start timer
+            pauseForShadowing(currentShadowingLine);
+        }
+    }
+}
+
+
 function pauseForShadowing(line) {
     if (!ytPlayer || typeof ytPlayer.pauseVideo !== 'function') return;
     
     ytPlayer.pauseVideo();
+    currentShadowingLine = line;
     
     const hud = document.getElementById('shadowingHUD');
-    if (hud) hud.style.display = 'flex';
+    if (hud) {
+        hud.style.display = 'flex';
+        document.getElementById('shadowSpeechStatus').textContent = 'READY';
+        document.getElementById('shadowSpeechResult').textContent = '';
+        document.getElementById('btn-shadow-mic')?.classList.remove('active');
+    }
 
-    // Duration to pause = (sentence length) + Extra time from settings
-    const sentenceDuration = line.end - line.start;
-    const extraTime = parseFloat(document.getElementById('optShadowExtra')?.value) || 2.0;
-    const pauseTimeMs = Math.max(1000, (sentenceDuration + extraTime) * 1000);
-    
-    // Check if we should hide subtitles during shadowing
+    // Interactive switch
+    const isInteractive = document.getElementById('toggleShadowInteractive')?.checked || false;
+    const micContainer = document.getElementById('shadowMicContainer');
+    if (micContainer) micContainer.style.display = isInteractive ? 'flex' : 'none';
+
+    // Subtitles concealment
     const hideSubs = document.getElementById('toggleShadowHideSubs')?.checked || false;
     if (hideSubs) {
         const subOverlay = document.getElementById('videoSubOverlay');
         if (subOverlay) subOverlay.style.visibility = 'hidden';
     }
 
-    console.log(`[PodLearn] Shadowing Pause: ${pauseTimeMs}ms (extra: ${extraTime}s, hide: ${hideSubs})`);
-    
-    if (shadowingPauseTimeout) clearTimeout(shadowingPauseTimeout);
-    
-    shadowingPauseTimeout = setTimeout(() => {
-        if (isShadowingMode && ytPlayer && typeof ytPlayer.playVideo === 'function') {
-            ytPlayer.playVideo();
-        }
-        if (hud) hud.style.display = 'none';
+    if (isInteractive) {
+        if (shadowingPauseTimeout) { clearTimeout(shadowingPauseTimeout); shadowingPauseTimeout = null; }
+        startShadowSpeechRecognition();
+    } else {
+        const sentenceDuration = line.end - line.start;
+        const extraTime = parseFloat(document.getElementById('optShadowExtra')?.value) || 2.0;
+        const pauseTimeMs = Math.max(1000, (sentenceDuration + extraTime) * 1000);
         
-        // Restore subtitles visibility
-        const subOverlay = document.getElementById('videoSubOverlay');
-        if (subOverlay) subOverlay.style.visibility = 'visible';
-
-        shadowingPauseTimeout = null;
-    }, pauseTimeMs);
+        if (shadowingPauseTimeout) clearTimeout(shadowingPauseTimeout);
+        shadowingPauseTimeout = setTimeout(() => {
+            resumeFromShadowing();
+        }, pauseTimeMs);
+    }
 }
+
+function resumeFromShadowing() {
+    if (isShadowingMode && ytPlayer && typeof ytPlayer.playVideo === 'function') {
+        ytPlayer.playVideo();
+    }
+    const hud = document.getElementById('shadowingHUD');
+    if (hud) hud.style.display = 'none';
+    
+    const subOverlay = document.getElementById('videoSubOverlay');
+    if (subOverlay) subOverlay.style.visibility = 'visible';
+
+    shadowingPauseTimeout = null;
+}
+
+/**
+ * AI Pronunciation Scoring via Web Speech API
+ */
+function startShadowSpeechRecognition() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert("Web Speech API is not supported in this browser. Please use Chrome.");
+        return;
+    }
+
+    if (shadowRecognition) {
+        try { shadowRecognition.abort(); } catch(e) {}
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    shadowRecognition = new SpeechRecognition();
+    
+    // Use the specific shadow language from options if available, else fallback
+    const lang = document.getElementById('optShadowLanguage')?.value || (window.SAVED_ORIGINAL || 'ja');
+    shadowRecognition.lang = lang;
+    shadowRecognition.continuous = true;
+    shadowRecognition.interimResults = false;
+
+    const statusEl = document.getElementById('shadowSpeechStatus');
+    const resultEl = document.getElementById('shadowSpeechResult');
+    const micBtn = document.getElementById('btn-shadow-mic');
+    const submitBtn = document.getElementById('btn-shadow-submit');
+    const originalIcon = micBtn?.innerHTML;
+
+    isMinTimePassed = false;
+    finalTranscript = '';
+
+    shadowRecognition.onstart = () => {
+        statusEl.textContent = 'LISTENING...';
+        statusEl.style.color = 'var(--accent)';
+        micBtn?.classList.remove('processing');
+        micBtn?.classList.add('listening');
+        if (submitBtn) submitBtn.style.display = 'flex';
+
+        // Timer Logic
+        const durationSec = (currentShadowingLine?.end - currentShadowingLine?.start) || 2;
+        
+        // Min Time: Don't allow speechend to stop until duration passes
+        minTimeTimer = setTimeout(() => {
+            isMinTimePassed = true;
+            console.log("[ShadowAI] Min time passed. Speechend will now trigger stop.");
+        }, durationSec * 1000);
+
+        // Max Time: Auto-stop after double duration
+        safetyTimeout = setTimeout(() => {
+            console.log("[ShadowAI] Safety timeout reached.");
+            forceStopRecognition();
+        }, durationSec * 2 * 1000);
+    };
+
+    shadowRecognition.onspeechend = () => {
+        if (isMinTimePassed) {
+            console.log("[ShadowAI] Speechend triggered stop.");
+            shadowRecognition.stop();
+        }
+    };
+
+    shadowRecognition.onerror = (event) => {
+        if (event.error === 'aborted') return;
+        console.error("Speech Recognition Error:", event.error);
+        statusEl.textContent = 'ERROR: ' + event.error;
+        statusEl.style.color = 'var(--danger)';
+        cleanupShadowRecognitionUI(originalIcon);
+    };
+
+    shadowRecognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript + ' ';
+            }
+        }
+        // Optional: show partial results
+        if (resultEl) resultEl.innerHTML = `<span style="color:rgba(255,255,255,0.4)">You said:</span> ${finalTranscript}`;
+    };
+
+    shadowRecognition.onend = () => {
+        cleanupShadowRecognitionUI(originalIcon);
+        
+        if (finalTranscript.trim()) {
+            const originalText = currentShadowingLine?.texts[0] || "";
+            calculatePronunciationScore(originalText, finalTranscript.trim(), lang);
+        }
+        
+        // Final UI restoration
+        if (micBtn) {
+            micBtn.classList.remove('listening');
+            micBtn.innerHTML = originalIcon;
+        }
+    };
+
+    shadowRecognition.start();
+}
+
+function forceStopRecognition() {
+    if (shadowRecognition) {
+        try { shadowRecognition.stop(); } catch(e) {}
+    }
+}
+
+function cancelShadowingMode() {
+    if (shadowRecognition) {
+        try { shadowRecognition.abort(); } catch(e) {}
+    }
+    
+    // UI Cleanup
+    const hud = document.getElementById('shadowingHUD');
+    if (hud) hud.style.display = 'none';
+    
+    const btn = document.getElementById('btn-shadowing');
+    if (btn) btn.classList.remove('btn--accent');
+
+    // Restoration
+    const subOverlay = document.getElementById('videoSubOverlay');
+    if (subOverlay) subOverlay.style.visibility = 'visible';
+
+    // Reset local state but KEEP isShadowingMode true so it pauses on next sentence
+    // Wait, the user said "quay lại chế độ xem thường" which usually means turning OFF the mode toggle.
+    isShadowingMode = false;
+    currentShadowingLine = null;
+
+    if (ytPlayer && ytPlayer.playVideo) {
+        ytPlayer.playVideo();
+    }
+    
+    cleanupShadowRecognitionUI(null);
+}
+
+function cleanupShadowRecognitionUI(originalIcon) {
+    const micBtn = document.getElementById('btn-shadow-mic');
+    const submitBtn = document.getElementById('btn-shadow-submit');
+    
+    micBtn?.classList.remove('listening');
+    if (submitBtn) submitBtn.style.display = 'none';
+    
+    clearTimeout(minTimeTimer);
+    clearTimeout(safetyTimeout);
+}
+
+
+async function calculatePronunciationScore(original, spoken, langCode) {
+    const statusEl = document.getElementById('shadowSpeechStatus');
+    const resultEl = document.getElementById('shadowSpeechResult');
+
+    statusEl.textContent = 'PROCESSING...';
+    statusEl.style.color = 'var(--text-muted)';
+
+    try {
+        const response = await fetch('/api/score-pronunciation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                original_text: original,
+                spoken_text: spoken,
+                lang_code: langCode
+            })
+        });
+
+        const data = await response.json();
+        const score = data.score || 0;
+        const threshold = parseFloat(document.getElementById('optShadowAccuracy')?.value) || 80;
+
+        console.log(`[ShadowAI-Backend] Score: ${score.toFixed(1)}% | Threshold: ${threshold}%`);
+
+        // Get display texts (Use original text for main display as requested)
+        const finalTarget = data.original_text || original;
+        const finalSpoken = spoken;
+
+        if (score >= threshold) {
+            statusEl.textContent = `EXCELLENT (${Math.round(score)}%)`;
+            statusEl.style.color = '#10b981'; // Green
+            resultEl.innerHTML = `<span style="color:rgba(255,255,255,0.5)">You said:</span> ${finalSpoken}`;
+            setTimeout(resumeFromShadowing, 1000);
+        } else {
+            statusEl.textContent = `RETRY (${Math.round(score)}%)`;
+            statusEl.style.color = 'var(--danger)';
+            
+            let hiraGuide = "";
+            // Special guide only if it's Japanese and we have conversion
+            if (langCode === 'ja' && data.original_hira) {
+                hiraGuide = `<div style="margin-top:12px; font-size:12px; color:var(--accent); font-family: 'Inter', sans-serif; letter-spacing: 0.5px; line-height: 1.5;">
+                                <span style="color:rgba(255,255,255,0.4); text-transform: uppercase; font-size:10px; font-weight:700;">Pronunciation Guide:</span><br>
+                                <span style="background: rgba(108, 92, 231, 0.1); padding: 2px 6px; border-radius: 4px;">${data.original_hira}</span>
+                             </div>`;
+            }
+
+            resultEl.innerHTML = `
+                <div style="margin-bottom:8px; line-height: 1.4;">
+                    <span style="color:rgba(255,255,255,0.5)">You said:</span> <span style="color:var(--danger)">${finalSpoken || "..."}</span>
+                </div>
+                <div style="line-height: 1.4;">
+                    <span style="color:rgba(255,255,255,0.5)">Target:</span> ${finalTarget}
+                </div>
+                ${hiraGuide}
+            `;
+        }
+
+
+    } catch (err) {
+        console.error("[ShadowAI] Analysis failed:", err);
+        statusEl.textContent = "AI ANALYSIS FAILED";
+        statusEl.style.color = 'var(--danger)';
+    }
+}
+
+
+
 
 
 
@@ -716,6 +999,9 @@ async function saveLessonSettings() {
         
         shadowing_extra_time: document.getElementById('optShadowExtra')?.value || 2.0,
         shadowing_hide_subs: document.getElementById('toggleShadowHideSubs')?.checked || false,
+        shadowing_accuracy: document.getElementById('optShadowAccuracy')?.value || 80,
+        shadow_interactive: document.getElementById('toggleShadowInteractive')?.checked || false,
+        shadow_language: document.getElementById('optShadowLanguage')?.value || 'ja',
         
         show_sub: document.getElementById('toggleScriptOverlay')?.checked ?? true,
         show_note: document.getElementById('toggleNoteOverlay')?.checked ?? true,
@@ -954,5 +1240,13 @@ function updateCompletionUI() {
         btn.classList.add('btn--ghost');
     }
 }
+
+/**
+ * Utility to get CSRF token from meta tags (Flask-WTF compatible)
+ */
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
+
 
 

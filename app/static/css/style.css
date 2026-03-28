@@ -1457,7 +1457,9 @@ input:checked + .switch-slider:before {
 
 
 .shadowing-hud__content {
+    position: relative;
     background: rgba(15, 23, 42, 0.95);
+
     padding: 30px 45px;
     border-radius: 24px;
     border: 2px solid var(--accent);
@@ -1468,9 +1470,68 @@ input:checked + .switch-slider:before {
     flex-direction: column;
     align-items: center;
     gap: 12px;
+    pointer-events: auto; /* Enable interaction for buttons/checkboxes */
 }
 
+
+/* Mic Button */
+.mic-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(108, 92, 231, 0.2);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    outline: none;
+}
+
+.mic-btn:hover {
+    background: rgba(108, 92, 231, 0.3);
+    transform: scale(1.05);
+}
+
+.mic-btn.listening {
+    color: #ef4444; /* High contrast red */
+    border-color: #ef4444;
+    animation: pulseMicBtn 1.5s infinite;
+}
+
+.mic-btn.processing {
+    pointer-events: none;
+    opacity: 0.8;
+    background: rgba(255,255,255,0.05);
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 1.2rem;
+    height: 1.2rem;
+    vertical-align: text-bottom;
+    border: 0.2em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulseMicBtn {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+
+
 .shadowing-hud__content svg {
+
     color: var(--accent);
     margin-bottom: 5px;
     animation: pulseMic 1.5s infinite ease-in-out;
@@ -1546,3 +1607,85 @@ input:checked + .switch-slider:before {
 }
 
 
+.shadow-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.hud-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 50px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.05);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(8px);
+}
+
+.hud-btn:hover {
+    background: rgba(255,255,255,0.12);
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.25);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.hud-btn--submit {
+    background: rgba(16, 185, 129, 0.15); /* Emerald-15% */
+    border-color: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+.hud-btn--submit:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: #10b981;
+    color: #fff;
+}
+
+.hud-btn--cancel {
+    background: rgba(239, 68, 68, 0.15); /* Rose-15% */
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+.hud-btn--cancel:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+    color: #fff;
+}
+.hud-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 10;
+}
+
+.hud-close-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    transform: rotate(90deg);
+}
+
+.shadow-controls-vertical {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}

@@ -46,10 +46,12 @@ function renderTranscript(tracksDataArray) {
         line.texts.forEach((text, idx) => {
             if (text) {
                 const className = idx === 0 ? 'tline__original' : `tline__translated tline__translated--${idx}`;
-                const hiddenStyle = (typeof isDictationMode !== 'undefined' && isDictationMode && idx > 0) ? 'style="display: none;"' : '';
+                // Thêm logic ép ẩn display: none !important
+                const hiddenStyle = (typeof isDictationMode !== 'undefined' && isDictationMode && idx > 0) ? 'style="display: none !important;"' : '';
                 textsHtml += `<div class="${className}" ${hiddenStyle} title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
             }
         });
+
 
 
         html += `
@@ -451,10 +453,12 @@ function renderTranscriptFromState() {
         line.texts.forEach((text, idx) => {
             if (text) {
                 const className = idx === 0 ? 'tline__original' : `tline__translated tline__translated--${idx}`;
-                const hiddenStyle = (typeof isDictationMode !== 'undefined' && isDictationMode && idx > 0) ? 'style="display: none;"' : '';
+                // Thêm logic ép ẩn display: none !important
+                const hiddenStyle = (typeof isDictationMode !== 'undefined' && isDictationMode && idx > 0) ? 'style="display: none !important;"' : '';
                 textsHtml += `<div class="${className}" ${hiddenStyle} title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
             }
         });
+
 
         const activeClass = (i === currentActiveIndex) ? 'tline--active' : '';
         html += `
@@ -709,8 +713,11 @@ function enableDictationMode() {
     updateDictationProgress();
 
     // Hard hide all translations in sidebar
-    document.querySelectorAll('.tline__translated').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.tline__translated').forEach(el => {
+        el.style.setProperty('display', 'none', 'important');
+    });
 }
+
 
 
 
@@ -734,8 +741,11 @@ function disableDictationMode() {
     });
 
     // Restore all translations in sidebar
-    document.querySelectorAll('.tline__translated').forEach(el => el.style.display = '');
+    document.querySelectorAll('.tline__translated').forEach(el => {
+        el.style.removeProperty('display');
+    });
 }
+
 
 
 

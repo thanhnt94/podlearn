@@ -4,13 +4,17 @@ import os
 import tempfile
 import webvtt
 import re
+import difflib
 from datetime import datetime, timezone, date, timedelta
+
 from werkzeug.utils import secure_filename
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
 from deep_translator import GoogleTranslator
+import pykakasi
+
 from ..extensions import db
 from ..models.user import User
 from ..models.lesson import Lesson
@@ -20,6 +24,102 @@ from ..models.subtitle import SubtitleTrack
 from ..services.subtitle_service import get_subtitle_track, get_lines_as_dicts
 
 api_bp = Blueprint('api', __name__)
+
+kks = pykakasi.kakasi()
+
+def clean_jp_text(text):
+    # Xóa toàn bộ khoảng trắng, tab, xuống dòng và các dấu câu phổ biến
+    return re.sub(r'[ \s\t\n.,!?。、！？「」『』（）()\[\]\-]', '', text)
+
+def get_japanese_segments(text):
+    # Step 1: Remove punctuation but KEEP English/Numbers
+    text = re.sub(r'[\s.,!?。、！？！]', ' ', text)
+    result = kks.convert(text)
+    
+    hira_only = []
+    all_segments = []
+    
+    for item in result:
+        h = item['hira'].strip()
+        o = item['orig'].strip()
+        if not o: continue
+        
+        # If the origin has English/Numbers, treat as English segment
+        if re.search(r'[a-zA-Z0-9]', o):
+            all_segments.append(o)
+        else:
+            # It's Japanese (Kanji/Kana)
+            all_segments.append(h)
+            hira_only.append(h)
+    
+    return hira_only, all_segments
+
+
+@api_bp.route('/score-pronunciation', methods=['POST'])
+@login_required
+def score_pronunciation():
+    data = request.get_json() or {}
+    original = data.get('original_text', '')
+    spoken = data.get('spoken_text', '')
+    lang = data.get('lang_code', 'en')
+    
+    if lang == 'ja':
+        # Chỉ giữ lại tiếng Nhật (Hiragana, Katakana, Kanji)
+        # Các từ tiếng Anh/Dấu câu sẽ bị loại bỏ khỏi cả 2 chuỗi để không tính vào tỷ lệ lệ
+        def clean_jp_only(text):
+            return re.sub(r'[^\u3040-\u30FF\u4E00-\u9FFF]', '', text)
+
+        orig_clean = clean_jp_only(original)
+        spoken_clean = clean_jp_only(spoken)
+
+        # Nếu câu gốc toàn tiếng Anh (sau khi clean bị rỗng) -> Auto Pass
+        if len(orig_clean) == 0:
+            return jsonify({"score": 100, "original_text": original})
+
+        # HỆ THỐNG 1: Đếm số ký tự khớp trực tiếp (Raw Match)
+        raw_matcher = difflib.SequenceMatcher(None, orig_clean, spoken_clean)
+        # Chỉ đếm số ký tự TRÚNG, không quan tâm spoken_clean bị dài bao nhiêu (không phạt chữ thừa)
+        raw_matches = sum(block.size for block in raw_matcher.get_matching_blocks())
+        raw_score = raw_matches / len(orig_clean) 
+
+        # HỆ THỐNG 2: Đếm số ký tự khớp bằng Hiragana (Cứu cánh cho Kanji)
+        orig_hira = "".join([item['hira'] for item in kks.convert(orig_clean)])
+        spoken_hira = "".join([item['hira'] for item in kks.convert(spoken_clean)])
+
+        hira_matcher = difflib.SequenceMatcher(None, orig_hira, spoken_hira)
+        hira_matches = sum(block.size for block in hira_matcher.get_matching_blocks())
+        hira_score = hira_matches / len(orig_hira) if len(orig_hira) > 0 else 1.0
+
+        # CHỐT ĐIỂM: Lấy hệ thống nào điểm cao hơn, tối đa là 100%
+        final_score = min(100, int(max(raw_score, hira_score) * 100))
+
+        # DEBUG logging for server console
+        print(f"\n[DEBUG-ShadowAI] Gốc (Clean): '{orig_clean}' (Len: {len(orig_clean)})")
+        print(f"[DEBUG-ShadowAI] Đọc (Clean): '{spoken_clean}'")
+        print(f"[DEBUG-ShadowAI] => ĐIỂM: {final_score}% (Không phạt chữ thừa)\n")
+
+        # For visual guides in UI
+        _, orig_full = get_japanese_segments(original)
+        _, spoken_full = get_japanese_segments(spoken)
+
+        return jsonify({
+            "score": final_score,
+            "original_text": original,
+            "original_hira": " ".join(orig_full),
+            "spoken_hira": " ".join(spoken_full),
+            "debug": {"raw_score": int(raw_score*100), "hira_score": int(hira_score*100)}
+        })
+    else:
+        # Simple word-based match fallback for other languages
+        orig_words = re.findall(r'\w+', original.lower())
+        spoken_words = re.findall(r'\w+', spoken.lower())
+        if not orig_words: return jsonify({'score': 100})
+        
+        match_count = sum(1 for w in spoken_words if w in orig_words)
+        score = (match_count / len(orig_words)) * 100
+        return jsonify({'score': min(100, int(score))})
+
+
 
 @api_bp.route('/translate', methods=['POST'])
 @login_required
