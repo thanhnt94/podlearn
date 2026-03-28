@@ -15,6 +15,12 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # Gamification
+    current_streak = db.Column(db.Integer, default=0)
+    longest_streak = db.Column(db.Integer, default=0)
+    last_study_date = db.Column(db.Date)
+
+
 
     # Relationships
     lessons = db.relationship('Lesson', back_populates='user', lazy='dynamic',

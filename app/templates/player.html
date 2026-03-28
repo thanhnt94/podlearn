@@ -86,8 +86,10 @@
                 <button class="btn btn--ghost btn--sm" onclick="openUploadModal()" title="Upload Custom Subtitle" style="padding:4px; margin-right:15px; opacity:0.7;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                 </button>
-                <div id="transcriptStatus" style="flex: 1; text-align: left;">No subtitles loaded</div>
+                <div id="transcriptStatus" style="flex: 1; text-align: left; font-size: 10px;">Ready</div>
+                <button class="btn btn--accent btn--sm" id="loadSubsBtn" onclick="loadDisplaySubtitles()" style="margin-left: 10px; padding: 4px 10px;">Show</button>
             </div>
+
         </div>
 
         <!-- NOTES TAB CONTENT -->
@@ -305,7 +307,7 @@
                         </label>
                     </div>
                     
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom: 20px;">
                         <div style="display:flex; flex-direction:column; gap:8px;">
                             <label style="font-size:12px; color:var(--text-secondary);">Theme:</label>
                             <select id="optNoteColor" class="lang-select" onchange="applyVisualOptions()">
@@ -321,10 +323,25 @@
                                 <option value="top-left">Top Left</option>
                                 <option value="bottom-right">Bottom Right</option>
                                 <option value="bottom-left">Bottom Left</option>
+                                <option value="right-center">Right Center</option>
+                                <option value="left-center">Left Center</option>
                                 <option value="center">Center</option>
                             </select>
                         </div>
                     </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <label style="font-size:12px; color:var(--text-secondary);">Seconds Before:</label>
+                            <input type="number" id="optNoteBefore" class="lang-select" step="0.5" min="0" value="2.0" style="padding: 8px 12px;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <label style="font-size:12px; color:var(--text-secondary);">Total Duration:</label>
+                            <input type="number" id="optNoteDuration" class="lang-select" step="0.5" min="1" value="4.0" style="padding: 8px 12px;">
+                        </div>
+                    </div>
+
+
                 </div>
             </div>
         </div>
@@ -332,10 +349,11 @@
         <!-- Persistent Modal Footer -->
         <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:12px; margin-top:25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
             <button class="btn btn--ghost" onclick="closeModals()">Discard</button>
-            <button class="btn btn--primary" id="loadSubsBtn" onclick="applyVisualOptions(); saveLessonSettings(); loadDisplaySubtitles(); closeModals();" style="min-width: 120px;">
+            <button class="btn btn--primary" id="applySettingsBtn" onclick="applyVisualOptions(); saveLessonSettings(); loadDisplaySubtitles(); closeModals();" style="min-width: 120px;">
                 Apply Settings
             </button>
         </div>
+
     </div>
 </div>
 
@@ -422,6 +440,7 @@
     }
 </script>
 
+
 <!-- Dictionary Tooltip -->
 <div id="dictTooltip" class="dict-tooltip">
     <div id="dictContent"></div>
@@ -440,9 +459,14 @@
     var SAVED_ORIGINAL = '{{ lesson.original_lang_code or "" }}';
     var SAVED_TARGET = '{{ lesson.target_lang_code or "" }}';
     var SAVED_THIRD = '{{ lesson.third_lang_code or "" }}';
-    var SAVED_SETTINGS = JSON.parse('{{ lesson.settings_json | safe or "{}" }}');
-    var IS_COMPLETED = '{{ lesson.is_completed }}';
-    var INITIAL_STUDY_TIME = {{ lesson.time_spent or 0 }};
+    var SAVED_SETTINGS = {{ lesson.settings_json | safe if lesson.settings_json else "{}" }};
+    var IS_COMPLETED = ( '{{ lesson.is_completed }}' === 'True' );
+
+    var NOTE_BEFORE = Number('{{ lesson.note_appear_before if lesson.note_appear_before is not none else 2.0 }}');
+    var NOTE_DURATION = Number('{{ lesson.note_duration if lesson.note_duration is not none else 4.0 }}');
+    var INITIAL_STUDY_TIME = {{ lesson.time_spent if lesson.time_spent is not none else 0 }};
+
+
 </script>
 <script src="{{ url_for('static', filename='js/player.js') }}"></script>
 <script src="{{ url_for('static', filename='js/transcript.js') }}"></script>

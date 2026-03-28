@@ -100,13 +100,16 @@ function buildMergedLines(tracksArray) {
 
             let bestMatch = '';
             // Find text that overlaps with our base line time-window
+            // Use a slight tolerance (1.5s) in case sub tracks are slightly misaligned
             for (const t of track) {
-                if (t.start < o.end && t.end > o.start) {
+                const overlap = Math.min(o.end, t.end) - Math.max(o.start, t.start);
+                if (overlap > 0 || (t.start >= o.start - 1.5 && t.start <= o.start + 1.5)) {
                     bestMatch = t.text;
                     break; 
                 }
             }
             texts[i] = bestMatch;
+
         }
 
         merged.push({
@@ -339,7 +342,11 @@ async function saveTransEdit() {
         // 1. Save Text
         const resText = await fetch(`/api/lesson/${LESSON_ID}/transcript/edit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+
             body: JSON.stringify({
                 language_code: langCode,
                 line_index: lineIndex, 
@@ -352,7 +359,11 @@ async function saveTransEdit() {
         // 2. Save Time
         const resTime = await fetch(`/api/lesson/${LESSON_ID}/transcript/time-edit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+
             body: JSON.stringify({
                 line_index: lineIndex, 
                 new_start: newTime
@@ -436,18 +447,32 @@ async function onTextSelected(event) {
     content.innerHTML = `<div class="dict-loading">Translating "${selection.substring(0, 15)}..."</div>`;
 
     try {
-        // Use Google Translate API (un-documented but works for free client-side fetches)
+        // Use Backend Proxy API to avoid CORS/IP blocks
         const targetLang = document.getElementById('optLookupTarget')?.value || 'vi';
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(selection)}`;
-        const res = await fetch(url);
+        
+        const res = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+
+            body: JSON.stringify({
+                text: selection,
+                target_lang: targetLang,
+                source_lang: 'auto'
+            })
+        });
+        
         const data = await res.json();
 
-        if (!res.ok || !data[0]) {
-            content.innerHTML = `<div class="dict-error">Translation failed.</div>`;
+        if (!res.ok || !data.translated) {
+            content.innerHTML = `<div class="dict-error">Translation failed: ${data.error || 'Server error'}</div>`;
             return;
         }
 
-        const translation = data[0].map(x => x[0]).join('');
+        const translation = data.translated;
+
         const sourceLang = data[2];
 
         content.innerHTML = `

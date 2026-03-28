@@ -46,10 +46,14 @@ function checkNotePopup(currentTime) {
         return;
     }
 
-    // REQUIREMENT: Show notes 2s BEFORE and hide 3s AFTER (total 5s)
+    // REQUIREMENT: Show notes X seconds BEFORE and stay for Y seconds total
+    const beforeSecs = (typeof NOTE_BEFORE !== 'undefined') ? NOTE_BEFORE : 2.0;
+    const totalSecs = (typeof NOTE_DURATION !== 'undefined') ? NOTE_DURATION : 5.0;
+
     const activeNotes = notesList
-        .filter(n => currentTime >= n.timestamp - 2.0 && currentTime <= n.timestamp + 3.0)
+        .filter(n => currentTime >= n.timestamp - beforeSecs && currentTime <= n.timestamp - beforeSecs + totalSecs)
         .sort((a, b) => a.timestamp - b.timestamp);
+
 
     if (activeNotes.length === 0) {
         if (activeNoteDisplayedId !== null) {
@@ -68,12 +72,49 @@ function checkNotePopup(currentTime) {
     activeNoteDisplayedId = currentStackIds;
     popup.innerHTML = '';
     
+    // Reset container styles to let items shine
+    popup.style.padding = '0';
+    popup.style.background = 'transparent';
+    popup.style.border = 'none';
+    popup.style.backdropFilter = 'none';
+    popup.style.boxShadow = 'none';
+
     activeNotes.forEach(note => {
         const item = document.createElement('div');
         item.className = 'video-note-item';
-        item.textContent = note.content;
+        
+        // Premium Divided Look: Yellow Icon Side | Text Side
+        item.style.display = 'flex';
+        item.style.alignItems = 'stretch';
+        item.style.background = 'rgba(15, 23, 42, 0.95)';
+        item.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+        item.style.borderRadius = '12px';
+        item.style.overflow = 'hidden';
+        item.style.marginBottom = '10px';
+        item.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+        item.style.minWidth = '260px';
+        item.style.maxWidth = '420px';
+        item.style.animation = 'noteFadeIn 0.3s ease';
+
+        const iconCol = `
+            <div style="background: #FFD700; width: 48px; display:flex; justify-content:center; align-items:center; flex-shrink:0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a1c2c" stroke-width="2.5">
+                    <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"></path>
+                </svg>
+            </div>
+        `;
+        
+        const contentCol = `
+            <div style="padding: 14px 18px; flex: 1; color: #fff; font-size: 14px; font-weight: 500; line-height: 1.5; text-align: left;">
+                ${note.content}
+            </div>
+        `;
+        
+        item.innerHTML = iconCol + contentCol;
         popup.appendChild(item);
     });
+
+
 
     popup.style.display = 'flex';
     popup.style.flexDirection = 'column';
@@ -109,7 +150,10 @@ async function saveNote() {
         
         const res = await fetch(`/api/lesson/${LESSON_ID}/notes`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
             body: JSON.stringify({
                 timestamp: timestamp,
                 content: content
@@ -145,8 +189,10 @@ async function deleteNote(noteId, event) {
 
     try {
         const res = await fetch(`/api/notes/${noteId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': getCsrfToken() }
         });
+
 
         if (!res.ok) throw new Error('Failed to delete note');
         
@@ -296,12 +342,16 @@ async function saveNoteEdit() {
     try {
         const res = await fetch(`/api/notes/${noteId}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
             body: JSON.stringify({ 
                 content: newContent,
                 timestamp: newTime
             })
         });
+
         if (!res.ok) throw new Error('Update failed');
         
         note.content = newContent;

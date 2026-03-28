@@ -6,9 +6,13 @@ from flask_login import LoginManager
 
 from celery import Celery, Task
 
+from flask_wtf.csrf import CSRFProtect
+
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
+csrf = CSRFProtect()
+
 
 # Redirect unauthenticated users to the login page
 login_manager.login_view = 'auth.login'

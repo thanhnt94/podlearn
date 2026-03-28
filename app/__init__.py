@@ -5,7 +5,7 @@ from flask import Flask
 from dotenv import load_dotenv
 
 from .config import config_by_name
-from .extensions import db, migrate, login_manager
+from .extensions import db, migrate, login_manager, csrf
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -21,7 +21,9 @@ def create_app(config_name: str | None = None) -> Flask:
     # ── Initialise extensions ──────────────────────────────────
     db.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
     login_manager.init_app(app)
+
     
     from .extensions import celery_init_app
     celery_init_app(app)

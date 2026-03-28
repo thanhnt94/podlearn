@@ -185,7 +185,10 @@ async function loadAvailableLanguages() {
 
     // Fetch Database available list
     try {
-        const res = await fetch(`/api/subtitles/available/${LESSON_ID}`);
+        const res = await fetch(`/api/subtitles/available/${LESSON_ID}`, {
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+
         const data = await res.json();
         
         const buildDisplayOptions = (placeholder) => {
@@ -256,8 +259,10 @@ async function uploadSubtitle() {
 
         const res = await fetch(`/api/subtitles/upload/${LESSON_ID}`, {
             method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
             body: formData
         });
+
 
         const data = await res.json();
 
@@ -311,9 +316,12 @@ async function loadDisplaySubtitles() {
         return;
     }
 
-    btn.disabled = true;
-    btn.textContent = 'Loading...';
-    status.textContent = 'Fetching subtitles...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+    }
+    if (status) status.textContent = 'Fetching subtitles...';
+
 
     const selectedLangs = [sub1, sub2, sub3].filter(Boolean);
     const tracksData = [];
@@ -322,9 +330,13 @@ async function loadDisplaySubtitles() {
         for (const lang of selectedLangs) {
             const res = await fetch(`/api/subtitles/fetch/${LESSON_ID}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
                 body: JSON.stringify({ language_code: lang }),
             });
+
             const data = await res.json();
             
             if (res.ok) {
@@ -349,9 +361,13 @@ async function loadDisplaySubtitles() {
         console.error('[PodLearn] Display load error:', err);
         status.textContent = 'Error: ' + err.message;
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Show';
+        const loadBtn = document.getElementById('loadSubsBtn');
+        if (loadBtn) {
+            loadBtn.disabled = false;
+            loadBtn.textContent = 'Show';
+        }
     }
+
 }
 
 // ── Initialization Override ───────────────────────────────────
@@ -377,7 +393,16 @@ function initFromSaved() {
         if (SAVED_SETTINGS.note_theme && document.getElementById('optNoteColor')) document.getElementById('optNoteColor').value = SAVED_SETTINGS.note_theme;
         if (SAVED_SETTINGS.note_pos && document.getElementById('optNotePos')) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
         
+        // Timing settings (from global vars initialized by server)
+        if (typeof NOTE_BEFORE !== 'undefined' && document.getElementById('optNoteBefore')) {
+            document.getElementById('optNoteBefore').value = NOTE_BEFORE;
+        }
+        if (typeof NOTE_DURATION !== 'undefined' && document.getElementById('optNoteDuration')) {
+            document.getElementById('optNoteDuration').value = NOTE_DURATION;
+        }
+
         // Lookup
+
         if (SAVED_SETTINGS.lookup_target && document.getElementById('optLookupTarget')) document.getElementById('optLookupTarget').value = SAVED_SETTINGS.lookup_target;
 
         // Toggles
@@ -522,7 +547,20 @@ function applyVisualOptions() {
         } else if (notePos === 'bottom-left') {
             noteOverlay.style.bottom = '60px'; // clear youtube controls
             noteOverlay.style.left = '20px';
+        } else if (notePos === 'right-center') {
+            noteOverlay.style.top = '50%';
+            noteOverlay.style.right = '20px';
+            noteOverlay.style.transform = 'translateY(-50%)';
+        } else if (notePos === 'left-center') {
+            noteOverlay.style.top = '50%';
+            noteOverlay.style.left = '20px';
+            noteOverlay.style.transform = 'translateY(-50%)';
+        } else if (notePos === 'center') {
+            noteOverlay.style.top = '50%';
+            noteOverlay.style.left = '50%';
+            noteOverlay.style.transform = 'translate(-50%, -50%)';
         }
+
 
         // Apply theme palettes
         const items = noteOverlay.querySelectorAll('.video-note-item');
@@ -585,19 +623,30 @@ async function saveLessonSettings() {
         const sub2 = document.getElementById('displaySub2')?.value;
         const sub3 = document.getElementById('displaySub3')?.value;
 
+        const noteBefore = parseFloat(document.getElementById('optNoteBefore')?.value || 2.0);
+        const noteDuration = parseFloat(document.getElementById('optNoteDuration')?.value || 5.0);
+
         await fetch(`/api/lesson/${LESSON_ID}/set-languages`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
             body: JSON.stringify({
                 original_lang_code: sub1 || SAVED_ORIGINAL,
                 target_lang_code: sub2 || SAVED_TARGET || '',
                 third_lang_code: sub3 || SAVED_THIRD || '',
+                note_appear_before: noteBefore,
+                note_duration: noteDuration,
                 settings: visualSettings
             })
         });
-        
+
         // Update global state immediately
+        window.NOTE_BEFORE = noteBefore;
+        window.NOTE_DURATION = noteDuration;
         Object.assign(SAVED_SETTINGS, visualSettings);
+
         if (sub1) window.SAVED_ORIGINAL = sub1;
         if (sub2) window.SAVED_TARGET = sub2;
         if (sub3) window.SAVED_THIRD = sub3;
@@ -749,7 +798,11 @@ async function syncTimeTrack() {
     try {
         await fetch(`/api/lesson/${LESSON_ID}/track-time`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+
             body: JSON.stringify({ seconds_added: secondsToSend })
         });
     } catch (err) {
@@ -761,7 +814,11 @@ async function syncTimeTrack() {
 
 async function toggleLessonCompletion() {
     try {
-        const res = await fetch(`/api/lesson/${LESSON_ID}/toggle-complete`, { method: 'POST' });
+        const res = await fetch(`/api/lesson/${LESSON_ID}/toggle-complete`, { 
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+
         const data = await res.json();
         if (res.ok) {
             isMarkedCompleted = data.is_completed;

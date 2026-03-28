@@ -902,9 +902,10 @@ input, button, textarea, select {
 }
 
 @keyframes noteFadeIn {
-    from { opacity: 0; transform: translate(-50%, 8px); }
-    to   { opacity: 1; transform: translate(-50%, 0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
+
 
 
 /* ── Transcript Header ──────────────────────────────────────── */
@@ -1174,7 +1175,8 @@ input:checked + .switch-slider:before {
     border-radius: 12px;
     backdrop-filter: blur(8px);
     display: none;
-    transition: all 0.3s ease;
+    transition: none;
+
     line-height: 1.4;
     cursor: default;
     pointer-events: none;

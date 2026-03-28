@@ -20,6 +20,11 @@ class Lesson(db.Model):
     is_completed = db.Column(db.Boolean, default=False)
     time_spent = db.Column(db.Integer, default=0) # Total seconds spent studying this lesson
 
+    # Visual Options for Notes
+    note_appear_before = db.Column(db.Float, default=2.0) # Seconds before timestamp
+    note_duration = db.Column(db.Float, default=5.0)      # Total display duration
+
+
     
     # Store UI settings as JSON string: {"sub_size": "24px", "sub_color": "#fff", "sub_pos": "bottom", ...}
     settings_json = db.Column(db.Text, default='{}')

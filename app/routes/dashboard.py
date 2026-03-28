@@ -64,6 +64,8 @@ def index():
 
     return render_template('dashboard.html', 
                            lessons=lessons,
+                           current_streak=current_user.current_streak,
+                           longest_streak=current_user.longest_streak,
                            total_time_formatted=total_time_formatted,
                            completed_count=completed_count,
                            total_notes=total_notes,
