@@ -22,13 +22,19 @@
                 | &nbsp;&nbsp; {{ lesson.video.title }}
             </h2>
             
-            <!-- A-B Repeat Controls -->
+            <!-- A-B Repeat & Shadowing Controls -->
             <div class="ab-controls" style="display: flex; gap: 8px; margin-left: auto; align-items: center;">
+                <button id="btn-shadowing" class="btn btn--ghost btn--sm" onclick="toggleShadowingMode()" title="Shadowing Mode: Auto-pause after each sentence" style="padding: 4px 10px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                    <span>Shadowing</span>
+                </button>
+                <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
                 <div id="ab-status" style="font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; display: none;">Looping A-B</div>
                 <button id="btn-set-a" class="btn btn--ghost btn--sm" onclick="setABLoop('A')" title="Set Start (Shortcut: [ )" style="padding: 4px 10px; min-width: 60px;">Set A</button>
                 <button id="btn-set-b" class="btn btn--ghost btn--sm" onclick="setABLoop('B')" title="Set End (Shortcut: ] )" style="padding: 4px 10px; min-width: 60px;">Set B</button>
                 <button id="btn-clear-ab" class="btn btn--ghost btn--sm" onclick="clearABLoop()" title="Clear Loop (Shortcut: \ )" style="display:none; color: var(--danger);">✕</button>
             </div>
+
 
             <!-- Real-time Study Timer -->
             <div id="study-timer" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; margin-left: auto;">

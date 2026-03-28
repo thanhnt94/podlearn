@@ -25,12 +25,13 @@ let abLoopA = null;
 let abLoopB = null;
 let isMarkedCompleted = false; // Initialized from server later
 
-// Tracking Logic
-let activeStudySeconds = 0;
-let lastSyncTime = Date.now();
-const SYNC_INTERVAL_MS = 30000; // Sync every 30s
+// Shadowing Mode State
+let isShadowingMode = false;
+let lastShadowedIndex = -1;
+let shadowingPauseTimeout = null;
 
 // Activity / AFK Logic
+
 let lastActivityTime = Date.now();
 let totalSessionSeconds = (typeof INITIAL_STUDY_TIME !== 'undefined') ? INITIAL_STUDY_TIME : 0;
 const IDLE_THRESHOLD_MS = 60000; // 60 seconds
@@ -138,6 +139,21 @@ function onTimeUpdate(currentTime) {
         checkNotePopup(currentTime);
     }
 
+    // ── Shadowing Mode Logic ─────────────────────────────────
+    if (isShadowingMode && typeof mergedLines !== 'undefined' && mergedLines.length > 0) {
+        // Find if we are currently at the end of a line
+        const idx = mergedLines.findIndex(l => currentTime >= l.start && currentTime <= l.end);
+        
+        if (idx !== -1 && idx !== lastShadowedIndex) {
+            const line = mergedLines[idx];
+            // If we are within 0.2s of the end of this line, trigger pause
+            if (currentTime >= line.end - 0.2) {
+                lastShadowedIndex = idx;
+                pauseForShadowing(line);
+            }
+        }
+    }
+
     // ── A-B Repeat Logic ─────────────────────────────────────
     if (abLoopA !== null && abLoopB !== null) {
         if (currentTime >= abLoopB) {
@@ -145,6 +161,53 @@ function onTimeUpdate(currentTime) {
         }
     }
 }
+
+function toggleShadowingMode() {
+    isShadowingMode = !isShadowingMode;
+    const btn = document.getElementById('btn-shadowing');
+    if (btn) {
+        if (isShadowingMode) {
+            btn.classList.add('btn--accent');
+            btn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                <span>Shadowing: ON</span>
+            `;
+            lastShadowedIndex = -1; // Reset to catch current line if needed
+        } else {
+            btn.classList.remove('btn--accent');
+            btn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                <span>Shadowing</span>
+            `;
+            if (shadowingPauseTimeout) {
+                clearTimeout(shadowingPauseTimeout);
+                shadowingPauseTimeout = null;
+            }
+        }
+    }
+}
+
+function pauseForShadowing(line) {
+    if (!ytPlayer || typeof ytPlayer.pauseVideo !== 'function') return;
+    
+    ytPlayer.pauseVideo();
+    
+    // Duration to pause = (sentence length) + 2 seconds, minimum 2s
+    const sentenceDuration = line.end - line.start;
+    const pauseTimeMs = Math.max(2000, (sentenceDuration + 2) * 1000);
+    
+    console.log(`[PodLearn] Shadowing Pause: ${pauseTimeMs}ms for line ending at ${line.end}s`);
+    
+    if (shadowingPauseTimeout) clearTimeout(shadowingPauseTimeout);
+    
+    shadowingPauseTimeout = setTimeout(() => {
+        if (isShadowingMode && ytPlayer && typeof ytPlayer.playVideo === 'function') {
+            ytPlayer.playVideo();
+        }
+        shadowingPauseTimeout = null;
+    }, pauseTimeMs);
+}
+
 
 // ── Seek ─────────────────────────────────────────────────────
 function seekTo(seconds) {
