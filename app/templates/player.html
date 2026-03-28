@@ -30,8 +30,15 @@
                 <button id="btn-clear-ab" class="btn btn--ghost btn--sm" onclick="clearABLoop()" title="Clear Loop (Shortcut: \ )" style="display:none; color: var(--danger);">✕</button>
             </div>
 
+            <!-- Real-time Study Timer -->
+            <div id="study-timer" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; margin-left: auto;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span id="study-timer-clock">00:00</span>
+            </div>
+
             <!-- NEW: Options inside Player Topbar -->
             <button class="btn btn--ghost btn--sm" onclick="openOptionsModal()" style="margin-left: 10px;">
+
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 Options
             </button>
@@ -44,7 +51,8 @@
             </div>
             
             <!-- NEW: Video Overlay for Script -->
-            <div class="video-sub-overlay" id="videoSubOverlay" style="display: none;">
+            <div class="video-sub-overlay" id="videoSubOverlay" style="visibility: hidden;">
+
             </div>
 
             <!-- Video Overlay for active note -->
@@ -105,10 +113,15 @@
                 <div class="notes-list" id="notesList" style="flex: 1; overflow-y: auto;">
                     <div class="notes-empty" id="notesEmpty">No notes yet. Click the + button to add one.</div>
                 </div>
+                <button class="btn btn--ghost btn--sm" id="btn-toggle-complete" onclick="toggleLessonCompletion()" title="Mark this lesson as finished">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle></svg>
+                    <span>Mark Complete</span>
+                </button>
             </div>
         </div>
     </div>
 </div>
+
 
 <!-- Upload Modal -->
 <div id="uploadModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
@@ -154,196 +167,178 @@
         
         <div style="max-height: 60vh; overflow-y: auto; padding-right: 5px; display:flex; flex-direction:column; gap:20px;">
             
-            <!-- SUBTITLES SECTION -->
-            <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                    <h4 style="margin:0; color:var(--text-primary); font-size: 16px;">📺 Video Subtitles</h4>
-                    <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px;">
-                        <input type="checkbox" id="toggleScriptOverlay" onchange="toggleOverlay('script')"> Show
-                    </label>
-                </div>
-                
-                <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:15px; border-bottom: 1px dotted rgba(255,255,255,0.1); padding-bottom: 15px;">
+            <!-- Modal Tabs Nav -->
+            <div class="modal-tabs">
+                <div class="modal-tab active" id="modalTab-subtitles" onclick="switchModalTab('subtitles')">Subtitles</div>
+                <div class="modal-tab" id="modalTab-dictionary" onclick="switchModalTab('dictionary')">Dictionary</div>
+                <div class="modal-tab" id="modalTab-notes" onclick="switchModalTab('notes')">Notifies</div>
+            </div>
+            
+            <div id="modalPane-subtitles" class="modal-pane">
+                <!-- SUBTITLES SECTION -->
+                <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                        <span style="color:var(--text-primary); font-weight:600;">Show On-Video Subtitles</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleScriptOverlay" onchange="toggleOverlay('script')">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:20px; border-bottom: 1px dotted rgba(255,255,255,0.1); padding-bottom: 20px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                            <select id="displaySub1" class="lang-select"><option value="">- Subtitle 1 -</option></select>
+                            <select id="displaySub2" class="lang-select"><option value="">- Subtitle 2 -</option></select>
+                            <select id="displaySub3" class="lang-select"><option value="">- Subtitle 3 -</option></select>
+                        </div>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr; gap:12px; margin-bottom: 15px;">
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:12px; color:var(--text-secondary);">Position:</label>
+                            <select id="optSubPos" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="bottom" selected>Bottom Center</option>
+                                <option value="top">Top Center</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option value="bottom-right">Bottom Right</option>
+                                <option value="top-left">Top Left</option>
+                                <option value="top-right">Top Right</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 20px;">
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:11px; color:var(--text-secondary);">Color S1:</label>
+                            <select id="optSubColor1" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="#ffffff" selected>White</option>
+                                <option value="#f1c40f">Yellow</option>
+                                <option value="#00cec9">Cyan</option>
+                                <option value="#ff7675">Pink</option>
+                                <option value="#55efc4">Green</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:11px; color:var(--text-secondary);">Color S2:</label>
+                            <select id="optSubColor2" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="#ffffff">White</option>
+                                <option value="#f1c40f" selected>Yellow</option>
+                                <option value="#00cec9">Cyan</option>
+                                <option value="#ff7675">Pink</option>
+                                <option value="#55efc4">Green</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:11px; color:var(--text-secondary);">Color S3:</label>
+                            <select id="optSubColor3" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="#ffffff">White</option>
+                                <option value="#f1c40f">Yellow</option>
+                                <option value="#00cec9" selected>Cyan</option>
+                                <option value="#ff7675">Pink</option>
+                                <option value="#55efc4">Green</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
-                        <select id="displaySub1" class="lang-select"><option value="">- Subtitle 1 -</option></select>
-                        <select id="displaySub2" class="lang-select"><option value="">- Subtitle 2 -</option></select>
-                        <select id="displaySub3" class="lang-select"><option value="">- Subtitle 3 -</option></select>
-                    </div>
-                </div>
-                
-                <div style="display:grid; grid-template-columns: 1fr; gap:12px; margin-bottom: 12px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:12px; color:var(--text-secondary);">Layout Position:</label>
-                        <select id="optSubPos" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="bottom" selected>Bottom Center</option>
-                            <option value="top">Top Center</option>
-                            <option value="bottom-left">Bottom Left</option>
-                            <option value="bottom-right">Bottom Right</option>
-                            <option value="top-left">Top Left</option>
-                            <option value="top-right">Top Right</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 15px; border-bottom: 1px dotted rgba(255,255,255,0.05); padding-bottom: 15px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">Color Sub 1:</label>
-                        <select id="optSubColor1" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="#ffffff" selected>White</option>
-                            <option value="#f1c40f">Yellow</option>
-                            <option value="#00cec9">Cyan</option>
-                            <option value="#ff7675">Pink</option>
-                            <option value="#55efc4">Green</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">Color Sub 2:</label>
-                        <select id="optSubColor2" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="#ffffff">White</option>
-                            <option value="#f1c40f" selected>Yellow</option>
-                            <option value="#00cec9">Cyan</option>
-                            <option value="#ff7675">Pink</option>
-                            <option value="#55efc4">Green</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">Color Sub 3:</label>
-                        <select id="optSubColor3" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="#ffffff">White</option>
-                            <option value="#f1c40f">Yellow</option>
-                            <option value="#00cec9" selected>Cyan</option>
-                            <option value="#ff7675">Pink</option>
-                            <option value="#55efc4">Green</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 15px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">BG Sub 1:</label>
-                        <select id="optSubBg1" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="rgba(0,0,0,0.75)">Glass</option>
-                            <option value="transparent">None</option>
-                            <option value="#000000">Solid</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">BG Sub 2:</label>
-                        <select id="optSubBg2" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="rgba(0,0,0,0.75)" selected>Glass</option>
-                            <option value="transparent">None</option>
-                            <option value="#000000">Solid</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">BG Sub 3:</label>
-                        <select id="optSubBg3" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="rgba(0,0,0,0.75)" selected>Glass</option>
-                            <option value="transparent">None</option>
-                            <option value="#000000">Solid</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- NEW: LOOKUP LANGUAGE SECTION -->
-                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <label style="font-size:13px; color:var(--accent); font-weight:600; white-space:nowrap;">🌍 Lookup Target:</label>
-                        <select id="optLookupTarget" class="lang-select" style="flex:1;" onchange="applyVisualOptions()">
-                            <option value="vi" selected>Tiếng Việt</option>
-                            <option value="en">English</option>
-                            <option value="ja">日本語 (Japanese)</option>
-                            <option value="ko">한국어 (Korean)</option>
-                            <option value="zh-CN">简体中文 (Chinese)</option>
-                            <option value="fr">Français (French)</option>
-                        </select>
-                    </div>
-                    <p style="font-size:10px; color:var(--text-muted); margin:5px 0 0 0;">(Used for dictionary & translation popup)</p>
-                </div>
-
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">Size Sub 1:</label>
-                        <select id="optSubSize1" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="18px">Small</option>
-                            <option value="24px" selected>Medium</option>
-                            <option value="32px">Large</option>
-                            <option value="42px">XL</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">Size Sub 2:</label>
-                        <select id="optSubSize2" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="16px">Small</option>
-                            <option value="20px" selected>Medium</option>
-                            <option value="28px">Large</option>
-                            <option value="36px">XL</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:11px; color:var(--text-secondary);">Size Sub 3:</label>
-                        <select id="optSubSize3" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="14px">Small</option>
-                            <option value="18px" selected>Medium</option>
-                            <option value="24px">Large</option>
-                            <option value="30px">XL</option>
-                        </select>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:11px; color:var(--text-secondary);">Size S1:</label>
+                            <select id="optSubSize1" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="18px">Small</option>
+                                <option value="24px" selected>Medium</option>
+                                <option value="32px">Large</option>
+                                <option value="42px">XL</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:11px; color:var(--text-secondary);">Size S2:</label>
+                            <select id="optSubSize2" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="16px">Small</option>
+                                <option value="20px" selected>Medium</option>
+                                <option value="28px">Large</option>
+                                <option value="36px">XL</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            <label style="font-size:11px; color:var(--text-secondary);">Size S3:</label>
+                            <select id="optSubSize3" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="14px">Small</option>
+                                <option value="18px" selected>Medium</option>
+                                <option value="24px">Large</option>
+                                <option value="30px">XL</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- NOTES SECTION -->
-            <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                    <h4 style="margin:0; color:var(--text-primary); font-size: 16px;">💡 Note Popups</h4>
-                    <label style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:14px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px;">
-                        <input type="checkbox" id="toggleNoteOverlay" onchange="toggleOverlay('note')" checked> Show
-                    </label>
-                </div>
-                
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:12px; color:var(--text-secondary);">Size:</label>
-                        <select id="optNoteSize" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="13px">Small</option>
-                            <option value="16px" selected>Medium</option>
-                            <option value="22px">Large</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:12px; color:var(--text-secondary);">Theme:</label>
-                        <select id="optNoteColor" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="dark" selected>Dark Glass</option>
-                            <option value="light">Light Card</option>
-                            <option value="yellow">Yellow Sticky</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size:12px; color:var(--text-secondary);">Position:</label>
-                        <select id="optNotePos" class="lang-select" onchange="applyVisualOptions()">
-                            <option value="top-right" selected>Top Right</option>
-                            <option value="top-left">Top Left</option>
-                            <option value="bottom-right">Bottom Right</option>
-                            <option value="bottom-left">Bottom Left</option>
-                            <option value="mid-left">Middle Left</option>
-                            <option value="mid-right">Middle Right</option>
-                            <option value="center">Center</option>
-                        </select>
+            <div id="modalPane-dictionary" class="modal-pane" style="display:none;">
+                <!-- DICTIONARY SECTION -->
+                <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; flex-direction:column; gap:20px;">
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <label style="font-size:14px; color:var(--text-primary); font-weight:600;">Default Translation Language</label>
+                            <select id="optLookupTarget" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="vi" selected>Tiếng Việt</option>
+                                <option value="en">English</option>
+                                <option value="ja">日本語 (Japanese)</option>
+                                <option value="ko">한국어 (Korean)</option>
+                                <option value="zh-CN">简体中文 (Chinese)</option>
+                                <option value="fr">Français (French)</option>
+                                <option value="de">Deutsch (German)</option>
+                                <option value="es">Español (Spanish)</option>
+                            </select>
+                            <p style="font-size:11px; color:var(--text-muted); opacity:0.8;">This target language will be used when you click on words or select phrases for instant translation/dictionary lookups.</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
+            <div id="modalPane-notes" class="modal-pane" style="display:none;">
+                <!-- NOTES POPUP SECTION -->
+                <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                        <span style="color:var(--text-primary); font-weight:600;">Show Note Popups</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleNoteOverlay" onchange="toggleOverlay('note')" checked>
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <label style="font-size:12px; color:var(--text-secondary);">Theme:</label>
+                            <select id="optNoteColor" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="dark" selected>Dark Glass</option>
+                                <option value="light">Light Card</option>
+                                <option value="yellow">Yellow Sticky</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <label style="font-size:12px; color:var(--text-secondary);">Position:</label>
+                            <select id="optNotePos" class="lang-select" onchange="applyVisualOptions()">
+                                <option value="top-right" selected>Top Right</option>
+                                <option value="top-left">Top Left</option>
+                                <option value="bottom-right">Bottom Right</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option value="center">Center</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+        <!-- Persistent Modal Footer -->
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:12px; margin-top:25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
             <button class="btn btn--ghost" onclick="closeModals()">Discard</button>
-            <button class="btn btn--primary" id="loadSubsBtn" onclick="applyVisualOptions(); loadDisplaySubtitles(); closeModals();" style="min-width: 120px;">
+            <button class="btn btn--primary" id="loadSubsBtn" onclick="applyVisualOptions(); saveLessonSettings(); loadDisplaySubtitles(); closeModals();" style="min-width: 120px;">
                 Apply Settings
             </button>
         </div>
     </div>
 </div>
+
 
 <!-- Note Edit Modal -->
 <div id="noteEditModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.2); z-index:1000; justify-content:flex-end; align-items:flex-end; padding: 40px; pointer-events: none;">
@@ -440,12 +435,14 @@
 
 <script>
     // ── Global config passed from server ──
-    const LESSON_ID = Number('{{ lesson.id }}');
-    const YOUTUBE_ID = '{{ lesson.video.youtube_id }}';
-    const SAVED_ORIGINAL = '{{ lesson.original_lang_code or "" }}';
-    const SAVED_TARGET = '{{ lesson.target_lang_code or "" }}';
-    const SAVED_THIRD = '{{ lesson.third_lang_code or "" }}';
-    const SAVED_SETTINGS = JSON.parse('{{ lesson.settings_json | safe or "{}" }}');
+    var LESSON_ID = Number('{{ lesson.id }}');
+    var YOUTUBE_ID = '{{ lesson.video.youtube_id }}';
+    var SAVED_ORIGINAL = '{{ lesson.original_lang_code or "" }}';
+    var SAVED_TARGET = '{{ lesson.target_lang_code or "" }}';
+    var SAVED_THIRD = '{{ lesson.third_lang_code or "" }}';
+    var SAVED_SETTINGS = JSON.parse('{{ lesson.settings_json | safe or "{}" }}');
+    var IS_COMPLETED = '{{ lesson.is_completed }}';
+    var INITIAL_STUDY_TIME = {{ lesson.time_spent or 0 }};
 </script>
 <script src="{{ url_for('static', filename='js/player.js') }}"></script>
 <script src="{{ url_for('static', filename='js/transcript.js') }}"></script>

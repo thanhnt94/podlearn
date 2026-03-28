@@ -23,6 +23,29 @@ let isPlayerReady = false;
 let timeUpdateInterval = null;
 let abLoopA = null;
 let abLoopB = null;
+let isMarkedCompleted = false; // Initialized from server later
+
+// Tracking Logic
+let activeStudySeconds = 0;
+let lastSyncTime = Date.now();
+const SYNC_INTERVAL_MS = 30000; // Sync every 30s
+
+// Activity / AFK Logic
+let lastActivityTime = Date.now();
+let totalSessionSeconds = (typeof INITIAL_STUDY_TIME !== 'undefined') ? INITIAL_STUDY_TIME : 0;
+const IDLE_THRESHOLD_MS = 60000; // 60 seconds
+
+// Initialize UI Clock immediately
+document.addEventListener('DOMContentLoaded', () => {
+    updateSessionClock();
+});
+
+// Reset idle timer on any user interaction
+['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, () => {
+        lastActivityTime = Date.now();
+    }, { passive: true });
+});
 
 // ── YouTube IFrame API callback (global) ─────────────────────
 function onYouTubeIframeAPIReady() {
@@ -47,12 +70,27 @@ function onYouTubeIframeAPIReady() {
     });
 }
 
-function onPlayerReady(event) {
+async function onPlayerReady(event) {
     isPlayerReady = true;
     console.log('[PodLearn] YouTube player ready');
-    loadAvailableLanguages();
-    if (typeof initFromSaved === 'function') initFromSaved();
+    
+    // Crucial: Wait for language lists to be populated from DB before restoring
+    await loadAvailableLanguages();
+    
+    if (typeof initFromSaved === 'function') {
+        try {
+            initFromSaved();
+        } catch (err) {
+            console.error('[PodLearn] initFromSaved error:', err);
+        }
+    }
+    
+    // Start active study time tracking loop
+    setInterval(trackActiveStudyTime, 1000);
 }
+
+
+
 
 function onPlayerError(event) {
     console.error('[PodLearn] YouTube player error:', event.data);
@@ -297,51 +335,15 @@ async function loadDisplaySubtitles() {
             }
         }
 
-    // Save choice + settings to backend
-    const visualSettings = {
-        sub_size1: document.getElementById('optSubSize1').value,
-        sub_size2: document.getElementById('optSubSize2').value,
-        sub_size3: document.getElementById('optSubSize3').value,
-        sub_color1: document.getElementById('optSubColor1').value,
-        sub_color2: document.getElementById('optSubColor2').value,
-        sub_color3: document.getElementById('optSubColor3').value,
-        sub_bg1: document.getElementById('optSubBg1').value,
-        sub_bg2: document.getElementById('optSubBg2').value,
-        sub_bg3: document.getElementById('optSubBg3').value,
-        sub_pos: document.getElementById('optSubPos').value,
-        note_size: document.getElementById('optNoteSize').value,
-        note_theme: document.getElementById('optNoteColor').value,
-        note_pos: document.getElementById('optNotePos').value,
-        show_sub: document.getElementById('toggleScriptOverlay').checked,
-        show_note: document.getElementById('toggleNoteOverlay').checked
-    };
-
-    fetch(`/api/lesson/${LESSON_ID}/set-languages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            original_lang_code: sub1 || SAVED_ORIGINAL,
-            target_lang_code: sub2 || SAVED_TARGET || '',
-            third_lang_code: sub3 || SAVED_THIRD || '',
-            settings: visualSettings
-        }),
-    }).then(async r => {
-        if (r.ok) {
-            // Update global state immediately
-            Object.assign(SAVED_SETTINGS, visualSettings);
-            // Crucial: Update the SAVED_XXX variables used by logic if we didn't reload yet
-            if (sub1) window.SAVED_ORIGINAL = sub1;
-            if (sub2) window.SAVED_TARGET = sub2;
-            if (sub3) window.SAVED_THIRD = sub3;
-            console.log("[PodLearn] Settings saved successfully");
-        }
-    });
+    // Save choice + settings to backend (unified)
+    await saveLessonSettings();
 
     renderTranscript(tracksData);
     if (tracksData[0]) {
         const activeNames = selectedLangs.map(l => l.toUpperCase());
         status.textContent = `Displaying: ${activeNames.join(' • ')} (${tracksData[0].length} blocks)`;
     }
+
 
     } catch (err) {
         console.error('[PodLearn] Display load error:', err);
@@ -354,48 +356,56 @@ async function loadDisplaySubtitles() {
 
 // ── Initialization Override ───────────────────────────────────
 function initFromSaved() {
-    // 1. Restore Dropdowns
-    if (SAVED_ORIGINAL) document.getElementById('displaySub1').value = SAVED_ORIGINAL;
-    const sub2 = document.getElementById('displaySub2');
-    if (sub2 && SAVED_TARGET) sub2.value = SAVED_TARGET;
-    const sub3 = document.getElementById('displaySub3');
-    if (sub3 && SAVED_THIRD) sub3.value = SAVED_THIRD;
+    // 1. Restore Language Selections
+    if (SAVED_ORIGINAL && document.getElementById('displaySub1')) document.getElementById('displaySub1').value = SAVED_ORIGINAL;
+    if (SAVED_TARGET && document.getElementById('displaySub2')) document.getElementById('displaySub2').value = SAVED_TARGET;
+    if (SAVED_THIRD && document.getElementById('displaySub3')) document.getElementById('displaySub3').value = SAVED_THIRD;
 
     // 2. Restore Visuals
     if (SAVED_SETTINGS && Object.keys(SAVED_SETTINGS).length > 0) {
-        if (SAVED_SETTINGS.sub_size1) document.getElementById('optSubSize1').value = SAVED_SETTINGS.sub_size1;
-        if (SAVED_SETTINGS.sub_size2) document.getElementById('optSubSize2').value = SAVED_SETTINGS.sub_size2;
-        if (SAVED_SETTINGS.sub_size3) document.getElementById('optSubSize3').value = SAVED_SETTINGS.sub_size3;
-        if (SAVED_SETTINGS.sub_color1) document.getElementById('optSubColor1').value = SAVED_SETTINGS.sub_color1;
-        if (SAVED_SETTINGS.sub_color2) document.getElementById('optSubColor2').value = SAVED_SETTINGS.sub_color2;
-        if (SAVED_SETTINGS.sub_color3) document.getElementById('optSubColor3').value = SAVED_SETTINGS.sub_color3;
-        if (SAVED_SETTINGS.sub_bg1) document.getElementById('optSubBg1').value = SAVED_SETTINGS.sub_bg1;
-        if (SAVED_SETTINGS.sub_bg2) document.getElementById('optSubBg2').value = SAVED_SETTINGS.sub_bg2;
-        if (SAVED_SETTINGS.sub_bg3) document.getElementById('optSubBg3').value = SAVED_SETTINGS.sub_bg3;
-        if (SAVED_SETTINGS.sub_pos) document.getElementById('optSubPos').value = SAVED_SETTINGS.sub_pos;
-        if (SAVED_SETTINGS.note_size) document.getElementById('optNoteSize').value = SAVED_SETTINGS.note_size;
-        if (SAVED_SETTINGS.note_theme) document.getElementById('optNoteColor').value = SAVED_SETTINGS.note_theme;
-        if (SAVED_SETTINGS.note_pos) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
+        // Subtitles
+        if (SAVED_SETTINGS.sub1_size && document.getElementById('optSubSize1')) document.getElementById('optSubSize1').value = SAVED_SETTINGS.sub1_size;
+        if (SAVED_SETTINGS.sub2_size && document.getElementById('optSubSize2')) document.getElementById('optSubSize2').value = SAVED_SETTINGS.sub2_size;
+        if (SAVED_SETTINGS.sub3_size && document.getElementById('optSubSize3')) document.getElementById('optSubSize3').value = SAVED_SETTINGS.sub3_size;
+        if (SAVED_SETTINGS.sub1_color && document.getElementById('optSubColor1')) document.getElementById('optSubColor1').value = SAVED_SETTINGS.sub1_color;
+        if (SAVED_SETTINGS.sub2_color && document.getElementById('optSubColor2')) document.getElementById('optSubColor2').value = SAVED_SETTINGS.sub2_color;
+        if (SAVED_SETTINGS.sub3_color && document.getElementById('optSubColor3')) document.getElementById('optSubColor3').value = SAVED_SETTINGS.sub3_color;
+        if (SAVED_SETTINGS.sub_pos && document.getElementById('optSubPos')) document.getElementById('optSubPos').value = SAVED_SETTINGS.sub_pos;
         
+        // Notes
+        if (SAVED_SETTINGS.note_size && document.getElementById('optNoteSize')) document.getElementById('optNoteSize').value = SAVED_SETTINGS.note_size;
+        if (SAVED_SETTINGS.note_theme && document.getElementById('optNoteColor')) document.getElementById('optNoteColor').value = SAVED_SETTINGS.note_theme;
+        if (SAVED_SETTINGS.note_pos && document.getElementById('optNotePos')) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
+        
+        // Lookup
+        if (SAVED_SETTINGS.lookup_target && document.getElementById('optLookupTarget')) document.getElementById('optLookupTarget').value = SAVED_SETTINGS.lookup_target;
+
+        // Toggles
         if (SAVED_SETTINGS.show_sub !== undefined) {
-            document.getElementById('toggleScriptOverlay').checked = SAVED_SETTINGS.show_sub;
+            const el = document.getElementById('toggleScriptOverlay');
+            if (el) el.checked = SAVED_SETTINGS.show_sub;
             toggleOverlay('script');
         }
         if (SAVED_SETTINGS.show_note !== undefined) {
-            document.getElementById('toggleNoteOverlay').checked = SAVED_SETTINGS.show_note;
+            const el = document.getElementById('toggleNoteOverlay');
+            if (el) el.checked = SAVED_SETTINGS.show_note;
             toggleOverlay('note');
         }
     }
+
+    // Completion state from server
+    isMarkedCompleted = (typeof IS_COMPLETED !== 'undefined' && IS_COMPLETED === 'True');
+    updateCompletionUI();
+
     applyVisualOptions();
     
-    // Auto-load if saved
-    if (SAVED_ORIGINAL || SAVED_TARGET || SAVED_THIRD) {
-        console.log("[PodLearn] Restoring saved subtitles:", {SAVED_ORIGINAL, SAVED_TARGET, SAVED_THIRD});
-        const status = document.getElementById('transcriptStatus');
-        if (status) status.textContent = 'Restoring your saved subtitle tracks...';
+    // Auto-load if languages are selected
+    if (window.SAVED_ORIGINAL || window.SAVED_TARGET || window.SAVED_THIRD) {
+        console.log("[PodLearn] Auto-loading subtitles...");
         setTimeout(loadDisplaySubtitles, 500);
     }
 }
+
 
 // ── Tab & Overlay Toggles ─────────────────────────────────────
 function switchRightTab(tabName) {
@@ -411,15 +421,28 @@ function switchRightTab(tabName) {
     pane.style.display = 'flex';
 }
 
+function switchModalTab(tabName) {
+    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.modal-pane').forEach(p => p.style.display = 'none');
+
+    document.getElementById(`modalTab-${tabName}`).classList.add('active');
+    document.getElementById(`modalPane-${tabName}`).style.display = 'block';
+}
+
 function toggleOverlay(type) {
     if (type === 'script') {
         const isChecked = document.getElementById('toggleScriptOverlay').checked;
-        document.getElementById('videoSubOverlay').style.display = isChecked ? 'flex' : 'none';
+        const overlay = document.getElementById('videoSubOverlay');
+        if (overlay) overlay.style.visibility = isChecked ? 'visible' : 'hidden';
     } else if (type === 'note') {
         const isChecked = document.getElementById('toggleNoteOverlay').checked;
-        document.getElementById('notePopup').style.display = isChecked ? 'block' : 'none';
+        const overlay = document.getElementById('notePopup');
+        if (overlay) overlay.style.visibility = isChecked ? 'visible' : 'hidden';
     }
+    // Trigger save so it persists
+    applyVisualOptions();
 }
+
 
 // ── Modals ────────────────────────────────────────────────────
 function openUploadModal() {
@@ -452,44 +475,21 @@ function applyVisualOptions() {
     if (subOverlay) {
         const subPos = document.getElementById('optSubPos')?.value || 'bottom';
         
-        // Reset absolute positioning & layout
-        subOverlay.style.setProperty('top', 'auto', 'important');
-        subOverlay.style.setProperty('bottom', 'auto', 'important');
-        subOverlay.style.setProperty('left', 'auto', 'important');
-        subOverlay.style.setProperty('right', 'auto', 'important');
-        subOverlay.style.setProperty('transform', 'none', 'important');
-        subOverlay.style.setProperty('align-items', 'center', 'important');
-        subOverlay.style.textAlign = 'center';
+        // Remove all old position classes
+        subOverlay.classList.remove('vso--pos-top', 'vso--pos-bottom', 'vso--pos-top-left', 'vso--pos-top-right', 'vso--pos-bottom-left', 'vso--pos-bottom-right');
+        
+        // Add new position class
+        subOverlay.classList.add(`vso--pos-${subPos}`);
 
-        if (subPos === 'top') {
-            subOverlay.style.setProperty('top', '40px', 'important');
-            subOverlay.style.setProperty('left', '50%', 'important');
-            subOverlay.style.setProperty('transform', 'translateX(-50%)', 'important');
-        } else if (subPos === 'bottom') {
-            subOverlay.style.setProperty('bottom', '40px', 'important');
-            subOverlay.style.setProperty('left', '50%', 'important');
-            subOverlay.style.setProperty('transform', 'translateX(-50%)', 'important');
-        } else if (subPos === 'top-left') {
-            subOverlay.style.setProperty('top', '40px', 'important');
-            subOverlay.style.setProperty('left', '40px', 'important');
-            subOverlay.style.setProperty('align-items', 'flex-start', 'important');
-            subOverlay.style.textAlign = 'left';
-        } else if (subPos === 'top-right') {
-            subOverlay.style.setProperty('top', '40px', 'important');
-            subOverlay.style.setProperty('right', '40px', 'important');
-            subOverlay.style.setProperty('align-items', 'flex-end', 'important');
-            subOverlay.style.textAlign = 'right';
-        } else if (subPos === 'bottom-left') {
-            subOverlay.style.setProperty('bottom', '40px', 'important');
-            subOverlay.style.setProperty('left', '40px', 'important');
-            subOverlay.style.setProperty('align-items', 'flex-start', 'important');
-            subOverlay.style.textAlign = 'left';
-        } else if (subPos === 'bottom-right') {
-            subOverlay.style.setProperty('bottom', '40px', 'important');
-            subOverlay.style.setProperty('right', '40px', 'important');
-            subOverlay.style.setProperty('align-items', 'flex-end', 'important');
-            subOverlay.style.textAlign = 'right';
-        }
+        // Remove old inline overrides that block CSS hover
+        subOverlay.style.removeProperty('top');
+        subOverlay.style.removeProperty('bottom');
+        subOverlay.style.removeProperty('left');
+        subOverlay.style.removeProperty('right');
+        subOverlay.style.removeProperty('transform');
+        subOverlay.style.removeProperty('align-items');
+        subOverlay.style.removeProperty('text-align');
+
     }
 
     // 2. Note Overlay Override
@@ -559,45 +559,54 @@ function applyVisualOptions() {
         noteOverlay.style.border = 'none';
         noteOverlay.style.boxShadow = 'none';
         noteOverlay.style.backdropFilter = 'none';
-
-        // PERSISTENCE: Save settings to DB
-        saveLessonSettings();
     }
 }
 
+
 async function saveLessonSettings() {
-    const settings = {
-        sub1_color: document.getElementById('optSubColor1')?.value,
-        sub2_color: document.getElementById('optSubColor2')?.value,
-        sub3_color: document.getElementById('optSubColor3')?.value,
-        sub1_bg: document.getElementById('optSubBg1')?.value,
-        sub2_bg: document.getElementById('optSubBg2')?.value,
-        sub3_bg: document.getElementById('optSubBg3')?.value,
-        sub1_size: document.getElementById('optSubSize1')?.value,
-        sub2_size: document.getElementById('optSubSize2')?.value,
-        sub3_size: document.getElementById('optSubSize3')?.value,
-        sub_pos: document.getElementById('optSubPos')?.value,
-        note_size: document.getElementById('optNoteSize')?.value,
-        note_theme: document.getElementById('optNoteTheme')?.value,
-        note_pos: document.getElementById('optNotePos')?.value,
+    const visualSettings = {
+        sub1_size: document.getElementById('optSubSize1')?.value || '24px',
+        sub2_size: document.getElementById('optSubSize2')?.value || '20px',
+        sub3_size: document.getElementById('optSubSize3')?.value || '18px',
+        sub1_color: document.getElementById('optSubColor1')?.value || '#ffffff',
+        sub2_color: document.getElementById('optSubColor2')?.value || '#f1c40f',
+        sub3_color: document.getElementById('optSubColor3')?.value || '#00cec9',
+        sub_pos: document.getElementById('optSubPos')?.value || 'bottom',
+        note_size: document.getElementById('optNoteSize')?.value || '16px',
+        note_theme: document.getElementById('optNoteColor')?.value || 'dark',
+        note_pos: document.getElementById('optNotePos')?.value || 'top-right',
+        show_sub: document.getElementById('toggleScriptOverlay').checked,
+        show_note: document.getElementById('toggleNoteOverlay').checked,
         lookup_target: document.getElementById('optLookupTarget')?.value
     };
 
     try {
+        const sub1 = document.getElementById('displaySub1')?.value;
+        const sub2 = document.getElementById('displaySub2')?.value;
+        const sub3 = document.getElementById('displaySub3')?.value;
+
         await fetch(`/api/lesson/${LESSON_ID}/set-languages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                original_lang_code: document.getElementById('displaySub1')?.value,
-                target_lang_code: document.getElementById('displaySub2')?.value,
-                third_lang_code: document.getElementById('displaySub3')?.value,
-                settings: settings
+                original_lang_code: sub1 || SAVED_ORIGINAL,
+                target_lang_code: sub2 || SAVED_TARGET || '',
+                third_lang_code: sub3 || SAVED_THIRD || '',
+                settings: visualSettings
             })
         });
+        
+        // Update global state immediately
+        Object.assign(SAVED_SETTINGS, visualSettings);
+        if (sub1) window.SAVED_ORIGINAL = sub1;
+        if (sub2) window.SAVED_TARGET = sub2;
+        if (sub3) window.SAVED_THIRD = sub3;
+        console.log("[PodLearn] Lesson settings saved");
     } catch (err) {
         console.error('[PodLearn] Failed to save settings:', err);
     }
 }
+
 
 
 // ── A-B Repeat Controller ─────────────────────────────────────
@@ -675,36 +684,113 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// ── Init ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    loadSavedSettings();
-    applyVisualOptions();
-});
+// ── Note Interaction Shortcuts ──────────────────────────────
 
-function loadSavedSettings() {
-    if (typeof SAVED_SETTINGS === 'undefined' || !SAVED_SETTINGS) return;
-    
-    // Subtitle Visuals
-    if (SAVED_SETTINGS.sub1_color) document.getElementById('optSubColor1').value = SAVED_SETTINGS.sub1_color;
-    if (SAVED_SETTINGS.sub2_color) document.getElementById('optSubColor2').value = SAVED_SETTINGS.sub2_color;
-    if (SAVED_SETTINGS.sub3_color) document.getElementById('optSubColor3').value = SAVED_SETTINGS.sub3_color;
-    
-    if (SAVED_SETTINGS.sub1_bg) document.getElementById('optSubBg1').value = SAVED_SETTINGS.sub1_bg;
-    if (SAVED_SETTINGS.sub2_bg) document.getElementById('optSubBg2').value = SAVED_SETTINGS.sub2_bg;
-    if (SAVED_SETTINGS.sub3_bg) document.getElementById('optSubBg3').value = SAVED_SETTINGS.sub3_bg;
-    
-    if (SAVED_SETTINGS.sub1_size) document.getElementById('optSubSize1').value = SAVED_SETTINGS.sub1_size;
-    if (SAVED_SETTINGS.sub2_size) document.getElementById('optSubSize2').value = SAVED_SETTINGS.sub2_size;
-    if (SAVED_SETTINGS.sub3_size) document.getElementById('optSubSize3').value = SAVED_SETTINGS.sub3_size;
-    
-    if (SAVED_SETTINGS.sub_pos) document.getElementById('optSubPos').value = SAVED_SETTINGS.sub_pos;
 
-    // Notes Visuals
-    if (SAVED_SETTINGS.note_size) document.getElementById('optNoteSize').value = SAVED_SETTINGS.note_size;
-    if (SAVED_SETTINGS.note_theme) document.getElementById('optNoteTheme').value = SAVED_SETTINGS.note_theme;
-    if (SAVED_SETTINGS.note_pos) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
 
-    // Lookup
-    if (SAVED_SETTINGS.lookup_target) document.getElementById('optLookupTarget').value = SAVED_SETTINGS.lookup_target;
+// ── Study Tracking ───────────────────────────────────────────
+function trackActiveStudyTime() {
+    const now = Date.now();
+    const isIdle = (now - lastActivityTime) > IDLE_THRESHOLD_MS;
+    const isFocused = document.hasFocus();
+
+    // Only track if:
+    // 1. YouTube API is ready and video is actually PLAYING
+    // 2. Tab is focused
+    // 3. User is NOT IDLE (has interacted in last 60s)
+    if (typeof ytPlayer !== 'undefined' && ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
+        const state = ytPlayer.getPlayerState();
+        if (state === YT.PlayerState.PLAYING && isFocused && !isIdle) {
+            activeStudySeconds++;
+            totalSessionSeconds++;
+            updateSessionClock();
+        }
+    }
+
+    // Every SYNC_INTERVAL (30s), push the data to server
+    if (now - lastSyncTime >= SYNC_INTERVAL_MS) {
+        if (activeStudySeconds > 0) {
+            syncTimeTrack();
+        } else {
+            lastSyncTime = now;
+        }
+    }
 }
+
+function updateSessionClock() {
+    const clock = document.getElementById('study-timer-clock');
+    if (!clock) return;
+
+    const hrs = Math.floor(totalSessionSeconds / 3600);
+    const mins = Math.floor((totalSessionSeconds % 3600) / 60);
+    const secs = totalSessionSeconds % 60;
+
+    let display = "";
+    if (hrs > 0) display += hrs + ":";
+    display += (mins < 10 && hrs > 0 ? "0" : "") + mins + ":";
+    display += (secs < 10 ? "0" : "") + secs;
+
+    clock.textContent = display;
+    
+    // Add a pulsing effect when active
+    const timerBox = document.getElementById('study-timer');
+    if (timerBox) {
+        timerBox.style.opacity = "1";
+        timerBox.style.boxShadow = "0 0 10px rgba(108, 92, 231, 0.2)";
+    }
+}
+
+
+async function syncTimeTrack() {
+    const secondsToSend = activeStudySeconds;
+    activeStudySeconds = 0;
+    lastSyncTime = Date.now();
+
+    try {
+        await fetch(`/api/lesson/${LESSON_ID}/track-time`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ seconds_added: secondsToSend })
+        });
+    } catch (err) {
+        console.error('[PodLearn] Study track sync error:', err);
+        // Put back to retry
+        activeStudySeconds += secondsToSend;
+    }
+}
+
+async function toggleLessonCompletion() {
+    try {
+        const res = await fetch(`/api/lesson/${LESSON_ID}/toggle-complete`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            isMarkedCompleted = data.is_completed;
+            updateCompletionUI();
+        }
+    } catch (err) {
+        console.error('[PodLearn] Failed to toggle completion:', err);
+    }
+}
+
+function updateCompletionUI() {
+    const btn = document.getElementById('btn-toggle-complete');
+    if (!btn) return;
+
+    if (isMarkedCompleted) {
+        btn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <span>Completed</span>
+        `;
+        btn.classList.add('btn--accent');
+        btn.classList.remove('btn--ghost');
+    } else {
+        btn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle></svg>
+            <span>Mark Complete</span>
+        `;
+        btn.classList.remove('btn--accent');
+        btn.classList.add('btn--ghost');
+    }
+}
+
 

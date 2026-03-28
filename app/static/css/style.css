@@ -1039,9 +1039,6 @@ input, button, textarea, select {
 /* ── Video Subtitle Overlay ─────────────────────────────────── */
 .video-sub-overlay {
     position: absolute;
-    bottom: 40px;
-    left: 50%;
-    transform: translateX(-50%);
     width: 90%;
     text-align: center;
     pointer-events: none; /* Default to none, we'll toggle in JS */
@@ -1050,12 +1047,34 @@ input, button, textarea, select {
     flex-direction: column;
     gap: 4px;
     align-items: center;
-    transition: all 0.3s ease;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Position Classes */
+.vso--pos-top { top: 40px; left: 50%; transform: translateX(-50%); }
+.vso--pos-bottom { bottom: 40px; left: 50%; transform: translateX(-50%); }
+.vso--pos-top-left { top: 40px; left: 40px; align-items: flex-start; text-align: left; }
+.vso--pos-top-right { top: 40px; right: 40px; align-items: flex-end; text-align: right; }
+.vso--pos-bottom-left { bottom: 40px; left: 40px; align-items: flex-start; text-align: left; }
+.vso--pos-bottom-right { bottom: 40px; right: 40px; align-items: flex-end; text-align: right; }
+
+/* SMART LIFT: Lift the subtitles when user hovers the player area (e.g. to see timeline) */
+/* This now works because we don't have inline !important transforms anymore */
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom,
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom-left,
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom-right {
+    transform: translateY(-45px);
+}
+
+/* If centered, we must keep the -50% X translation */
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom {
+    transform: translate(-50%, -45px);
 }
 
 .video-sub-overlay.is-interactive {
     pointer-events: auto !important;
 }
+
 
 .vso-line {
     background: rgba(0, 0, 0, 0.75);
@@ -1082,6 +1101,68 @@ input, button, textarea, select {
     font-size: 0.8em;
     font-weight: 500;
     opacity: 0.8;
+}
+
+/* ── Modal Tabs ──────────────────────────────────────────────── */
+.modal-tabs {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.modal-tab {
+    padding: 10px 0;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+.modal-tab:hover { color: var(--text-primary); }
+.modal-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+}
+
+/* ── Custom Toggle Switch ───────────────────────────────────── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 22px;
+}
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: rgba(255,255,255,0.1);
+  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 34px;
+}
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #fff;
+  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+input:checked + .switch-slider {
+  background-color: var(--accent);
+}
+input:checked + .switch-slider:before {
+  transform: translateX(22px);
 }
 
 /* ── Video Note Overlay ─────────────────────────────────────── */
@@ -1233,4 +1314,84 @@ input, button, textarea, select {
 @keyframes fadeInTooltip {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Mobile Optimization (Max 900px) ─────────────────────────── */
+@media (max-width: 900px) {
+    .player-layout {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+    }
+
+    .player-left {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        flex: none;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        background: #000;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+
+    .player-video-wrap {
+        width: 100vw;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        max-height: 40vh; /* Don't take too much height */
+    }
+
+    .player-right {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        height: 60vh; /* Fixed height for tools area */
+        flex: none;
+    }
+
+    .right-pane-tabs {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--bg-card);
+    }
+
+    /* Subtitle scaling for Mobile */
+    .video-sub-overlay {
+        font-size: 14px !important; /* Force smaller base on mobile */
+        width: 95% !important;
+    }
+
+    .vso-line {
+        padding: 4px 10px !important;
+        line-height: 1.3 !important;
+        border-radius: 6px !important;
+    }
+
+    /* Adjust specific sub line sizes relative to mobile base */
+    .vso-line--0 { font-size: 1.1em !important; }
+    .vso-line--1 { font-size: 0.9em !important; }
+    .vso-line--2 { font-size: 0.85em !important; }
+
+    /* Modal adjustments */
+    .modal-content {
+        width: 95% !important;
+        padding: 15px !important;
+    }
+    
+    .modal-pane {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .player-topbar {
+        padding: 5px 10px;
+    }
+
+    .player-topbar__title {
+        display: none; /* Hide title to save space for buttons */
+    }
 }

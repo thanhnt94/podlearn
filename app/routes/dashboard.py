@@ -12,16 +12,64 @@ from ..services.youtube_service import extract_video_id, fetch_video_info
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
+from ..models.note import Note
+from sqlalchemy import func, cast, Date
+from datetime import timedelta
+
 @dashboard_bp.route('/')
 @login_required
 def index():
     lessons = (
         Lesson.query
         .filter_by(user_id=current_user.id)
-        .order_by(Lesson.created_at.desc())
+        .order_by(Lesson.last_accessed.desc() if hasattr(Lesson, 'last_accessed') else Lesson.created_at.desc())
         .all()
     )
-    return render_template('dashboard.html', lessons=lessons)
+
+    # 1. Overview Stats
+    total_seconds = db.session.query(func.sum(Lesson.time_spent)).filter(Lesson.user_id == current_user.id).scalar() or 0
+    
+    # Calculate Detailed Components
+    total_h = total_seconds // 3600
+    total_m = (total_seconds % 3600) // 60
+    total_s = total_seconds % 60
+    
+    total_time_formatted = f"{total_h}h {total_m}m {total_s}s"
+    if total_h == 0:
+        total_time_formatted = f"{total_m}m {total_s}s"
+        if total_m == 0:
+             total_time_formatted = f"{total_s}s"
+
+    
+    completed_count = Lesson.query.filter_by(user_id=current_user.id, is_completed=True).count()
+    
+    total_notes = db.session.query(func.count(Note.id)).join(Lesson).filter(Lesson.user_id == current_user.id).scalar() or 0
+
+    # 2. Activity Chart (Last 7 Days)
+    # We'll use Note creation date as a proxy for activity if lesson time tracking is new
+    # or just use today's vs yesterday's etc.
+    today = datetime.now(timezone.utc).date()
+    days = [today - timedelta(days=i) for i in range(6, -1, -1)]
+    
+    chart_labels = [d.strftime('%a') for d in days]
+    chart_values = []
+    
+    for d in days:
+        # Count notes created on this day
+        count = db.session.query(func.count(Note.id)).join(Lesson).filter(
+            Lesson.user_id == current_user.id,
+            cast(Note.created_at, Date) == d
+        ).scalar() or 0
+        chart_values.append(count)
+
+    return render_template('dashboard.html', 
+                           lessons=lessons,
+                           total_time_formatted=total_time_formatted,
+                           completed_count=completed_count,
+                           total_notes=total_notes,
+                           chart_labels=chart_labels,
+                           chart_values=chart_values)
+
 
 
 @dashboard_bp.route('/add-lesson', methods=['POST'])

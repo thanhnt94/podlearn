@@ -1,0 +1,467 @@
+﻿flask : INFO  [alembic.runt
+ime.migration] Context 
+impl SQLiteImpl.
+At line:1 char:1
++ flask db upgrade 2>&1 | 
+Out-File -FilePath 
+migration_log.txt -Encodin 
+...
++ ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (INF  
+  O  [alembic....mpl SQL   
+ iteImpl.:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+INFO  [alembic.runtime.migr
+ation] Will assume 
+non-transactional DDL.
+INFO  [alembic.runtime.migr
+ation] Running upgrade 
+28f20961bfce -> 
+2c4f6e8ae336, add progress 
+tracking fields to lessons
+Traceback (most recent 
+call last):
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\base.py",
+ line 1967, in 
+_exec_single_context
+    
+self.dialect.do_execute(
+    
+~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+    )
+    ^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\default.p
+y", line 941, in do_execute
+    
+cursor.execute(statement, 
+parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^
+^^^^^^^^^^^^^^
+sqlite3.OperationalError: 
+table _alembic_tmp_lessons 
+already exists
+
+The above exception was 
+the direct cause of the 
+following exception:
+
+Traceback (most recent 
+call last):
+  File "<frozen runpy>", 
+line 198, in 
+_run_module_as_main
+  File "<frozen runpy>", 
+line 88, in _run_code
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Scripts\flask.exe\
+__main__.py", line 6, in 
+<module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+flask\cli.py", line 1129, 
+in main
+    cli.main()
+    ~~~~~~~~^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+click\core.py", line 1082, 
+in main
+    rv = self.invoke(ctx)
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+click\core.py", line 1697, 
+in invoke
+    return _process_result(
+sub_ctx.command.invoke(sub_
+ctx))
+                           
+~~~~~~~~~~~~~~~~~~~~~~^^^^^
+^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+click\core.py", line 1697, 
+in invoke
+    return _process_result(
+sub_ctx.command.invoke(sub_
+ctx))
+                           
+~~~~~~~~~~~~~~~~~~~~~~^^^^^
+^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+click\core.py", line 1443, 
+in invoke
+    return 
+ctx.invoke(self.callback, 
+**ctx.params)
+           ~~~~~~~~~~^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+click\core.py", line 788, 
+in invoke
+    return 
+__callback(*args, **kwargs)
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+click\decorators.py", line 
+33, in new_func
+    return 
+f(get_current_context(), 
+*args, **kwargs)
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+flask\cli.py", line 400, 
+in decorator
+    return ctx.invoke(f, 
+*args, **kwargs)
+           ~~~~~~~~~~^^^^^^
+^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+click\core.py", line 788, 
+in invoke
+    return 
+__callback(*args, **kwargs)
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+flask_migrate\cli.py", 
+line 157, in upgrade
+    _upgrade(directory or 
+g.directory, revision, 
+sql, tag, x_arg or g.x_arg)
+    ~~~~~~~~^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+flask_migrate\__init__.py",
+ line 111, in wrapped
+    f(*args, **kwargs)
+    ~^^^^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+flask_migrate\__init__.py",
+ line 200, in upgrade
+    
+command.upgrade(config, 
+revision, sql=sql, tag=tag)
+    ~~~~~~~~~~~~~~~^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\command.py", line 
+483, in upgrade
+    script.run_env()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\script\base.py", 
+line 545, in run_env
+    util.load_python_file(s
+elf.dir, "env.py")
+    ~~~~~~~~~~~~~~~~~~~~~^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\util\pyfiles.py", 
+line 116, in 
+load_python_file
+    module = 
+load_module_py(module_id, 
+path)
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\util\pyfiles.py", 
+line 136, in load_module_py
+    spec.loader.exec_module
+(module)  # type: ignore
+    ~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^
+  File "<frozen importlib._
+bootstrap_external>", line 
+1026, in exec_module
+  File "<frozen 
+importlib._bootstrap>", 
+line 488, in 
+_call_with_frames_removed
+  File "C:\Code\PodLearn\po
+dlearn\migrations\env.py", 
+line 113, in <module>
+    run_migrations_online()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Code\PodLearn\po
+dlearn\migrations\env.py", 
+line 107, in 
+run_migrations_online
+    
+context.run_migrations()
+    
+~~~~~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 8, 
+in run_migrations
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\runtime\environment
+.py", line 969, in 
+run_migrations
+    self.get_context().run_
+migrations(**kw)
+    ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\runtime\migration.p
+y", line 626, in 
+run_migrations
+    step.migration_fn(**kw)
+    ~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Code\PodLearn\po
+dlearn\migrations\versions\
+2c4f6e8ae336_add_progress_t
+racking_fields_to_lessons.p
+y", line 21, in upgrade
+    with op.batch_alter_tab
+le('lessons', schema=None) 
+as batch_op:
+         ~~~~~~~~~~~~~~~~~~
+~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\contextlib.py"
+, line 148, in __exit__
+    next(self.gen)
+    ~~~~^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\operations\base.py"
+, line 410, in 
+batch_alter_table
+    impl.flush()
+    ~~~~~~~~~~^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\operations\batch.py
+", line 163, in flush
+    batch_impl._create(self
+.impl)
+    ~~~~~~~~~~~~~~~~~~^^^^^
+^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\operations\batch.py
+", line 447, in _create
+    op_impl.create_table(se
+lf.new_table)
+    ~~~~~~~~~~~~~~~~~~~~^^^
+^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\ddl\impl.py", line 
+437, in create_table
+    self._exec(schema.Creat
+eTable(table, **kw))
+    ~~~~~~~~~~^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+alembic\ddl\impl.py", line 
+256, in _exec
+    return 
+conn.execute(construct, 
+params)
+           ~~~~~~~~~~~~^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\base.py",
+ line 1418, in execute
+    return meth(
+        self,
+        
+distilled_parameters,
+        execution_options 
+or NO_OPTIONS,
+    )
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\sql\ddl.py", 
+line 180, in 
+_execute_on_connection
+    return 
+connection._execute_ddl(
+           
+~~~~~~~~~~~~~~~~~~~~~~~^
+        self, 
+distilled_params, 
+execution_options
+        ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\base.py",
+ line 1529, in _execute_ddl
+    ret = 
+self._execute_context(
+        dialect,
+    ...<4 lines>...
+        compiled,
+    )
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\base.py",
+ line 1846, in 
+_execute_context
+    return 
+self._exec_single_context(
+           
+~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, 
+statement, parameters
+        ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\base.py",
+ line 1986, in 
+_exec_single_context
+    self._handle_dbapi_exce
+ption(
+    ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~^
+        e, str_statement, 
+effective_parameters, 
+cursor, context
+        ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^
+    )
+    ^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\base.py",
+ line 2355, in 
+_handle_dbapi_exception
+    raise sqlalchemy_except
+ion.with_traceback(exc_info
+[2]) from e
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\base.py",
+ line 1967, in 
+_exec_single_context
+    
+self.dialect.do_execute(
+    
+~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, 
+str_statement, 
+effective_parameters, 
+context
+        ^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+    )
+    ^
+  File "C:\Users\thanh\AppD
+ata\Local\Programs\Python\P
+ython313\Lib\site-packages\
+sqlalchemy\engine\default.p
+y", line 941, in do_execute
+    
+cursor.execute(statement, 
+parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^
+^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalE
+rror: 
+(sqlite3.OperationalError) 
+table _alembic_tmp_lessons 
+already exists
+[SQL: 
+CREATE TABLE 
+_alembic_tmp_lessons (
+	id INTEGER NOT NULL, 
+	user_id INTEGER NOT NULL, 
+	video_id INTEGER NOT 
+NULL, 
+	original_lang_code 
+VARCHAR(10), 
+	target_lang_code 
+VARCHAR(10), 
+	created_at DATETIME, 
+	settings_json TEXT, 
+	third_lang_code 
+VARCHAR(10), 
+	last_accessed DATETIME, 
+	is_completed BOOLEAN, 
+	time_spent INTEGER, 
+	PRIMARY KEY (id), 
+	CONSTRAINT uq_user_video 
+UNIQUE (user_id, 
+video_id), 
+	FOREIGN KEY(user_id) 
+REFERENCES users (id), 
+	FOREIGN KEY(video_id) 
+REFERENCES videos (id)
+)
+
+]
+(Background on this error 
+at: https://sqlalche.me/e/2
+0/e3q8)

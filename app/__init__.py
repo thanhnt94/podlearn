@@ -31,11 +31,13 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes.dashboard import dashboard_bp
     from .routes.player import player_bp
     from .routes.api import api_bp
+    from .routes.admin import admin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(player_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(admin_bp)
 
     # ── User loader for Flask-Login ────────────────────────────
     from .models.user import User
@@ -52,12 +54,16 @@ def create_app(config_name: str | None = None) -> Flask:
         """Create the default admin/admin account."""
         existing = User.query.filter_by(username='admin').first()
         if existing:
-            click.echo('Admin user already exists.')
+            existing.is_admin = True
+            db.session.commit()
+            click.echo('Admin user already exists. Updated to is_admin=True')
             return
-        admin = User(username='admin', email='admin@podlearn.local')
+        admin = User(username='admin', email='admin@podlearn.local', is_admin=True)
         admin.set_password('admin')
         db.session.add(admin)
         db.session.commit()
+        click.echo('Admin user created successfully.')
+
         click.echo('✅ Admin user created (admin/admin)')
 
     return app

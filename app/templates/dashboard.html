@@ -22,8 +22,27 @@
     </header>
 
     <main class="dashboard-main">
+        <!-- NEW: Statistics Section -->
+        <div class="stats-overview" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; margin-bottom: 30px;">
+            <div class="stat-card" style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:5px;">
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Total Study Time</span>
+                <span style="font-size: 28px; font-weight: 700; color: var(--accent);">{{ total_time_formatted }}</span>
+            </div>
+            <div class="stat-card" style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:5px;">
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Completed Clips</span>
+                <span style="font-size: 32px; font-weight: 700; color: #55efc4;">{{ completed_count }}</span>
+            </div>
+            <div class="stat-card" style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:5px;">
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Target Vocabulary</span>
+                <span style="font-size: 32px; font-weight: 700; color: #f1c40f;">{{ total_notes }} <span style="font-size: 14px; font-weight: 500; color: var(--text-secondary);">notes</span></span>
+            </div>
+            <div class="stat-card activity-chart-container" style="background: rgba(255,255,255,0.02); padding: 15px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); grid-column: span 1; min-height: 120px;">
+                <canvas id="activityChart" style="max-height: 80px;"></canvas>
+            </div>
+        </div>
+
         <div class="dashboard-toolbar">
-            <h2>My Library</h2>
+            <h2 style="font-size: 18px; font-weight: 600; color: var(--text-primary);">Resume Learning</h2>
             <button class="btn btn--primary btn--sm" id="addLessonToggle" onclick="toggleAddForm()">
                 + Add Video
             </button>
@@ -51,23 +70,36 @@
                 {% for lesson in lessons %}
                 <div class="lesson-card" id="lessonCard{{ lesson.id }}">
                     <a href="{{ url_for('player.view', lesson_id=lesson.id) }}" class="lesson-card__link">
-                        <img src="{{ lesson.video.thumbnail_url }}" 
-                             alt="{{ lesson.video.title }}" 
-                             class="lesson-card__thumb"
-                             loading="lazy">
+                        <div class="lesson-card__thumb-wrapper" style="position:relative;">
+                            <img src="{{ lesson.video.thumbnail_url }}" 
+                                 alt="{{ lesson.video.title }}" 
+                                 class="lesson-card__thumb"
+                                 loading="lazy">
+                            {% if lesson.is_completed %}
+                            <div class="lesson-card__badge" style="position:absolute; top:10px; right:10px; background:#55efc4; color:#000; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,0.3);">COMPLETED</div>
+                            {% endif %}
+                            
+                            <!-- PROGRESS BAR -->
+                            {% set total = lesson.video.duration_seconds or 1 %}
+                            {% set spent = lesson.time_spent or 0 %}
+                            {% set percent = (spent / total * 100) | round(0) %}
+                            {% if percent > 100 %}{% set percent = 100 %}{% endif %}
+                            <div class="lesson-card__progress-track" style="position:absolute; bottom:0; left:0; right:0; height:4px; background:rgba(255,255,255,0.1);">
+                                <div class="lesson-card__progress-fill" style="width:{{ percent }}%; height:100%; background:var(--accent); transition: width 0.3s;"></div>
+                            </div>
+                        </div>
                         <div class="lesson-card__body">
                             <h3 class="lesson-card__title">{{ lesson.video.title }}</h3>
                             <div class="lesson-card__meta">
                                 <span class="lesson-card__duration">{{ lesson.video.duration_seconds | duration }}</span>
-                                {% if lesson.original_lang_code %}
-                                <span class="lesson-card__langs">{{ lesson.original_lang_code }} → {{ lesson.target_lang_code or '?' }}</span>
-                                {% endif %}
+                                <span class="lesson-card__progress-text" style="color:var(--text-muted); font-size:11px;">{{ percent }}% study progress</span>
+                                <span class="lesson-card__last-access" style="color:var(--text-muted); font-size:10px; display:block; margin-top:4px;">Last: {{ lesson.last_accessed.strftime('%b %d, %H:%M') if lesson.last_accessed else 'Never' }}</span>
                             </div>
                         </div>
                     </a>
                     <div class="lesson-card__actions">
                         <form method="POST" action="{{ url_for('dashboard.delete_lesson', lesson_id=lesson.id) }}" 
-                              onsubmit="return confirm('Remove this lesson?')">
+                               onsubmit="return confirm('Remove this lesson?')">
                             <button type="submit" class="btn btn--danger btn--sm" id="deleteLesson{{ lesson.id }}" title="Remove">
                                 ✕
                             </button>
@@ -88,6 +120,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     function toggleAddForm() {
         const form = document.getElementById('addLessonForm');
@@ -105,5 +138,41 @@
         btn.querySelector('.btn-loading').style.display = 'inline';
         btn.disabled = true;
     });
+
+    // Activity Chart Initialization
+    const ctx = document.getElementById('activityChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_labels | tojson }},
+            datasets: [{
+                label: 'New Notes',
+                data: {{ chart_values | tojson }},
+                backgroundColor: 'rgba(99, 102, 241, 0.5)',
+                borderColor: 'rgba(99, 102, 241, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { display: false },
+                    grid: { display: false, drawBorder: false }
+                },
+                x: {
+                    ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } },
+                    grid: { display: false, drawBorder: false }
+                }
+            }
+        }
+    });
 </script>
 {% endblock %}
+

@@ -14,7 +14,12 @@ class Lesson(db.Model):
     target_lang_code = db.Column(db.String(10))
     third_lang_code = db.Column(db.String(10))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    last_opened_at = db.Column(db.DateTime)
+    last_accessed = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Progress Tracking
+    is_completed = db.Column(db.Boolean, default=False)
+    time_spent = db.Column(db.Integer, default=0) # Total seconds spent studying this lesson
+
     
     # Store UI settings as JSON string: {"sub_size": "24px", "sub_color": "#fff", "sub_pos": "bottom", ...}
     settings_json = db.Column(db.Text, default='{}')

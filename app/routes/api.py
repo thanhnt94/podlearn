@@ -398,3 +398,39 @@ def edit_transcript_time(lesson_id):
     
     db.session.commit()
     return jsonify({'status': 'ok'})
+@api_bp.route('/lesson/<int:lesson_id>/track-time', methods=['POST'])
+@login_required
+def track_time(lesson_id):
+    """Add study time and update last accessed."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json() or {}
+    seconds = data.get('seconds_added', 0)
+    
+    if seconds > 0:
+        lesson.time_spent = (lesson.time_spent or 0) + int(seconds)
+        # last_accessed is auto-updated by SQLAlchemy's onupdate or explicitly here
+        from datetime import datetime, timezone
+        lesson.last_accessed = datetime.now(timezone.utc)
+        
+        db.session.commit()
+        
+    return jsonify({
+        'status': 'ok',
+        'total_time_spent': lesson.time_spent
+    })
+
+
+@api_bp.route('/lesson/<int:lesson_id>/toggle-complete', methods=['POST'])
+@login_required
+def toggle_complete(lesson_id):
+    """Toggle a lesson as completed."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    
+    lesson.is_completed = not lesson.is_completed
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'ok',
+        'is_completed': lesson.is_completed
+    })

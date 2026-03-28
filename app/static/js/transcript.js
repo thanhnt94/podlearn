@@ -160,11 +160,20 @@ function updateVideoSubOverlay(currentTime) {
     const overlay = document.getElementById('videoSubOverlay');
     if (!overlay) return;
 
+    // Check if the user has disabled on-video subtitles
+    const isShowEnabled = document.getElementById('toggleScriptOverlay')?.checked ?? true;
+    if (!isShowEnabled) {
+        overlay.style.visibility = 'hidden';
+        overlay.style.display = 'none';
+        return;
+    }
+
     if (currentActiveIndex >= 0) {
         const line = mergedLines[currentActiveIndex];
         // Only show if we're strictly within the bounds
         if (currentTime >= line.start && currentTime <= line.end) {
             let html = '';
+
             
             // Get current visual configs from UI
             const s1 = document.getElementById('optSubSize1')?.value || '24px';
