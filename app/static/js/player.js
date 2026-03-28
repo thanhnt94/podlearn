@@ -21,6 +21,8 @@ if(firstScriptTag) {
 let ytPlayer = null;
 let isPlayerReady = false;
 let timeUpdateInterval = null;
+let abLoopA = null;
+let abLoopB = null;
 
 // ── YouTube IFrame API callback (global) ─────────────────────
 function onYouTubeIframeAPIReady() {
@@ -96,6 +98,13 @@ function onTimeUpdate(currentTime) {
     }
     if (typeof checkNotePopup === 'function') {
         checkNotePopup(currentTime);
+    }
+
+    // ── A-B Repeat Logic ─────────────────────────────────────
+    if (abLoopA !== null && abLoopB !== null) {
+        if (currentTime >= abLoopB) {
+            ytPlayer.seekTo(abLoopA, true);
+        }
     }
 }
 
@@ -550,10 +559,152 @@ function applyVisualOptions() {
         noteOverlay.style.border = 'none';
         noteOverlay.style.boxShadow = 'none';
         noteOverlay.style.backdropFilter = 'none';
+
+        // PERSISTENCE: Save settings to DB
+        saveLessonSettings();
     }
 }
 
+async function saveLessonSettings() {
+    const settings = {
+        sub1_color: document.getElementById('optSubColor1')?.value,
+        sub2_color: document.getElementById('optSubColor2')?.value,
+        sub3_color: document.getElementById('optSubColor3')?.value,
+        sub1_bg: document.getElementById('optSubBg1')?.value,
+        sub2_bg: document.getElementById('optSubBg2')?.value,
+        sub3_bg: document.getElementById('optSubBg3')?.value,
+        sub1_size: document.getElementById('optSubSize1')?.value,
+        sub2_size: document.getElementById('optSubSize2')?.value,
+        sub3_size: document.getElementById('optSubSize3')?.value,
+        sub_pos: document.getElementById('optSubPos')?.value,
+        note_size: document.getElementById('optNoteSize')?.value,
+        note_theme: document.getElementById('optNoteTheme')?.value,
+        note_pos: document.getElementById('optNotePos')?.value,
+        lookup_target: document.getElementById('optLookupTarget')?.value
+    };
+
+    try {
+        await fetch(`/api/lesson/${LESSON_ID}/set-languages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                original_lang_code: document.getElementById('displaySub1')?.value,
+                target_lang_code: document.getElementById('displaySub2')?.value,
+                third_lang_code: document.getElementById('displaySub3')?.value,
+                settings: settings
+            })
+        });
+    } catch (err) {
+        console.error('[PodLearn] Failed to save settings:', err);
+    }
+}
+
+
+// ── A-B Repeat Controller ─────────────────────────────────────
+function setABLoop(point) {
+    if (!ytPlayer || !isPlayerReady) return;
+    const currentTime = ytPlayer.getCurrentTime();
+    
+    if (point === 'A') {
+        abLoopA = currentTime;
+        document.getElementById('btn-set-a').textContent = `A: ${formatTime(abLoopA)}`;
+        document.getElementById('btn-set-a').classList.add('btn--accent');
+    } else {
+        if (abLoopA === null) {
+            alert("Please set point A first.");
+            return;
+        }
+        if (currentTime <= abLoopA) {
+            alert("Point B must be after Point A.");
+            return;
+        }
+        abLoopB = currentTime;
+        document.getElementById('btn-set-b').textContent = `B: ${formatTime(abLoopB)}`;
+        document.getElementById('btn-set-b').classList.add('btn--accent');
+        
+        // Finalize loop
+        document.getElementById('ab-status').style.display = 'block';
+        document.getElementById('btn-clear-ab').style.display = 'block';
+        
+        // Jump to A to start the loop immediately
+        ytPlayer.seekTo(abLoopA, true);
+    }
+}
+
+function clearABLoop() {
+    abLoopA = null;
+    abLoopB = null;
+    
+    document.getElementById('btn-set-a').textContent = 'Set A';
+    document.getElementById('btn-set-a').classList.remove('btn--accent');
+    document.getElementById('btn-set-b').textContent = 'Set B';
+    document.getElementById('btn-set-b').classList.remove('btn--accent');
+    document.getElementById('ab-status').style.display = 'none';
+    document.getElementById('btn-clear-ab').style.display = 'none';
+}
+
+function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+// ── Keyboard Shortcuts ────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+    // Ignore if user is typing in an input/textarea
+    if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+    switch(e.key) {
+        case '[':
+            setABLoop('A');
+            break;
+        case ']':
+            setABLoop('B');
+            break;
+        case '\\':
+            clearABLoop();
+            break;
+        case ' ': // Space for play/pause
+            e.preventDefault();
+            if (ytPlayer && isPlayerReady) {
+                const state = ytPlayer.getPlayerState();
+                if (state === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+                else ytPlayer.playVideo();
+            }
+            break;
+    }
+});
+
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    loadSavedSettings();
     applyVisualOptions();
 });
+
+function loadSavedSettings() {
+    if (typeof SAVED_SETTINGS === 'undefined' || !SAVED_SETTINGS) return;
+    
+    // Subtitle Visuals
+    if (SAVED_SETTINGS.sub1_color) document.getElementById('optSubColor1').value = SAVED_SETTINGS.sub1_color;
+    if (SAVED_SETTINGS.sub2_color) document.getElementById('optSubColor2').value = SAVED_SETTINGS.sub2_color;
+    if (SAVED_SETTINGS.sub3_color) document.getElementById('optSubColor3').value = SAVED_SETTINGS.sub3_color;
+    
+    if (SAVED_SETTINGS.sub1_bg) document.getElementById('optSubBg1').value = SAVED_SETTINGS.sub1_bg;
+    if (SAVED_SETTINGS.sub2_bg) document.getElementById('optSubBg2').value = SAVED_SETTINGS.sub2_bg;
+    if (SAVED_SETTINGS.sub3_bg) document.getElementById('optSubBg3').value = SAVED_SETTINGS.sub3_bg;
+    
+    if (SAVED_SETTINGS.sub1_size) document.getElementById('optSubSize1').value = SAVED_SETTINGS.sub1_size;
+    if (SAVED_SETTINGS.sub2_size) document.getElementById('optSubSize2').value = SAVED_SETTINGS.sub2_size;
+    if (SAVED_SETTINGS.sub3_size) document.getElementById('optSubSize3').value = SAVED_SETTINGS.sub3_size;
+    
+    if (SAVED_SETTINGS.sub_pos) document.getElementById('optSubPos').value = SAVED_SETTINGS.sub_pos;
+
+    // Notes Visuals
+    if (SAVED_SETTINGS.note_size) document.getElementById('optNoteSize').value = SAVED_SETTINGS.note_size;
+    if (SAVED_SETTINGS.note_theme) document.getElementById('optNoteTheme').value = SAVED_SETTINGS.note_theme;
+    if (SAVED_SETTINGS.note_pos) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
+
+    // Lookup
+    if (SAVED_SETTINGS.lookup_target) document.getElementById('optLookupTarget').value = SAVED_SETTINGS.lookup_target;
+}
+

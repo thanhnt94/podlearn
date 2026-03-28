@@ -16,6 +16,7 @@ class SubtitleTrack(db.Model):
     # Uploader Info
     uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     uploader_name = db.Column(db.String(50), default="Bot")
+    content_json = db.Column(db.JSON, nullable=True)
     note = db.Column(db.String(255), nullable=True)
 
     # Unique constraint: one track per language per video
@@ -26,27 +27,9 @@ class SubtitleTrack(db.Model):
     # Relationships
     video = db.relationship('Video', back_populates='subtitle_tracks')
     uploader = db.relationship('User')
-    lines = db.relationship('SubtitleLine', back_populates='track',
-                            lazy='dynamic', cascade='all, delete-orphan',
-                            order_by='SubtitleLine.line_index')
+    # Relationships
+    video = db.relationship('Video', back_populates='subtitle_tracks')
+    uploader = db.relationship('User')
 
     def __repr__(self) -> str:
         return f'<SubtitleTrack {self.language_code} for video_id={self.video_id}>'
-
-
-class SubtitleLine(db.Model):
-    """A single timed line within a subtitle track."""
-    __tablename__ = 'subtitle_lines'
-
-    id = db.Column(db.Integer, primary_key=True)
-    track_id = db.Column(db.Integer, db.ForeignKey('subtitle_tracks.id'), nullable=False, index=True)
-    line_index = db.Column(db.Integer, nullable=False)
-    start_time = db.Column(db.Float, nullable=False)
-    duration = db.Column(db.Float, nullable=False)
-    content = db.Column(db.Text, nullable=False)
-
-    # Relationships
-    track = db.relationship('SubtitleTrack', back_populates='lines')
-
-    def __repr__(self) -> str:
-        return f'<SubtitleLine #{self.line_index} @ {self.start_time}s>'

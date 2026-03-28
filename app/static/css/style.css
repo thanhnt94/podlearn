@@ -242,6 +242,18 @@ input, button, textarea, select {
     border-color: rgba(255, 255, 255, 0.12);
 }
 
+.btn--accent {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 10px var(--accent-glow);
+}
+
+.btn--accent:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px var(--accent-glow);
+}
+
 .btn--danger {
     background: rgba(255, 107, 107, 0.12);
     color: var(--error);
@@ -250,6 +262,7 @@ input, button, textarea, select {
 
 .btn--danger:hover {
     background: rgba(255, 107, 107, 0.2);
+    border-color: rgba(255, 107, 107, 0.3);
 }
 
 .btn--sm {
@@ -1099,4 +1112,125 @@ input, button, textarea, select {
 /* Make other modals semi-transparent when editing if they overlap */
 #noteEditModal {
     backdrop-filter: none !important;
+}
+
+/* ── Dictionary Tooltip ─────────────────────────────────────── */
+.word-lookup {
+    cursor: pointer;
+    transition: all var(--transition-fast) !important;
+    border-bottom: 1px dashed rgba(255,255,255,0.2) !important;
+    display: inline-block !important;
+    margin: 0 1px !important;
+}
+
+.word-lookup:hover {
+    color: var(--accent) !important;
+    border-bottom-color: var(--accent) !important;
+    background: rgba(108, 92, 231, 0.1) !important;
+}
+
+.dict-tooltip {
+    position: absolute;
+    z-index: 2050;
+    width: 280px;
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-lg) !important;
+    padding: var(--space-md) !important;
+    display: none;
+    pointer-events: auto;
+    animation: fadeInTooltip 0.2s ease;
+}
+
+.dict-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    cursor: move; /* Indication it's draggable */
+}
+
+.btn--close-dict {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-muted);
+    border: none;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn--close-dict:hover {
+    background: rgba(255, 107, 107, 0.2);
+    color: var(--error);
+}
+
+
+.dict-word {
+    font-size: var(--font-size-md);
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: capitalize;
+}
+
+.dict-phonetic {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    font-family: inherit;
+}
+
+.dict-meaning {
+    margin-bottom: var(--space-sm);
+}
+
+.dict-pos {
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(108, 92, 231, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    display: inline-block;
+}
+
+.dict-defs {
+    margin-top: 4px;
+    padding-left: 15px;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    list-style-type: disc;
+}
+
+.dict-defs li {
+    margin-bottom: 4px;
+}
+
+.dict-actions {
+    margin-top: var(--space-md);
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-md);
+}
+
+.dict-loading, .dict-error {
+    font-size: var(--font-size-sm);
+    text-align: center;
+    padding: var(--space-md);
+    color: var(--text-muted);
+}
+
+@keyframes fadeInTooltip {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
 }

@@ -13,10 +13,22 @@ from ..extensions import db
 from ..models.lesson import Lesson
 from ..models.video import Video
 from ..models.note import Note
-from ..models.subtitle import SubtitleTrack, SubtitleLine
+from ..models.subtitle import SubtitleTrack
 from ..services.subtitle_service import get_subtitle_track, get_lines_as_dicts
 
 api_bp = Blueprint('api', __name__)
+
+@api_bp.route('/video/status/<int:video_id>', methods=['GET'])
+@login_required
+def get_video_status(video_id):
+    """Check background processing status of a video."""
+    video = Video.query.get_or_404(video_id)
+    return jsonify({
+        'id': video.id,
+        'youtube_id': video.youtube_id,
+        'title': video.title,
+        'status': video.status or 'unknown'
+    })
 
 def _parse_srt(filepath: str) -> list[dict]:
     """Parse SRT file into a list of dicts."""
@@ -60,7 +72,7 @@ def get_available_subtitles(lesson_id):
             'is_auto_generated': t.is_auto_generated,
             'uploader_name': t.uploader_name or "Unknown",
             'fetched_at': t.fetched_at.isoformat() if hasattr(t, 'fetched_at') and t.fetched_at else None,
-            'line_count': t.lines.count()
+            'line_count': len(t.content_json) if t.content_json else 0
         })
         
     return jsonify({'subtitles': results})
@@ -86,7 +98,8 @@ def fetch_subtitles(lesson_id):
         language_code=lang_code
     ).first()
 
-    if not track or track.lines.count() == 0:
+    has_lines = (track.content_json and len(track.content_json) > 0)
+    if not track or not has_lines:
         return jsonify({'error': f'Subtitles for language "{lang_code}" have not been uploaded yet. Please upload a file first.'}), 404
 
     lines = get_lines_as_dicts(track)
@@ -159,34 +172,21 @@ def upload_subtitles(lesson_id):
 
     # Check if a track already exists to reuse/overwrite
     track = SubtitleTrack.query.filter_by(video_id=video_id, language_code=lang_code).first()
-    if track:
-        # Delete old lines
-        track.lines.delete()
-        track.uploader_id = current_user.id
-        track.uploader_name = final_uploader_name
-        track.note = custom_note
-        db.session.flush()
-    else:
+    if not track:
         track = SubtitleTrack(
             video_id=video_id,
             language_code=lang_code,
-            is_auto_generated=False,
-            uploader_id=current_user.id,
-            uploader_name=final_uploader_name,
-            note=custom_note
+            is_auto_generated=False
         )
         db.session.add(track)
-        db.session.flush()
-        
-    for idx, entry in enumerate(parsed_data):
-        line = SubtitleLine(
-            track_id=track.id,
-            line_index=idx,
-            start_time=entry['start'],
-            duration=entry['duration'],
-            content=entry['text'],
-        )
-        db.session.add(line)
+
+    # Update track data
+    track.uploader_id = current_user.id
+    track.uploader_name = final_uploader_name
+    track.note = custom_note
+    track.content_json = parsed_data
+    
+    # Optional: No cleanup needed if SubtitleLine is removed from model
         
     db.session.commit()
     
@@ -357,11 +357,17 @@ def edit_transcript(lesson_id):
     if lang_code is None or line_index is None:
         return jsonify({'error': 'Missing language_code or line_index'}), 400
 
-    from ..models.subtitle import SubtitleTrack, SubtitleLine
+    from ..models.subtitle import SubtitleTrack
     track = SubtitleTrack.query.filter_by(video_id=lesson.video_id, language_code=lang_code).first_or_404()
     
-    line = SubtitleLine.query.filter_by(track_id=track.id, line_index=line_index).first_or_404()
-    line.content = new_text
+    # JSON update
+    if track.content_json and 0 <= line_index < len(track.content_json):
+        # SQLAlchemy might not detect mutations if we don't re-assign or use MutableList
+        new_list = list(track.content_json)
+        new_list[line_index]['text'] = new_text
+        track.content_json = new_list
+    else:
+        return jsonify({'error': 'Line index out of bounds or track is empty'}), 400
     
     db.session.commit()
     return jsonify({'status': 'ok'})
@@ -380,21 +386,15 @@ def edit_transcript_time(lesson_id):
     if line_index is None or new_start is None:
         return jsonify({'error': 'Missing line_index or new_start'}), 400
 
-    from ..models.subtitle import SubtitleTrack, SubtitleLine
-    # Update lines across all tracks for this video to keep them in sync
+    from ..models.subtitle import SubtitleTrack
     tracks = SubtitleTrack.query.filter_by(video_id=lesson.video_id).all()
-    track_ids = [t.id for t in tracks]
     
-    lines = SubtitleLine.query.filter(
-        SubtitleLine.track_id.in_(track_ids),
-        SubtitleLine.line_index == line_index
-    ).all()
-
-    if not lines:
-        return jsonify({'error': 'Line not found'}), 404
-
-    for line in lines:
-        line.start_time = float(new_start)
+    for t in tracks:
+        if t.content_json and 0 <= line_index < len(t.content_json):
+            # Update modern JSON
+            new_list = list(t.content_json)
+            new_list[line_index]['start'] = float(new_start)
+            t.content_json = new_list
     
     db.session.commit()
     return jsonify({'status': 'ok'})

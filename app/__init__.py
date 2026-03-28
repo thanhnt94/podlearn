@@ -22,6 +22,9 @@ def create_app(config_name: str | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    
+    from .extensions import celery_init_app
+    celery_init_app(app)
 
     # ── Register blueprints ────────────────────────────────────
     from .routes.auth import auth_bp

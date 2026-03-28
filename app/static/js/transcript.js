@@ -46,14 +46,12 @@ function renderTranscript(tracksDataArray) {
         line.texts.forEach((text, idx) => {
             if (text) {
                 const className = idx === 0 ? 'tline__original' : `tline__translated tline__translated--${idx}`;
-                // Add dblclick to edit. We need to know which track_id this is.
-                // We'll store track types in a let/const so we can find them.
-                textsHtml += `<div class="${className}" title="Double click to edit" ondblclick="editTranscriptLine(${i}, ${idx}, event)">${escapeHtml(text)}</div>`;
+                textsHtml += `<div class="${className}" title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
             }
         });
 
         html += `
-            <div class="tline" id="tline-${i}" data-index="${i}" data-start="${line.start}">
+            <div class="tline" id="tline-${i}" data-index="${i}" data-start="${line.start}" ondblclick="quickNoteFromLine(${i}, event)">
                 <span class="tline__time" title="Double click to edit time" ondblclick="editTranscriptTime(${i}, event)">${timeLabel}</span>
                 <div class="tline__text">
                     ${textsHtml}
@@ -194,8 +192,9 @@ function updateVideoSubOverlay(currentTime) {
                     const escaped = escapeHtml(text);
                     html += `<span class="${cls}" 
                                   style="font-size: ${size}; color: ${color}; background: ${bg} !important; display: block; opacity: 1 !important; backdrop-filter: none !important;"
-                                  onclick="quickNoteFromSub('${escaped.replace(/'/g, "\\'")}')"
-                                  title="Click to quickly add this to your notes">${escaped}</span>`;
+                                  onmouseup="onTextSelected(event)"
+                                  ondblclick="quickNoteFromSub('${escaped.replace(/'/g, "\\'")}')"
+                                  title="Highlight text to translate | Double click to add to notes">${escaped}</span>`;
                 }
             });
             overlay.innerHTML = html;
@@ -372,12 +371,12 @@ function renderTranscriptFromState() {
         line.texts.forEach((text, idx) => {
             if (text) {
                 const className = idx === 0 ? 'tline__original' : `tline__translated tline__translated--${idx}`;
-                textsHtml += `<div class="${className}" title="Double click to edit" ondblclick="editTranscriptLine(${i}, ${idx}, event)">${escapeHtml(text)}</div>`;
+                textsHtml += `<div class="${className}" title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
             }
         });
         const activeClass = (i === currentActiveIndex) ? 'tline--active' : '';
         html += `
-            <div class="tline ${activeClass}" id="tline-${i}" data-index="${i}" data-start="${line.start}">
+            <div class="tline ${activeClass}" id="tline-${i}" data-index="${i}" data-start="${line.start}" ondblclick="quickNoteFromLine(${i}, event)">
                 <span class="tline__time">${timeLabel}</span>
                 <div class="tline__text">${textsHtml}</div>
             </div>
@@ -391,3 +390,161 @@ function renderTranscriptFromState() {
         });
     });
 }
+// ── Selection Lookup (Google Translate) ──────────────────────
+async function onTextSelected(event) {
+    const selection = window.getSelection().toString().trim();
+    if (!selection || selection.length < 1) return;
+
+    // Position tooltip near cursor with smart bounds checking
+    const tooltip = document.getElementById('dictTooltip');
+    const content = document.getElementById('dictContent');
+    
+    tooltip.style.display = 'block';
+    
+    // Initial positioning
+    let top = event.pageY + 20;
+    let left = event.pageX;
+
+    // Check if it overflows the bottom of the screen (approx height 280px)
+    const windowHeight = window.innerHeight;
+    const tooltipExpectedHeight = 280; 
+    
+    if (top + tooltipExpectedHeight > windowHeight + window.scrollY) {
+        // Not enough space below, show ABOVE cursor
+        top = event.pageY - tooltipExpectedHeight - 20;
+    }
+
+    // Check right edge overflow
+    const windowWidth = window.innerWidth;
+    const tooltipWidth = 280;
+    if (left + tooltipWidth > windowWidth) {
+        left = windowWidth - tooltipWidth - 20;
+    }
+
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    
+    content.innerHTML = `<div class="dict-loading">Translating "${selection.substring(0, 15)}..."</div>`;
+
+    try {
+        // Use Google Translate API (un-documented but works for free client-side fetches)
+        const targetLang = document.getElementById('optLookupTarget')?.value || 'vi';
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(selection)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!res.ok || !data[0]) {
+            content.innerHTML = `<div class="dict-error">Translation failed.</div>`;
+            return;
+        }
+
+        const translation = data[0].map(x => x[0]).join('');
+        const sourceLang = data[2];
+
+        content.innerHTML = `
+            <div class="dict-header">
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                    <span class="dict-word">${selection}</span>
+                    <span class="dict-phonetic">${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()}</span>
+                </div>
+                <button class="btn--close-dict" onclick="hideDictTooltip()" title="Close translation">✕</button>
+            </div>
+            <div class="dict-meaning">
+                <div style="font-size: 14px; line-height: 1.5; color: var(--text-primary); margin-bottom: 15px;">
+                    ${translation}
+                </div>
+            </div>
+            <div class="dict-actions">
+                <button class="btn btn--primary btn--sm" onclick="saveWordToNotes('${selection.replace(/'/g, "\\'")}', '${translation.replace(/'/g, "\\'")}')">Add to Editor</button>
+            </div>
+        `;
+
+    } catch (err) {
+        content.innerHTML = `<div class="dict-error">Error: ${err.message}</div>`;
+    }
+}
+
+function hideDictTooltip() {
+    document.getElementById('dictTooltip').style.display = 'none';
+}
+
+// Close tooltip when clicking outside
+document.addEventListener('mousedown', (e) => {
+    const tooltip = document.getElementById('dictTooltip');
+    if (tooltip && !tooltip.contains(e.target) && !e.target.closest('.tline') && !e.target.closest('.vso-line')) {
+        hideDictTooltip();
+    }
+});
+
+async function saveWordToNotes(original, translated) {
+    // Instead of direct saving, we load it into the note editor so user can refine it
+    const textToFill = `🌐 [${original}] : ${translated}`;
+    if (typeof quickNoteFromSub === 'function') {
+        quickNoteFromSub(textToFill);
+        hideDictTooltip();
+    } else {
+        console.error('quickNoteFromSub not found in notes.js');
+    }
+}
+
+function quickNoteFromLine(lineIndex, event) {
+    if (event) event.stopPropagation();
+    const line = mergedLines[lineIndex];
+    if (!line) return;
+    
+    // Combine all tracks text into one string or just the first one?
+    // User probably wants the original + translation.
+    const combinedText = line.texts.filter(Boolean).join('\n');
+    
+    if (typeof quickNoteFromSub === 'function') {
+        quickNoteFromSub(combinedText);
+    }
+}
+
+
+// ── Draggable Popup Logic ────────────────────────────────────
+let isDraggingDict = false;
+let dragStartX, dragStartY;
+let tooltipStartX, tooltipStartY;
+
+function initDraggablePopup() {
+    const tooltip = document.getElementById('dictTooltip');
+    if (!tooltip) return;
+
+    // We can use the header area as the handle
+    tooltip.addEventListener('mousedown', (e) => {
+        const header = e.target.closest('.dict-header');
+        if (!header || e.target.closest('button')) return;
+
+        isDraggingDict = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        tooltipStartX = parseInt(tooltip.style.left) || 0;
+        tooltipStartY = parseInt(tooltip.style.top) || 0;
+        
+        document.addEventListener('mousemove', onDragDict);
+        document.addEventListener('mouseup', stopDragDict);
+        
+        // Prevent selection while dragging
+        e.preventDefault();
+    });
+}
+
+function onDragDict(e) {
+    if (!isDraggingDict) return;
+    const tooltip = document.getElementById('dictTooltip');
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    
+    tooltip.style.left = `${tooltipStartX + dx}px`;
+    tooltip.style.top = `${tooltipStartY + dy}px`;
+}
+
+function stopDragDict() {
+    isDraggingDict = false;
+    document.removeEventListener('mousemove', onDragDict);
+    document.removeEventListener('mouseup', stopDragDict);
+}
+
+// Call init since the script is loaded
+document.addEventListener('DOMContentLoaded', initDraggablePopup);

@@ -8,7 +8,7 @@ import webvtt
 import yt_dlp
 
 from ..extensions import db
-from ..models.subtitle import SubtitleTrack, SubtitleLine
+from ..models.subtitle import SubtitleTrack
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def get_subtitle_track(video_id: int, youtube_id: str, language_code: str) -> Su
         language_code=language_code
     ).first()
 
-    if cached and cached.lines.count() > 0:
+    if cached and (cached.content_json and len(cached.content_json) > 0):
         logger.info(f'Cache hit: {language_code} subs for video {youtube_id}')
         return cached
 
@@ -44,16 +44,7 @@ def get_subtitle_track(video_id: int, youtube_id: str, language_code: str) -> Su
             db.session.add(track)
             db.session.flush()
 
-        for idx, entry in enumerate(entries):
-            line = SubtitleLine(
-                track_id=track.id,
-                line_index=idx,
-                start_time=entry['start'],
-                duration=entry['duration'],
-                content=entry['text'],
-            )
-            db.session.add(line)
-
+        track.content_json = entries
         db.session.commit()
         logger.info(f'Cached {len(entries)} lines for {language_code} / {youtube_id}')
         return track
@@ -124,14 +115,19 @@ def _fetch_subs_via_ytdlp(youtube_id: str, lang_code: str) -> list[dict] | None:
 
 
 def get_lines_as_dicts(track: SubtitleTrack) -> list[dict]:
-    """Convert a track's lines to a list of dicts for JSON response."""
-    return [
-        {
-            'index': line.line_index,
-            'start': line.start_time,
-            'duration': line.duration,
-            'end': round(line.start_time + line.duration, 3),
-            'text': line.content,
-        }
-        for line in track.lines.order_by(SubtitleLine.line_index).all()
-    ]
+    """Convert a track's lines to a list of dicts for JSON response. 
+    Uses content_json field.
+    """
+    if track.content_json and len(track.content_json) > 0:
+        return [
+            {
+                'index': idx,
+                'start': entry['start'],
+                'duration': entry['duration'],
+                'end': round(entry['start'] + entry['duration'], 3),
+                'text': entry['text'],
+            }
+            for idx, entry in enumerate(track.content_json)
+        ]
+
+    return []

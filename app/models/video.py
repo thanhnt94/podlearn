@@ -12,6 +12,7 @@ class Video(db.Model):
     title = db.Column(db.String(500), nullable=False)
     thumbnail_url = db.Column(db.String(500))
     duration_seconds = db.Column(db.Integer)
+    status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships

@@ -43,20 +43,18 @@ def add_lesson():
     video = Video.query.filter_by(youtube_id=video_id_str).first()
 
     if not video:
-        # Fetch metadata from YouTube
-        info = fetch_video_info(video_id_str)
-        if not info:
-            flash('Could not fetch video info. The video may be private or unavailable.', 'error')
-            return redirect(url_for('dashboard.index'))
-
+        # Create a "pending" entry immediately
         video = Video(
-            youtube_id=info.youtube_id,
-            title=info.title,
-            thumbnail_url=info.thumbnail_url,
-            duration_seconds=info.duration_seconds,
+            youtube_id=video_id_str,
+            title="Processing...",
+            status='pending'
         )
         db.session.add(video)
-        db.session.flush()
+        db.session.commit()
+        
+        # Trigger background task
+        from ..tasks import process_video_metadata
+        process_video_metadata.delay(video.id)
 
     # Check if user already has this lesson
     existing = Lesson.query.filter_by(
@@ -76,7 +74,7 @@ def add_lesson():
     db.session.add(lesson)
     db.session.commit()
 
-    flash(f'Added: {video.title}', 'success')
+    flash(f'Fetching: {video_id_str}. This might take a few seconds.', 'info')
     return redirect(url_for('dashboard.index'))
 
 
