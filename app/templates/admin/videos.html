@@ -32,13 +32,14 @@
                     </div>
                 </td>
                 <td style="color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">{{ video.youtube_id }}</td>
-                <td style="text-align: center; color: var(--accent); font-weight: 700;">{{ video.lessons|length }}</td>
+                <td style="text-align: center; color: var(--accent); font-weight: 700;">{{ video.lessons.count() }}</td>
                 <td style="color: var(--text-muted); font-size: 0.85rem;">{{ video.created_at.strftime('%Y-%m-%d') }}</td>
                 <td>
                     <div style="display: flex; gap: 10px;">
-                        <a href="{{ url_for('player.index', video_id=video.youtube_id) }}" class="btn btn-- ghost btn--sm" style="font-size: 0.75rem; padding: 8px 12px; border-radius: 8px; border-color: rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: var(--accent);">
-                            View Player
+                        <a href="https://www.youtube.com/watch?v={{ video.youtube_id }}" target="_blank" class="btn btn-- ghost btn--sm" style="font-size: 0.75rem; padding: 8px 12px; border-radius: 8px; border-color: rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); color: var(--accent);">
+                            Watch on YouTube
                         </a>
+
                         <form action="{{ url_for('admin.delete_video', video_id=video.id) }}" method="POST" style="display: inline;">
                             <button type="submit" class="btn btn--ghost btn--sm" style="font-size: 0.75rem; padding: 8px 12px; border-radius: 8px; border-color: rgba(255,107,107,0.15); background: rgba(255,107,107,0.02); color: var(--error);" 
                                     onclick="return confirm('WARNING: Deleting this video will REMOVE ALL user lessons and notes associated with it. Are you absolutely sure?')">

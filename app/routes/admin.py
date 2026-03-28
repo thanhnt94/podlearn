@@ -71,7 +71,33 @@ def delete_subtitle(track_id):
     flash('Subtitle track deleted successfully.', 'success')
     return redirect(url_for('admin.subtitles'))
 
+@admin_bp.route('/user/create', methods=['POST'])
+@login_required
+@admin_required
+def create_user():
+    username = request.form.get('username')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    is_admin = request.form.get('is_admin') == 'on'
+
+    if not username or not email or not password:
+        flash('Username, email, and password are required.', 'error')
+        return redirect(url_for('admin.users'))
+
+    if User.query.filter_by(username=username).first():
+        flash('Username already exists.', 'error')
+        return redirect(url_for('admin.users'))
+
+    user = User(username=username, email=email, is_admin=is_admin)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    
+    flash(f'User {username} created successfully.', 'success')
+    return redirect(url_for('admin.users'))
+
 @admin_bp.route('/video/delete/<int:video_id>', methods=['POST'])
+
 @login_required
 @admin_required
 def delete_video(video_id):
@@ -81,16 +107,49 @@ def delete_video(video_id):
     flash(f'Video {video.title} deleted successfully.', 'success')
     return redirect(url_for('admin.videos'))
 
-@admin_bp.route('/user/toggle-admin/<int:user_id>', methods=['POST'])
+@admin_bp.route('/user/edit/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
-def toggle_admin(user_id):
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+    username = request.form.get('username')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    is_admin = request.form.get('is_admin') == 'on'
+
+    if not username or not email:
+        flash('Username and email are required.', 'error')
+        return redirect(url_for('admin.users'))
+
+    # Check for username conflict (if username changed)
+    if username != user.username:
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists.', 'error')
+            return redirect(url_for('admin.users'))
+
+    user.username = username
+    user.email = email
+    user.is_admin = is_admin
+    
+    if password: # only change password if provided
+        user.set_password(password)
+        
+    db.session.commit()
+    flash(f'User {username} updated successfully.', 'success')
+    return redirect(url_for('admin.users'))
+
+@admin_bp.route('/user/delete/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
     if user_id == current_user.id:
-        flash('You cannot toggle your own admin status!', 'error')
+        flash('You cannot delete your own account!', 'error')
         return redirect(url_for('admin.users'))
         
     user = User.query.get_or_404(user_id)
-    user.is_admin = not user.is_admin
+    username = user.username
+    db.session.delete(user)
     db.session.commit()
-    flash(f'Admin status updated for {user.username}.', 'success')
+    flash(f'User {username} deleted successfully.', 'success')
     return redirect(url_for('admin.users'))
+
