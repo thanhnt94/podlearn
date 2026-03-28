@@ -754,10 +754,16 @@ function generateDictationHTML(text, langCode = 'ja', difficulty = 0.3) {
             }
         });
 
-        // Xác định số lượng ô trống: tối thiểu 1, tối đa 2
-        // Nếu câu dài (> 5 từ) thì có thể có 2, nếu ngắn thì 1.
-        let numToHide = candidates.length > 5 ? 2 : 1;
-        if (numToHide > candidates.length) numToHide = candidates.length;
+        // Tính số lượng từ cần ẩn dựa trên tỷ lệ difficulty (vd: 0.15, 0.3, 0.5)
+        let numToHide = Math.ceil(candidates.length * difficulty);
+        
+        // Đảm bảo luôn có ít nhất 1 từ bị đục lỗ (nếu câu có chữ), và không vượt quá tổng số từ của câu.
+        if (candidates.length > 0) {
+            numToHide = Math.max(1, Math.min(numToHide, candidates.length));
+        } else {
+            numToHide = 0;
+        }
+
 
         // Chọn ngẫu nhiên hoặc chọn các từ dài nhất?
         // Ở đây tôi sẽ chọn các từ dài nhất để thử thách người dùng
@@ -882,4 +888,17 @@ function syncDictationInput(input) {
 
 
 // Call init since the script is loaded
-document.addEventListener('DOMContentLoaded', initDraggablePopup);
+// Cập nhật sự kiện khi đổi độ khó
+document.addEventListener('DOMContentLoaded', () => {
+    initDraggablePopup();
+    
+    const difficultySelect = document.getElementById('dictationDifficulty');
+    if (difficultySelect) {
+        difficultySelect.addEventListener('change', () => {
+            if (typeof isDictationMode !== 'undefined' && isDictationMode) {
+                enableDictationMode(); 
+            }
+        });
+    }
+});
+

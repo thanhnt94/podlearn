@@ -61,7 +61,11 @@
                 <div id="ytPlayer"></div>
             </div>
             
-            <!-- NEW: Video Overlay for Script -->
+            <!-- BLUR OVERLAY FOR DICTATION: Hides hardcoded YouTube subs -->
+            <div id="dictationBlurOverlay" class="dictation-blur-overlay"></div>
+
+            <!-- Video Overlay for Script -->
+
             <div class="video-sub-overlay" id="videoSubOverlay" style="visibility: hidden;">
 
             </div>
@@ -98,12 +102,15 @@
             <!-- Dictation Mode Settings Bar -->
             <div id="dictationBar" style="display:none; padding:10px 15px; background:rgba(108, 92, 231, 0.05); border-bottom:1px solid var(--border); align-items:center; gap:12px;">
                 <div style="font-size:11px; font-weight:700; color:var(--accent); letter-spacing:1px;">DICTATION MODE</div>
-                <select id="dictationDifficulty" class="lang-select" style="padding:4px 8px; font-size:11px; background:rgba(255,255,255,0.05);" onchange="enableDictationMode()">
-                    <option value="easy">Easy (15%)</option>
-                    <option value="medium" selected>Medium (30%)</option>
-                    <option value="hard">Hard (50%)</option>
-                    <option value="insane">All (100%)</option>
+                <select id="dictationDifficulty" class="lang-select" style="padding:4px 8px; font-size:11px; background:rgba(255,255,255,0.05); color: #fff;">
+                    <option value="0.05">Beginner</option>
+                    <option value="0.15">Easy</option>
+                    <option value="0.30" selected>Medium</option>
+                    <option value="0.50">Hard</option>
+                    <option value="1.00">All</option>
                 </select>
+
+
                 <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
                     <span id="dictationScore" style="font-size:11px; font-weight:600; color:var(--text-muted);">0 / 0</span>
                     <button class="btn btn--secondary btn--sm" onclick="disableDictationMode()" style="padding:2px 8px; font-size:10px;">Exit</button>

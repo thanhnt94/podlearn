@@ -197,6 +197,29 @@ input, button, textarea, select {
 }
 
 
+/* DICTATION VIDEO BLUR */
+.dictation-blur-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
+    z-index: 5;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all 0.4s ease;
+}
+
+body.dictation-active .dictation-blur-overlay {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DICTATION MODE: ABSOLUTE SUPPRESSION
+   ───────────────────────────────────────────────────────────── */
+
+
 /* ── Buttons ────────────────────────────────────────────────── */
 .btn {
     display: inline-flex;
@@ -957,6 +980,27 @@ input, button, textarea, select {
     cursor: pointer;
     border-left: 3px solid transparent;
     transition: all var(--transition-fast);
+}
+
+.lang-select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.lang-select option {
+    background: #1a1c2c !important; /* Force dark background in dropdown */
+    color: #fff !important;           /* Force white text */
+}
+
+.lang-select:hover, .lang-select:focus {
+    border-color: var(--accent);
 }
 
 .tline:hover {

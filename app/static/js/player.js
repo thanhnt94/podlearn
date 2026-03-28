@@ -495,19 +495,23 @@ function initFromSaved() {
         if (SAVED_SETTINGS.note_theme && document.getElementById('optNoteColor')) document.getElementById('optNoteColor').value = SAVED_SETTINGS.note_theme;
         if (SAVED_SETTINGS.note_pos && document.getElementById('optNotePos')) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
         
-        // Toggles & Settings (un-nest if needed)
-        const s = SAVED_SETTINGS.settings || {};
-        const showSub = (s.show_sub !== undefined) ? s.show_sub : (SAVED_SETTINGS.show_sub !== undefined ? SAVED_SETTINGS.show_sub : true);
-        const showNote = (s.show_note !== undefined) ? s.show_note : (SAVED_SETTINGS.show_note !== undefined ? SAVED_SETTINGS.show_note : true);
+        // Show/Hide Toggles
+        const showSub = (SAVED_SETTINGS.show_sub !== undefined) ? SAVED_SETTINGS.show_sub : true;
+        const showNote = (SAVED_SETTINGS.show_note !== undefined) ? SAVED_SETTINGS.show_note : true;
 
         const elSub = document.getElementById('toggleScriptOverlay');
-        if (elSub) elSub.checked = showSub;
-        toggleOverlay('script');
+        if (elSub) {
+            elSub.checked = showSub;
+            toggleOverlay('script');
+        }
 
         const elNote = document.getElementById('toggleNoteOverlay');
-        if (elNote) elNote.checked = showNote;
-        toggleOverlay('note');
+        if (elNote) {
+            elNote.checked = showNote;
+            toggleOverlay('note');
+        }
     }
+
 
     // Completion state from server
     isMarkedCompleted = (typeof IS_COMPLETED !== 'undefined' && IS_COMPLETED === 'True');
@@ -702,18 +706,20 @@ async function saveLessonSettings() {
         sub2_color: document.getElementById('optSubColor2')?.value || '#f1c40f',
         sub3_color: document.getElementById('optSubColor3')?.value || '#00cec9',
         sub_pos: document.getElementById('optSubPos')?.value || 'bottom',
+        
+        note_size: document.getElementById('optNoteSize')?.value || '16px',
+        note_theme: document.getElementById('optNoteColor')?.value || 'dark',
+        note_pos: document.getElementById('optNotePos')?.value || 'top-right',
+        
         note_appear_before: document.getElementById('optNoteBefore')?.value || 2.0,
         note_duration: document.getElementById('optNoteDuration')?.value || 4.0,
+        
         shadowing_extra_time: document.getElementById('optShadowExtra')?.value || 2.0,
         shadowing_hide_subs: document.getElementById('toggleShadowHideSubs')?.checked || false,
-        settings: {
-            note_size: document.getElementById('optNoteSize')?.value || '16px',
-            note_theme: document.getElementById('optNoteColor')?.value || 'dark',
-            note_pos: document.getElementById('optNotePos')?.value || 'top-right',
-            show_sub: document.getElementById('toggleScriptOverlay').checked,
-            show_note: document.getElementById('toggleNoteOverlay').checked,
-            lookup_target: document.getElementById('optLookupTarget')?.value
-        }
+        
+        show_sub: document.getElementById('toggleScriptOverlay')?.checked ?? true,
+        show_note: document.getElementById('toggleNoteOverlay')?.checked ?? true,
+        lookup_target: document.getElementById('optLookupTarget')?.value
     };
 
     try {
@@ -753,6 +759,7 @@ async function saveLessonSettings() {
         console.error('[PodLearn] Failed to save settings:', err);
     }
 }
+
 
 
 
