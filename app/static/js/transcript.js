@@ -46,9 +46,11 @@ function renderTranscript(tracksDataArray) {
         line.texts.forEach((text, idx) => {
             if (text) {
                 const className = idx === 0 ? 'tline__original' : `tline__translated tline__translated--${idx}`;
-                textsHtml += `<div class="${className}" title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
+                const hiddenStyle = (typeof isDictationMode !== 'undefined' && isDictationMode && idx > 0) ? 'style="display: none;"' : '';
+                textsHtml += `<div class="${className}" ${hiddenStyle} title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
             }
         });
+
 
         html += `
             <div class="tline" id="tline-${i}" data-index="${i}" data-start="${line.start}" ondblclick="quickNoteFromLine(${i}, event)">
@@ -62,13 +64,15 @@ function renderTranscript(tracksDataArray) {
 
     container.innerHTML = html;
 
-    // Attach click-to-seek
+    // Attach click-to-seek + auto play
     container.querySelectorAll('.tline').forEach(el => {
-        el.addEventListener('click', () => {
-            const start = parseFloat(el.dataset.start);
-            seekTo(start);
+        el.addEventListener('click', (e) => {
+            if (e.target.tagName.toLowerCase() === 'input') return; 
+            seekAndPlay(parseFloat(el.dataset.start));
         });
     });
+
+
 
     currentActiveIndex = -1;
 }
@@ -225,7 +229,9 @@ function updateVideoSubOverlay(currentTime) {
             const backgrounds = [b1, b2, b3];
 
             line.texts.forEach((text, i) => {
+                if (isDictationMode && i > 0) return;
                 if (text) {
+
                     const cls = i === 0 ? 'vso-line' : `vso-line vso-line--${i}`;
                     const size = sizes[i] || '20px';
                     const color = colors[i] || '#ffffff';
@@ -435,25 +441,38 @@ function renderTranscriptFromState() {
         line.texts.forEach((text, idx) => {
             if (text) {
                 const className = idx === 0 ? 'tline__original' : `tline__translated tline__translated--${idx}`;
-                textsHtml += `<div class="${className}" title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
+                const hiddenStyle = (typeof isDictationMode !== 'undefined' && isDictationMode && idx > 0) ? 'style="display: none;"' : '';
+                textsHtml += `<div class="${className}" ${hiddenStyle} title="Highlight text to translate" onmouseup="onTextSelected(event)">${escapeHtml(text)}</div>`;
             }
         });
+
         const activeClass = (i === currentActiveIndex) ? 'tline--active' : '';
         html += `
-            <div class="tline ${activeClass}" id="tline-${i}" data-index="${i}" data-start="${line.start}" ondblclick="quickNoteFromLine(${i}, event)">
+            <div class="tline ${activeClass}" id="tline-${i}" data-index="${i}" data-start="${line.start}" 
+                 onclick="if(event.target.tagName.toLowerCase() !== 'input') seekAndPlay(${line.start})"
+                 ondblclick="quickNoteFromLine(${i}, event)">
+
                 <span class="tline__time">${timeLabel}</span>
                 <div class="tline__text">${textsHtml}</div>
             </div>
         `;
     }
     container.innerHTML = html;
-    // Re-attach listeners
-    container.querySelectorAll('.tline').forEach(el => {
-        el.addEventListener('click', () => {
-            seekTo(parseFloat(el.dataset.start));
-        });
-    });
 }
+
+function seekAndPlay(time) {
+    if (typeof seekTo === 'function') seekTo(time);
+    if (ytPlayer && ytPlayer.playVideo) {
+        ytPlayer.playVideo();
+        // Try forcing play again after short delay for embedded stability
+        setTimeout(() => {
+            if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) ytPlayer.playVideo();
+        }, 150);
+    }
+}
+
+
+
 // ── Selection Lookup (Google Translate) ──────────────────────
 async function onTextSelected(event) {
     const selection = window.getSelection().toString().trim();
@@ -643,7 +662,10 @@ function enableDictationMode() {
     
     isDictationMode = true;
 
+    document.body.classList.add('dictation-active');
+
     const btn = document.getElementById('btn-dictation');
+
     if (btn) btn.classList.add('btn--accent');
     const dBar = document.getElementById('dictationBar');
     if (dBar) dBar.style.display = 'flex';
@@ -675,11 +697,17 @@ function enableDictationMode() {
     });
 
     updateDictationProgress();
+
+    // Hard hide all translations in sidebar
+    document.querySelectorAll('.tline__translated').forEach(el => el.style.display = 'none');
 }
+
 
 
 function disableDictationMode() {
     isDictationMode = false;
+    document.body.classList.remove('dictation-active');
+    
     const btn = document.getElementById('btn-dictation');
     if (btn) btn.classList.remove('btn--accent');
     const dBar = document.getElementById('dictationBar');
@@ -694,7 +722,12 @@ function disableDictationMode() {
             delete textContainer.dataset.original;
         }
     });
+
+    // Restore all translations in sidebar
+    document.querySelectorAll('.tline__translated').forEach(el => el.style.display = '');
 }
+
+
 
 /**
  * Tối ưu hóa Dictation bằng Intl.Segmenter và giới hạn 1-2 ô trống mỗi câu
@@ -734,10 +767,18 @@ function generateDictationHTML(text, langCode = 'ja', difficulty = 0.3) {
         return segments.map((seg, idx) => {
             if (selected.includes(idx)) {
                 const width = Math.max(seg.segment.length * 1.2, 2.5);
-                return `<input type="text" class="dictation-input" data-answer="${escapeHtml(seg.segment.toLowerCase())}" style="width: ${width}em;" oninput="checkDictationWord(this)">`;
+                return `<input type="text" 
+                               class="dictation-input" 
+                               data-answer="${escapeHtml(seg.segment.toLowerCase())}" 
+                               style="width: ${width}em;" 
+                               oninput="checkDictationWord(this)"
+                               ondblclick="revealDictationWord(event, this)"
+                               onkeydown="handleDictationKey(event, this)">`;
+
             }
             return escapeHtml(seg.segment);
         }).join("");
+
 
     } catch (e) {
         console.error("Intl.Segmenter error:", e);
@@ -786,9 +827,41 @@ function checkDictationWord(input) {
 
 function updateDictationProgress() {
     const total = document.querySelectorAll('.tline .dictation-input').length;
-    const correct = document.querySelectorAll('.tline .dictation-input.correct').length;
+    const correct = document.querySelectorAll('.tline .dictation-input.correct, .tline .dictation-input.revealed').length;
     const scoreEl = document.getElementById('dictationScore');
     if (scoreEl) scoreEl.textContent = `${correct} / ${total}`;
+}
+
+function handleDictationKey(event, input) {
+    if (event.key === '?' || (event.ctrlKey && event.code === 'Space')) {
+        event.preventDefault();
+        event.stopPropagation();
+        revealDictationWord(event, input);
+    }
+}
+
+function revealDictationWord(event, input) {
+    if (event) event.stopPropagation();
+    const ans = input.dataset.answer;
+
+    if (!ans) return;
+    
+    input.value = ans;
+    input.classList.remove('incorrect');
+    input.classList.add('revealed');
+    input.disabled = true;
+    
+    // Check if line complete
+    const container = input.closest('.tline') || input.closest('.vso-line');
+    if (container) {
+        const incomplete = container.querySelectorAll('.dictation-input:not(.correct):not(.revealed)');
+        if (incomplete.length === 0) {
+            if (ytPlayer && ytPlayer.getPlayerState() === YT.PlayerState.PAUSED) {
+                ytPlayer.playVideo();
+            }
+        }
+    }
+    updateDictationProgress();
 }
 
 function syncDictationInput(input) {

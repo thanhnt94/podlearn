@@ -29,6 +29,9 @@ function checkNotePopup(currentTime) {
         btnTimeSpan.textContent = formatNoteTime(currentTime);
     }
 
+    if (document.body.classList.contains('dictation-active')) return;
+
+
     const popup = document.getElementById('notePopup');
     if (!popup) return;
 
