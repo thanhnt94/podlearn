@@ -12,9 +12,14 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Celery & Redis
+    # Celery & Redis (Optional if Eager mode set below)
     CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6374/0')
     CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6374/0')
+    
+    # NEW: Run tasks synchronously (Eager Mode) - No Redis required!
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+
 
 
 class DevelopmentConfig(Config):

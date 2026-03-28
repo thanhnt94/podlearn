@@ -61,6 +61,10 @@ def _fetch_subs_via_ytdlp(youtube_id: str, lang_code: str) -> list[dict] | None:
     with tempfile.TemporaryDirectory() as tmpdir:
         output_template = os.path.join(tmpdir, f"{youtube_id}_%(ext)s")
         
+        # Đảm bảo đường dẫn tuyệt đối cho cookies
+        cookie_path = os.path.abspath(os.path.join(os.getcwd(), 'youtube_cookies.txt'))
+        cookies_exist = os.path.exists(cookie_path)
+
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -70,9 +74,16 @@ def _fetch_subs_via_ytdlp(youtube_id: str, lang_code: str) -> list[dict] | None:
             'subtitleslangs': [lang_code],      # Restrict to requested lang
             'subtitlesformat': 'vtt',           # Force VTT layout for webvtt-py parser
             'outtmpl': output_template,
-            # Uncomment if you run into 429s to bypass it using your local Chrome cookies
-            # 'cookiesfrombrowser': ('chrome',), 
+            'socket_timeout': 10,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
         }
+        
+        if cookies_exist:
+            ydl_opts['cookiefile'] = cookie_path
+
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
