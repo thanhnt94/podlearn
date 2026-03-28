@@ -28,8 +28,13 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                     <span>Shadowing</span>
                 </button>
+                <button id="btn-dictation" class="btn btn--ghost btn--sm" onclick="toggleDictationMode()" title="Dictation Mode: Interactive fill-in-the-blanks" style="padding: 4px 10px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    <span>Dictation</span>
+                </button>
                 <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
                 <div id="ab-status" style="font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; display: none;">Looping A-B</div>
+
                 <button id="btn-set-a" class="btn btn--ghost btn--sm" onclick="setABLoop('A')" title="Set Start (Shortcut: [ )" style="padding: 4px 10px; min-width: 60px;">Set A</button>
                 <button id="btn-set-b" class="btn btn--ghost btn--sm" onclick="setABLoop('B')" title="Set End (Shortcut: ] )" style="padding: 4px 10px; min-width: 60px;">Set B</button>
                 <button id="btn-clear-ab" class="btn btn--ghost btn--sm" onclick="clearABLoop()" title="Clear Loop (Shortcut: \ )" style="display:none; color: var(--danger);">✕</button>
@@ -90,8 +95,24 @@
 
         <!-- TRANSCRIPT TAB CONTENT -->
         <div id="pane-transcript" class="pane-content active-pane">
+            <!-- Dictation Mode Settings Bar -->
+            <div id="dictationBar" style="display:none; padding:10px 15px; background:rgba(108, 92, 231, 0.05); border-bottom:1px solid var(--border); align-items:center; gap:12px;">
+                <div style="font-size:11px; font-weight:700; color:var(--accent); letter-spacing:1px;">DICTATION MODE</div>
+                <select id="dictationDifficulty" class="lang-select" style="padding:4px 8px; font-size:11px; background:rgba(255,255,255,0.05);" onchange="enableDictationMode()">
+                    <option value="easy">Easy (15%)</option>
+                    <option value="medium" selected>Medium (30%)</option>
+                    <option value="hard">Hard (50%)</option>
+                    <option value="insane">All (100%)</option>
+                </select>
+                <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+                    <span id="dictationScore" style="font-size:11px; font-weight:600; color:var(--text-muted);">0 / 0</span>
+                    <button class="btn btn--secondary btn--sm" onclick="disableDictationMode()" style="padding:2px 8px; font-size:10px;">Exit</button>
+                </div>
+            </div>
+
             <!-- Transcript List -->
             <div class="transcript-body" id="transcriptBody" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding-top: 10px;">
+
                 <div class="transcript-empty" id="transcriptEmpty">
                     <p>Click <strong>Options</strong> to choose subtitle languages.</p>
                 </div>

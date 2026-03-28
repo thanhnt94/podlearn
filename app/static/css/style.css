@@ -1458,3 +1458,47 @@ input:checked + .switch-slider:before {
     to { opacity: 1; }
 }
 
+/* ── Dictation Mode Styles ─────────────────────────────────── */
+.dictation-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    color: var(--accent);
+    padding: 0 4px;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: 600;
+    width: 60px; /* will auto-expand via js or fit content */
+    border-radius: 4px;
+    outline: none;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.dictation-input:focus {
+    background: rgba(108, 92, 231, 0.1);
+    border-bottom-color: var(--accent);
+}
+
+.dictation-input.correct {
+    background: rgba(46, 204, 113, 0.15) !important;
+    border-bottom-color: #27ae60 !important;
+    color: #2ecc71 !important;
+}
+
+.dictation-input.incorrect {
+    background: rgba(231, 76, 60, 0.15) !important;
+    border-bottom-color: #e74c3c !important;
+    color: #e74c3c !important;
+}
+
+.dictation-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+}
+
+

@@ -137,8 +137,25 @@ function updateTranscriptHighlight(currentTime) {
     if (newIndex === currentActiveIndex) {
         // Just update video subtitle overlay visibility based on exact time bounds
         updateVideoSubOverlay(currentTime);
+
+        // DICTATION: If mode is active AND we are approaching the end of a line, check completion
+        if (isDictationMode && currentActiveIndex >= 0) {
+            const lineData = mergedLines[currentActiveIndex];
+            if (currentTime >= lineData.end - 0.1) {
+                const lineEl = document.getElementById(`tline-${currentActiveIndex}`);
+                if (lineEl) {
+                    const incomplete = lineEl.querySelectorAll('.dictation-input:not(.correct)');
+                    if (incomplete.length > 0) {
+                        ytPlayer.pauseVideo();
+                        // Focus the first empty input in this line
+                        incomplete[0].focus();
+                    }
+                }
+            }
+        }
         return;
     }
+
 
     // Remove old highlight
     if (currentActiveIndex >= 0) {
@@ -215,15 +232,29 @@ function updateVideoSubOverlay(currentTime) {
                     let bg = backgrounds[i] || 'rgba(0,0,0,0.75)';
                     
                     const escaped = escapeHtml(text);
+                    let displayHtml = escaped;
+
+                    // DICTATION: If mode is active AND this is the primary track (index 0), use cached HTML
+                    if (isDictationMode && i === 0) {
+                        displayHtml = line.dictationHtml || generateDictationHTML(text, window.SAVED_ORIGINAL || 'ja', parseFloat(document.getElementById('dictationDifficulty')?.value) || 0.3);
+                    }
+
+
+
                     html += `<span class="${cls}" 
                                   style="font-size: ${size}; color: ${color}; background: ${bg} !important; display: block; opacity: 1 !important; backdrop-filter: none !important;"
                                   onmouseup="onTextSelected(event)"
                                   ondblclick="quickNoteFromSub('${escaped.replace(/'/g, "\\'")}')"
-                                  title="Highlight text to translate | Double click to add to notes">${escaped}</span>`;
+                                  title="Highlight text to translate | Double click to add to notes">${displayHtml}</span>`;
                 }
             });
             overlay.innerHTML = html;
+            
+            // If dictation mode, ensure the overlay is interactive
+            overlay.style.pointerEvents = isDictationMode ? 'auto' : '';
+            
             overlay.style.visibility = 'visible';
+
             overlay.style.display = 'flex'; // Ensure flex is on when visible
             return;
         }
@@ -592,6 +623,190 @@ function stopDragDict() {
     document.removeEventListener('mousemove', onDragDict);
     document.removeEventListener('mouseup', stopDragDict);
 }
+
+// ── Dictation Mode Implementation ───────────────────────────
+let isDictationMode = false;
+
+function toggleDictationMode() {
+    if (isDictationMode) {
+        disableDictationMode();
+    } else {
+        enableDictationMode();
+    }
+}
+
+function enableDictationMode() {
+    // Mutual exclusion: Turn off Shadowing if it's on
+    if (typeof isShadowingMode !== 'undefined' && isShadowingMode) {
+        toggleShadowingMode(); 
+    }
+    
+    isDictationMode = true;
+
+    const btn = document.getElementById('btn-dictation');
+    if (btn) btn.classList.add('btn--accent');
+    const dBar = document.getElementById('dictationBar');
+    if (dBar) dBar.style.display = 'flex';
+    
+    // Rerender all transcript lines with blanks
+    const diff = parseFloat(document.getElementById('dictationDifficulty')?.value) || 0.3;
+    const lang = window.SAVED_ORIGINAL || 'ja';
+    const lines = document.querySelectorAll('.tline');
+    
+    lines.forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        const line = mergedLines[idx];
+        if (!line) return;
+        
+        // We only dictation the PRIMARY track (idx 0)
+        const primaryText = line.texts[0] || "";
+        const dictationHtml = generateDictationHTML(primaryText, lang, diff);
+        
+        const textContainer = el.querySelector('.tline__original');
+        if (textContainer) {
+            if (!textContainer.dataset.original) {
+                textContainer.dataset.original = textContainer.innerText;
+            }
+            textContainer.innerHTML = dictationHtml;
+        }
+
+        // PERSIST the HTML so it doesn't flicker in overlay
+        line.dictationHtml = dictationHtml; 
+    });
+
+    updateDictationProgress();
+}
+
+
+function disableDictationMode() {
+    isDictationMode = false;
+    const btn = document.getElementById('btn-dictation');
+    if (btn) btn.classList.remove('btn--accent');
+    const dBar = document.getElementById('dictationBar');
+    if (dBar) dBar.style.display = 'none';
+    
+    // Restore all transcript lines
+    const lines = document.querySelectorAll('.tline');
+    lines.forEach(el => {
+        const textContainer = el.querySelector('.tline__original');
+        if (textContainer && textContainer.dataset.original) {
+            textContainer.innerHTML = escapeHtml(textContainer.dataset.original);
+            delete textContainer.dataset.original;
+        }
+    });
+}
+
+/**
+ * Tối ưu hóa Dictation bằng Intl.Segmenter và giới hạn 1-2 ô trống mỗi câu
+ * @param {string} text - Nội dung câu sub
+ * @param {string} langCode - Mã ngôn ngữ (ví dụ 'ja', 'en')
+ * @param {number} difficulty - Tỉ lệ ẩn (không còn dùng chính, thay bằng limit 1-2)
+ */
+function generateDictationHTML(text, langCode = 'ja', difficulty = 0.3) {
+    if (!text) return "";
+    
+    // Fallback nếu browser quá cũ không có Intl.Segmenter
+    if (typeof Intl === 'undefined' || !Intl.Segmenter) {
+        return escapeHtml(text);
+    }
+
+    try {
+        const segmenter = new Intl.Segmenter(langCode, { granularity: 'word' });
+        const segments = Array.from(segmenter.segment(text));
+        
+        const candidates = [];
+        segments.forEach((seg, idx) => {
+            if (seg.isWordLike && seg.segment.length > 0) {
+                candidates.push({ segment: seg.segment, index: idx });
+            }
+        });
+
+        // Xác định số lượng ô trống: tối thiểu 1, tối đa 2
+        // Nếu câu dài (> 5 từ) thì có thể có 2, nếu ngắn thì 1.
+        let numToHide = candidates.length > 5 ? 2 : 1;
+        if (numToHide > candidates.length) numToHide = candidates.length;
+
+        // Chọn ngẫu nhiên hoặc chọn các từ dài nhất?
+        // Ở đây tôi sẽ chọn các từ dài nhất để thử thách người dùng
+        candidates.sort((a, b) => b.segment.length - a.segment.length);
+        const selected = candidates.slice(0, numToHide).map(c => c.index);
+
+        return segments.map((seg, idx) => {
+            if (selected.includes(idx)) {
+                const width = Math.max(seg.segment.length * 1.2, 2.5);
+                return `<input type="text" class="dictation-input" data-answer="${escapeHtml(seg.segment.toLowerCase())}" style="width: ${width}em;" oninput="checkDictationWord(this)">`;
+            }
+            return escapeHtml(seg.segment);
+        }).join("");
+
+    } catch (e) {
+        console.error("Intl.Segmenter error:", e);
+        return escapeHtml(text);
+    }
+}
+
+
+
+
+
+function checkDictationWord(input) {
+    const val = input.value.trim().toLowerCase();
+    const ans = input.dataset.answer.toLowerCase();
+    
+    if (val === ans) {
+        input.classList.remove('incorrect');
+        input.classList.add('correct');
+        input.disabled = true;
+        updateDictationProgress();
+        
+        // SYNC: If this input is in the Overlay, find the one in the transcript and mark it correct too
+        // and vice versa.
+        syncDictationInput(input);
+
+        // Focus NEXT input in the SAME container
+        const container = input.closest('.tline') || input.closest('.vso-line');
+        if (container) {
+            const allInContainer = Array.from(container.querySelectorAll('.dictation-input:not(.correct)'));
+            if (allInContainer.length > 0) {
+                allInContainer[0].focus();
+            } else {
+                // container complete!
+                if (ytPlayer && ytPlayer.getPlayerState() === YT.PlayerState.PAUSED) {
+                    ytPlayer.playVideo();
+                }
+            }
+        }
+    } else if (val.length >= ans.length) {
+
+        input.classList.add('incorrect');
+    } else {
+        input.classList.remove('incorrect');
+    }
+}
+
+function updateDictationProgress() {
+    const total = document.querySelectorAll('.tline .dictation-input').length;
+    const correct = document.querySelectorAll('.tline .dictation-input.correct').length;
+    const scoreEl = document.getElementById('dictationScore');
+    if (scoreEl) scoreEl.textContent = `${correct} / ${total}`;
+}
+
+function syncDictationInput(input) {
+    const isOverlay = input.closest('.vso-line') !== null;
+    const ans = input.dataset.answer;
+    
+    // Simple sync by answer text for now (might be ambiguous if same word appears twice, but okay for MVP)
+    const otherInputs = document.querySelectorAll(isOverlay ? '.tline .dictation-input' : '.vso-line .dictation-input');
+    otherInputs.forEach(other => {
+        if (other.dataset.answer === ans && !other.classList.contains('correct')) {
+            other.value = input.value;
+            other.classList.add('correct');
+            other.disabled = true;
+        }
+    });
+}
+
+
 
 // Call init since the script is loaded
 document.addEventListener('DOMContentLoaded', initDraggablePopup);

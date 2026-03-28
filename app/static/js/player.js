@@ -174,7 +174,13 @@ function onTimeUpdate(currentTime) {
 }
 
 function toggleShadowingMode() {
+    // Dictation and Shadowing are mutually exclusive
+    if (typeof isDictationMode !== 'undefined' && isDictationMode) {
+        disableDictationMode();
+    }
+
     isShadowingMode = !isShadowingMode;
+
     const btn = document.getElementById('btn-shadowing');
     const hud = document.getElementById('shadowingHUD');
 
@@ -489,29 +495,18 @@ function initFromSaved() {
         if (SAVED_SETTINGS.note_theme && document.getElementById('optNoteColor')) document.getElementById('optNoteColor').value = SAVED_SETTINGS.note_theme;
         if (SAVED_SETTINGS.note_pos && document.getElementById('optNotePos')) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
         
-        // Timing settings (from global vars initialized by server)
-        if (typeof NOTE_BEFORE !== 'undefined' && document.getElementById('optNoteBefore')) {
-            document.getElementById('optNoteBefore').value = NOTE_BEFORE;
-        }
-        if (typeof NOTE_DURATION !== 'undefined' && document.getElementById('optNoteDuration')) {
-            document.getElementById('optNoteDuration').value = NOTE_DURATION;
-        }
+        // Toggles & Settings (un-nest if needed)
+        const s = SAVED_SETTINGS.settings || {};
+        const showSub = (s.show_sub !== undefined) ? s.show_sub : (SAVED_SETTINGS.show_sub !== undefined ? SAVED_SETTINGS.show_sub : true);
+        const showNote = (s.show_note !== undefined) ? s.show_note : (SAVED_SETTINGS.show_note !== undefined ? SAVED_SETTINGS.show_note : true);
 
-        // Lookup
+        const elSub = document.getElementById('toggleScriptOverlay');
+        if (elSub) elSub.checked = showSub;
+        toggleOverlay('script');
 
-        if (SAVED_SETTINGS.lookup_target && document.getElementById('optLookupTarget')) document.getElementById('optLookupTarget').value = SAVED_SETTINGS.lookup_target;
-
-        // Toggles
-        if (SAVED_SETTINGS.show_sub !== undefined) {
-            const el = document.getElementById('toggleScriptOverlay');
-            if (el) el.checked = SAVED_SETTINGS.show_sub;
-            toggleOverlay('script');
-        }
-        if (SAVED_SETTINGS.show_note !== undefined) {
-            const el = document.getElementById('toggleNoteOverlay');
-            if (el) el.checked = SAVED_SETTINGS.show_note;
-            toggleOverlay('note');
-        }
+        const elNote = document.getElementById('toggleNoteOverlay');
+        if (elNote) elNote.checked = showNote;
+        toggleOverlay('note');
     }
 
     // Completion state from server
@@ -526,6 +521,7 @@ function initFromSaved() {
         setTimeout(loadDisplaySubtitles, 500);
     }
 }
+
 
 
 // ── Tab & Overlay Toggles ─────────────────────────────────────
