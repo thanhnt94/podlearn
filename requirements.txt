@@ -11,4 +11,4 @@ redis==5.0.1
 webvtt-py==0.5.1
 deep-translator==1.11.4
 pykakasi
-flash_wtf
+Flask-WTF
