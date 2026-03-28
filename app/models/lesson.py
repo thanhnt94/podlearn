@@ -24,6 +24,11 @@ class Lesson(db.Model):
     note_appear_before = db.Column(db.Float, default=2.0) # Seconds before timestamp
     note_duration = db.Column(db.Float, default=5.0)      # Total display duration
 
+    # Shadowing Options
+    shadowing_extra_time = db.Column(db.Float, default=2.0) # Additional seconds after sentence
+    shadowing_hide_subs = db.Column(db.Boolean, default=False) # Hide subs during pause
+
+
 
     
     # Store UI settings as JSON string: {"sub_size": "24px", "sub_color": "#fff", "sub_pos": "bottom", ...}

@@ -65,7 +65,17 @@
             <div class="video-note-overlay" id="notePopup">
                 <span class="video-note-overlay__text" id="notePopupText"></span>
             </div>
+
+            <!-- Shadowing Mode Indicator Overlay -->
+            <div id="shadowingHUD" class="shadowing-hud" style="display: none;">
+                <div class="shadowing-hud__content">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                    <div class="shadowing-hud__label">SHADOWING</div>
+                    <div class="shadowing-hud__sub">Repeat the sentence now!</div>
+                </div>
+            </div>
         </div>
+
     </div>
 
     <!-- ═══ RIGHT PANE: Tabs (Transcript & Notes) ═══ -->
@@ -180,6 +190,8 @@
                 <div class="modal-tab active" id="modalTab-subtitles" onclick="switchModalTab('subtitles')">Subtitles</div>
                 <div class="modal-tab" id="modalTab-dictionary" onclick="switchModalTab('dictionary')">Dictionary</div>
                 <div class="modal-tab" id="modalTab-notes" onclick="switchModalTab('notes')">Notifies</div>
+                <div class="modal-tab" id="modalTab-shadowing" onclick="switchModalTab('shadowing')">Shadowing</div>
+
             </div>
             
             <div id="modalPane-subtitles" class="modal-pane">
@@ -346,8 +358,33 @@
                             <input type="number" id="optNoteDuration" class="lang-select" step="0.5" min="1" value="4.0" style="padding: 8px 12px;">
                         </div>
                     </div>
+                </div>
+            </div>
 
+            <div id="modalPane-shadowing" class="modal-pane" style="display:none;">
+                <!-- SHADOWING SECTION -->
+                <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; flex-direction:column; gap:20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <span style="color:var(--text-primary); font-weight:600;">Challenge Mode</span>
+                                <span style="font-size:11px; color:var(--text-muted);">Hide subtitles during pause to challenge your memory</span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="toggleShadowHideSubs" onchange="applyVisualOptions()">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
 
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <label style="font-size:13px; color:var(--text-primary); font-weight:600;">Extra Pause Time (Seconds)</label>
+                            <div style="display:flex; align-items:center; gap:15px;">
+                                <input type="range" id="optShadowExtra" min="0" max="10" step="0.5" value="2.0" style="flex:1;" oninput="document.getElementById('valShadowExtra').textContent = this.value + 's'">
+                                <span id="valShadowExtra" style="font-size:14px; color:var(--accent); font-weight:600; min-width:40px;">2.0s</span>
+                            </div>
+                            <p style="font-size:11px; color:var(--text-muted); opacity:0.8;">Additional time added beyond the sentence duration to let you finish speaking.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -421,15 +458,16 @@
             <div style="display:flex; flex-direction:column; gap:8px;">
                 <label id="editTransLabel" style="font-size: 13px; color: #ccc;">Text:</label>
                 <textarea id="editTransContent" class="note-input" rows="3" style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 10px; border-radius: 10px; font-size: 14px; resize: none;"></textarea>
-            </div>
-        </div>
-        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:25px;">
+                        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:25px;">
             <button class="btn btn--ghost btn--sm" onclick="closeTransEditModal()">Cancel</button>
             <button class="btn btn--primary btn--sm" onclick="saveTransEdit()">Save</button>
         </div>
     </div>
 </div>
 
+<div id="shadowingHUD" style="display:none; position:fixed; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#fff; padding:12px 24px; border-radius:50px; border:1px solid var(--accent); z-index:999; font-weight:600; pointer-events:none;">
+    Shadowing... Speak now!
+</div>
 <script>
     function closeModals() {
         document.getElementById('uploadModal').style.display = 'none';
@@ -470,7 +508,12 @@
 
     var NOTE_BEFORE = Number('{{ lesson.note_appear_before if lesson.note_appear_before is not none else 2.0 }}');
     var NOTE_DURATION = Number('{{ lesson.note_duration if lesson.note_duration is not none else 4.0 }}');
+    
+    var SHADOW_EXTRA = Number('{{ lesson.shadowing_extra_time if lesson.shadowing_extra_time is not none else 2.0 }}');
+    var SHADOW_HIDE = ('{{ lesson.shadowing_hide_subs }}' === 'True');
+    
     var INITIAL_STUDY_TIME = {{ lesson.time_spent if lesson.time_spent is not none else 0 }};
+
 
 
 </script>

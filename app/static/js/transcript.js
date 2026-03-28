@@ -173,7 +173,20 @@ function updateVideoSubOverlay(currentTime) {
 
     if (currentActiveIndex >= 0) {
         const line = mergedLines[currentActiveIndex];
+        
+        // NEW: Don't show subtitles if Shadowing HUD is visible AND 'Challenge Mode' is enabled
+        const shadowingHUD = document.getElementById('shadowingHUD');
+        const isHUDVisible = shadowingHUD && shadowingHUD.style.display === 'flex';
+        const isChallengeMode = document.getElementById('toggleShadowHideSubs')?.checked || false;
+
+        if (isHUDVisible && isChallengeMode) {
+            overlay.style.visibility = 'hidden';
+            overlay.style.display = 'none';
+            return;
+        }
+
         // Only show if we're strictly within the bounds
+
         if (currentTime >= line.start && currentTime <= line.end) {
             let html = '';
 

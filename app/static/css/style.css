@@ -1397,3 +1397,64 @@ input:checked + .switch-slider:before {
         display: none; /* Hide title to save space for buttons */
     }
 }
+
+/* ── Shadowing HUD ─────────────────────────────────────────── */
+.shadowing-hud {
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    display: flex; /* controlled via js style.display */
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+    background: transparent;
+    animation: fadeInShadowHUD 0.3s ease-out;
+}
+
+
+.shadowing-hud__content {
+    background: rgba(15, 23, 42, 0.95);
+    padding: 30px 45px;
+    border-radius: 24px;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 30px rgba(108, 92, 231, 0.4);
+    text-align: center;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.shadowing-hud__content svg {
+    color: var(--accent);
+    margin-bottom: 5px;
+    animation: pulseMic 1.5s infinite ease-in-out;
+}
+
+.shadowing-hud__label {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.shadowing-hud__sub {
+    font-size: 16px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+@keyframes pulseMic {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeInShadowHUD {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+

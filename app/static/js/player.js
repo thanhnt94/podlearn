@@ -50,6 +50,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── YouTube IFrame API callback (global) ─────────────────────
 function onYouTubeIframeAPIReady() {
+    // 4. Restore Shadowing Specifics
+    if (typeof SHADOW_EXTRA !== 'undefined' && document.getElementById('optShadowExtra')) {
+        document.getElementById('optShadowExtra').value = SHADOW_EXTRA;
+        const valLabel = document.getElementById('valShadowExtra');
+        if (valLabel) valLabel.textContent = SHADOW_EXTRA + 's';
+    }
+    if (typeof SHADOW_HIDE !== 'undefined' && document.getElementById('toggleShadowHideSubs')) {
+        document.getElementById('toggleShadowHideSubs').checked = SHADOW_HIDE;
+    }
+
+    console.log('[PodLearn] UI State restored from saved config');
     console.log('[PodLearn] YouTube IFrame API loaded');
     ytPlayer = new YT.Player('ytPlayer', {
         videoId: YOUTUBE_ID,
@@ -165,6 +176,8 @@ function onTimeUpdate(currentTime) {
 function toggleShadowingMode() {
     isShadowingMode = !isShadowingMode;
     const btn = document.getElementById('btn-shadowing');
+    const hud = document.getElementById('shadowingHUD');
+
     if (btn) {
         if (isShadowingMode) {
             btn.classList.add('btn--accent');
@@ -183,6 +196,7 @@ function toggleShadowingMode() {
                 clearTimeout(shadowingPauseTimeout);
                 shadowingPauseTimeout = null;
             }
+            if (hud) hud.style.display = 'none';
         }
     }
 }
@@ -192,11 +206,22 @@ function pauseForShadowing(line) {
     
     ytPlayer.pauseVideo();
     
-    // Duration to pause = (sentence length) + 2 seconds, minimum 2s
+    const hud = document.getElementById('shadowingHUD');
+    if (hud) hud.style.display = 'flex';
+
+    // Duration to pause = (sentence length) + Extra time from settings
     const sentenceDuration = line.end - line.start;
-    const pauseTimeMs = Math.max(2000, (sentenceDuration + 2) * 1000);
+    const extraTime = parseFloat(document.getElementById('optShadowExtra')?.value) || 2.0;
+    const pauseTimeMs = Math.max(1000, (sentenceDuration + extraTime) * 1000);
     
-    console.log(`[PodLearn] Shadowing Pause: ${pauseTimeMs}ms for line ending at ${line.end}s`);
+    // Check if we should hide subtitles during shadowing
+    const hideSubs = document.getElementById('toggleShadowHideSubs')?.checked || false;
+    if (hideSubs) {
+        const subOverlay = document.getElementById('videoSubOverlay');
+        if (subOverlay) subOverlay.style.visibility = 'hidden';
+    }
+
+    console.log(`[PodLearn] Shadowing Pause: ${pauseTimeMs}ms (extra: ${extraTime}s, hide: ${hideSubs})`);
     
     if (shadowingPauseTimeout) clearTimeout(shadowingPauseTimeout);
     
@@ -204,9 +229,17 @@ function pauseForShadowing(line) {
         if (isShadowingMode && ytPlayer && typeof ytPlayer.playVideo === 'function') {
             ytPlayer.playVideo();
         }
+        if (hud) hud.style.display = 'none';
+        
+        // Restore subtitles visibility
+        const subOverlay = document.getElementById('videoSubOverlay');
+        if (subOverlay) subOverlay.style.visibility = 'visible';
+
         shadowingPauseTimeout = null;
     }, pauseTimeMs);
 }
+
+
 
 
 // ── Seek ─────────────────────────────────────────────────────
@@ -673,12 +706,18 @@ async function saveLessonSettings() {
         sub2_color: document.getElementById('optSubColor2')?.value || '#f1c40f',
         sub3_color: document.getElementById('optSubColor3')?.value || '#00cec9',
         sub_pos: document.getElementById('optSubPos')?.value || 'bottom',
-        note_size: document.getElementById('optNoteSize')?.value || '16px',
-        note_theme: document.getElementById('optNoteColor')?.value || 'dark',
-        note_pos: document.getElementById('optNotePos')?.value || 'top-right',
-        show_sub: document.getElementById('toggleScriptOverlay').checked,
-        show_note: document.getElementById('toggleNoteOverlay').checked,
-        lookup_target: document.getElementById('optLookupTarget')?.value
+        note_appear_before: document.getElementById('optNoteBefore')?.value || 2.0,
+        note_duration: document.getElementById('optNoteDuration')?.value || 4.0,
+        shadowing_extra_time: document.getElementById('optShadowExtra')?.value || 2.0,
+        shadowing_hide_subs: document.getElementById('toggleShadowHideSubs')?.checked || false,
+        settings: {
+            note_size: document.getElementById('optNoteSize')?.value || '16px',
+            note_theme: document.getElementById('optNoteColor')?.value || 'dark',
+            note_pos: document.getElementById('optNotePos')?.value || 'top-right',
+            show_sub: document.getElementById('toggleScriptOverlay').checked,
+            show_note: document.getElementById('toggleNoteOverlay').checked,
+            lookup_target: document.getElementById('optLookupTarget')?.value
+        }
     };
 
     try {

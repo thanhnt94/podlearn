@@ -267,15 +267,22 @@ def set_languages(lesson_id):
     lesson.target_lang_code = data.get('target_lang_code')
     lesson.third_lang_code = data.get('third_lang_code')
     
-    # Save explicit note timing settings
+    # Save explicit timing settings
     if 'note_appear_before' in data:
         lesson.note_appear_before = float(data.get('note_appear_before'))
     if 'note_duration' in data:
         lesson.note_duration = float(data.get('note_duration'))
+    
+    # Save shadowing specific settings
+    if 'shadowing_extra_time' in data:
+        lesson.shadowing_extra_time = float(data.get('shadowing_extra_time'))
+    if 'shadowing_hide_subs' in data:
+        lesson.shadowing_hide_subs = bool(data.get('shadowing_hide_subs'))
 
     import json
     if 'settings' in data:
         lesson.settings_json = json.dumps(data.get('settings'))
+
         
     db.session.commit()
 
