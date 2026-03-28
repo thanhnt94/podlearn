@@ -146,19 +146,29 @@ function updateTranscriptHighlight(currentTime) {
         if (isDictationMode && currentActiveIndex >= 0) {
             const lineData = mergedLines[currentActiveIndex];
             if (currentTime >= lineData.end - 0.1) {
+                const overlay = document.getElementById('videoSubOverlay');
                 const lineEl = document.getElementById(`tline-${currentActiveIndex}`);
-                if (lineEl) {
-                    const incomplete = lineEl.querySelectorAll('.dictation-input:not(.correct)');
-                    if (incomplete.length > 0) {
+                
+                // Prioritize player overlay inputs for immediate focus
+                const playerInputs = overlay ? Array.from(overlay.querySelectorAll('.dictation-input:not(.correct)')) : [];
+                const sidebarInputs = lineEl ? Array.from(lineEl.querySelectorAll('.dictation-input:not(.correct)')) : [];
+                
+                if (playerInputs.length > 0 || sidebarInputs.length > 0) {
+                    if (ytPlayer && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
                         ytPlayer.pauseVideo();
-                        // Focus the first empty input in this line
-                        incomplete[0].focus();
+                    }
+                    // Focus the first empty input in this line (favor player overlay)
+                    if (playerInputs.length > 0) {
+                        playerInputs[0].focus();
+                    } else if (sidebarInputs.length > 0) {
+                        sidebarInputs[0].focus();
                     }
                 }
             }
         }
         return;
     }
+
 
 
     // Remove old highlight
