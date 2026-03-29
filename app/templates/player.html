@@ -148,10 +148,15 @@
                 </div>
             </div>
 
-            <!-- Transcript List -->
-            <div class="transcript-body" id="transcriptBody" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding-top: 10px;">
+            <!-- Transcript Body -->
+            <div class="transcript-body" id="transcriptBody" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0;">
+                <!-- Real-time Sentence Progress Counter -->
+                <div id="transcriptProgress" style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px;">
+                    <span style="text-transform: uppercase;">Progress</span>
+                    <span id="progressLabel" style="color: var(--accent);">0 / 0 sentences</span>
+                </div>
 
-                <div class="transcript-empty" id="transcriptEmpty">
+                <div class="transcript-empty" id="transcriptEmpty" style="padding: 30px 20px;">
                     <p>Click <strong>Options</strong> to choose subtitle languages.</p>
                 </div>
                 <div class="transcript-lines" id="transcriptLines" style="display: none;"></div>
@@ -163,7 +168,7 @@
                 </button>
 
                 <div id="transcriptStatus" style="flex: 1; text-align: left; font-size: 10px;">Ready</div>
-                <button class="btn btn--accent btn--sm" id="loadSubsBtn" onclick="loadDisplaySubtitles()" style="margin-left: 10px; padding: 4px 10px;">Show</button>
+                <button class="btn btn--accent btn--sm" id="loadSubsBtn" onclick="loadDisplaySubtitles()" style="margin-left: 0; padding: 4px 10px;">Show</button>
             </div>
 
         </div>
@@ -417,6 +422,19 @@
                                 <option value="24px">Large</option>
                                 <option value="30px">XL</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <label style="font-size:13px; color:var(--text-primary); font-weight:600;">Transcript Font Size</label>
+                            <select id="optTranscriptFS" class="lang-select" onchange="applyVisualOptions()" style="width: 100%;">
+                                <option value="12px">Small</option>
+                                <option value="14.5px" selected>Medium</option>
+                                <option value="18px">Large</option>
+                                <option value="22px">Extra</option>
+                            </select>
+                            <p style="font-size:11px; color:var(--text-muted); opacity:0.8;">Adjust the font size for the transcript list on the right pane.</p>
                         </div>
                     </div>
                 </div>

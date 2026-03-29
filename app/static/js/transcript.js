@@ -11,6 +11,66 @@
 // ── State ────────────────────────────────────────────────────
 let mergedLines = [];           // [{texts: [t1, t2, t3], start, end}, ...]
 let currentActiveIndex = -1;    // index in mergedLines
+let shadowingStats = {};        // { "start_time": { count, avg, best } }
+let currentTranscriptFontSize = '14.5px'; // default
+
+/**
+ * Initialize transcript logic
+ */
+function initTranscript() {
+    console.log("[Transcript] Initializing...");
+    
+    // Load historical shadowing stats for this lesson
+    loadShadowingStats();
+
+    // Set initial font size from localStorage
+    const savedFs = localStorage.getItem('podlearn_transcript_fs') || '16px';
+    updateTranscriptFontSize(savedFs);
+}
+
+/**
+ * Fetch historical shadowing stats from the API
+ */
+async function loadShadowingStats() {
+    const lessonId = typeof LESSON_ID !== 'undefined' ? LESSON_ID : null;
+    if (!lessonId) return;
+    
+    try {
+        const resp = await fetch(`/api/lesson/${lessonId}/shadowing-stats`);
+        const data = await resp.json();
+        if (data && data.stats) {
+            shadowingStats = data.stats;
+            console.log("[Transcript] Loaded Shadowing Stats:", Object.keys(shadowingStats).length, "lines");
+            // Refresh stats in UI if already rendered
+            updateTranscriptStatsUI();
+        }
+    } catch (e) {
+        console.error("[Transcript] Failed to load shadowing stats:", e);
+    }
+}
+
+/**
+ * Refresh the UI for all transcript rows to show/update stats
+ */
+function updateTranscriptStatsUI() {
+    Object.keys(shadowingStats).forEach(key => {
+        const stat = shadowingStats[key];
+        const tline = document.querySelector(`.tline[data-start="${key}"]`);
+        if (tline) {
+            const textCol = tline.querySelector('.tline__text-col');
+            if (textCol) {
+                let statsContainer = textCol.querySelector('.tline__shadow-stats');
+                if (!statsContainer) {
+                    statsContainer = document.createElement('div');
+                    statsContainer.className = 'tline__shadow-stats';
+                    textCol.appendChild(statsContainer);
+                }
+                statsContainer.title = `Best: ${stat.best}% | Avg: ${stat.avg}%`;
+                statsContainer.textContent = `🎯 ${stat.count} attempts · ${stat.best}%`;
+            }
+        }
+    });
+}
 
 // ── Render ───────────────────────────────────────────────────
 
@@ -54,26 +114,49 @@ function renderTranscript(tracksDataArray) {
 
 
 
+        // Get shadowing stats for this line
+        const stats = shadowingStats[roundTime(line.start)];
+        const statsHtml = stats ? `
+            <div class="tline__shadow-stats" title="Best: ${stats.best}% | Avg: ${stats.avg}%">
+                🎯 ${stats.count} attempts · ${stats.best}%
+            </div>
+        ` : '';
+
         html += `
-            <div class="tline" id="tline-${i}" data-index="${i}" data-start="${line.start}" ondblclick="quickNoteFromLine(${i}, event)">
-                <span class="tline__time" title="Double click to edit time" ondblclick="editTranscriptTime(${i}, event)">${timeLabel}</span>
-                <div class="tline__text">
-                    ${textsHtml}
+            <div class="tline" id="tline-${i}" data-index="${i}" data-start="${line.start}">
+                <div class="tline__time-col">
+                    <span class="tline__time" title="Double click to edit time" ondblclick="editTranscriptTime(${i}, event); event.stopPropagation();">${timeLabel}</span>
+                    <button class="tline__more-btn" onclick="toggleTranscriptMenu(${i}, event)" title="More Actions">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                    </button>
+                </div>
+
+                <div class="tline__text-col" onclick="seekAndPlay(${line.start})">
+                    <div class="tline__original" style="font-size: var(--transcript-fs, 16px);">
+                        ${textsHtml}
+                    </div>
+                    ${statsHtml}
+                </div>
+                
+                <div class="tline__popup-menu" id="tmenu-${i}">
+                    <button class="tline__menu-item" onclick="quickNoteFromLine(${i}, event)" title="Quick Note">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 9.5-9.5z"/></svg>
+                        <span>Quick Note</span>
+                    </button>
+                    <button class="tline__menu-item" onclick="translateFullLine(${i}, event)" title="Translate Row">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1m14 20-5-10-5 10m2-4h6"/></svg>
+                        <span>Translate</span>
+                    </button>
+                    <button class="tline__menu-item" onclick="addNoteAtTime(${line.start}, event)" title="Add Detail Note">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                        <span>Full Note</span>
+                    </button>
                 </div>
             </div>
         `;
     }
 
     container.innerHTML = html;
-
-    // Attach click-to-seek + auto play
-    container.querySelectorAll('.tline').forEach(el => {
-        el.addEventListener('click', (e) => {
-            if (e.target.tagName.toLowerCase() === 'input') return; 
-            seekAndPlay(parseFloat(el.dataset.start));
-        });
-    });
-
 
 
     currentActiveIndex = -1;
@@ -176,7 +259,7 @@ function updateTranscriptHighlight(currentTime) {
     // Remove old highlight
     if (currentActiveIndex >= 0) {
         const oldEl = document.getElementById(`tline-${currentActiveIndex}`);
-        if (oldEl) oldEl.classList.remove('tline--active');
+        if (oldEl) oldEl.classList.remove('active-sentence');
     }
 
     // Apply new highlight
@@ -184,12 +267,27 @@ function updateTranscriptHighlight(currentTime) {
     if (currentActiveIndex >= 0) {
         const newEl = document.getElementById(`tline-${currentActiveIndex}`);
         if (newEl) {
-            newEl.classList.add('tline--active');
-            scrollToLine(newEl);
+            newEl.classList.add('active-sentence');
+            
+            // Tự động cuộn danh sách phụ đề mượt mà ra giữa
+            newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+        
+        // Cập nhật bộ đếm tiến độ
+        updateProgressCounter(newIndex);
     }
     
     updateVideoSubOverlay(currentTime);
+}
+
+/**
+ * Cập nhật bộ đếm "Tiến độ: X / Y câu"
+ */
+function updateProgressCounter(activeIndex) {
+    const progressLabel = document.getElementById('progressLabel');
+    if (progressLabel && mergedLines.length > 0) {
+        progressLabel.textContent = `${activeIndex + 1} / ${mergedLines.length} blocks`;
+    }
 }
 
 function updateVideoSubOverlay(currentTime) {
@@ -475,13 +573,35 @@ function renderTranscriptFromState() {
 }
 
 function seekAndPlay(time) {
-    if (typeof seekTo === 'function') seekTo(time);
-    if (ytPlayer && ytPlayer.playVideo) {
+    if (ytPlayer && ytPlayer.seekTo) {
+        ytPlayer.seekTo(time, true);
         ytPlayer.playVideo();
         // Try forcing play again after short delay for embedded stability
         setTimeout(() => {
             if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) ytPlayer.playVideo();
         }, 150);
+    }
+}
+
+async function translateFullLine(index, event) {
+    if (event) event.stopPropagation();
+    const line = mergedLines[index];
+    if (!line || !line.texts[0]) return;
+    
+    // Simulate selection of the first text for translation API
+    const dummyEvent = {
+        pageX: event.pageX,
+        pageY: event.pageY
+    };
+    
+    // Set a flag to show this is a full line translation
+    onTextSelected(dummyEvent, line.texts[0]);
+}
+
+function addNoteAtTime(time, event) {
+    if (event) event.stopPropagation();
+    if (typeof handleAddNoteClick === 'function') {
+        handleAddNoteClick(time);
     }
 }
 
@@ -922,3 +1042,108 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+async function loadShadowingStats() {
+    try {
+        const res = await fetch(`/api/lesson/${LESSON_ID}/shadowing-stats`);
+        const data = await res.json();
+        if (data.stats) {
+            shadowingStats = data.stats;
+        }
+    } catch (err) {
+        console.error("[ShadowingStats] Load error:", err);
+    }
+}
+
+function updateLineShadowStats(startTime, score) {
+    const key = roundTime(startTime);
+    if (!shadowingStats[key]) {
+        shadowingStats[key] = { count: 0, avg: 0, best: 0 };
+    }
+    
+    const s = shadowingStats[key];
+    const totalScore = (s.avg * s.count) + score;
+    s.count++;
+    s.avg = Math.round(totalScore / s.count);
+    s.best = Math.round(Math.max(s.best, score));
+
+    // Update the HTML content of the specific line's stat div
+    const tline = document.querySelector(`.tline[data-start="${startTime}"]`);
+    if (tline) {
+        const textEl = tline.querySelector('.tline__text');
+        let statsContainer = textEl.querySelector('.tline__shadow-stats');
+        if (!statsContainer) {
+            statsContainer = document.createElement('div');
+            statsContainer.className = 'tline__shadow-stats';
+            textEl.appendChild(statsContainer);
+        }
+        statsContainer.title = `Best: ${s.best}% | Avg: ${s.avg}%`;
+        statsContainer.textContent = `🎯 ${s.count} attempts · ${s.best}%`;
+    }
+}
+
+function roundTime(t) {
+    return String(Number(Math.round(parseFloat(t) + 'e3') + 'e-3'));
+}
+
+/**
+ * Toggle the visibility of the action popup menu for a specific line.
+ */
+function toggleTranscriptMenu(index, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    
+    const menu = document.getElementById(`tmenu-${index}`);
+    const btn = event.currentTarget;
+    if (!menu) return;
+
+    const isAlreadyActive = menu.classList.contains('active');
+
+    // Close all other menus first
+    document.querySelectorAll('.tline__popup-menu.active').forEach(m => {
+        if (m.id !== `tmenu-${index}`) m.classList.remove('active');
+    });
+    document.querySelectorAll('.tline__more-btn.active').forEach(b => {
+        if (b !== btn) b.classList.remove('active');
+    });
+
+    // Toggle current
+    menu.classList.toggle('active');
+    if (btn.classList.contains('tline__more-btn')) {
+        btn.classList.toggle('active');
+    }
+}
+
+/**
+ * Update the global transcript font size using a CSS variable.
+ */
+function updateTranscriptFontSize(size) {
+    currentTranscriptFontSize = size;
+    document.documentElement.style.setProperty('--transcript-fs', size);
+    
+    // Also save to localStorage for persistence if possible
+    localStorage.setItem('podlearn_transcript_fs', size);
+}
+
+// Global click listener to close transcript menus when clicking elsewhere
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.tline__more-btn') && !e.target.closest('.tline__popup-menu')) {
+        document.querySelectorAll('.tline__popup-menu.active').forEach(menu => {
+            menu.classList.remove('active');
+        });
+        document.querySelectorAll('.tline__more-btn.active').forEach(btn => {
+            btn.classList.remove('active');
+        });
+    }
+});
+
+// Initialize font size from storage if available
+document.addEventListener('DOMContentLoaded', () => {
+    const savedFs = localStorage.getItem('podlearn_transcript_fs') || '16px';
+    document.documentElement.style.setProperty('--transcript-fs', savedFs);
+    
+    // Sync slider if it exists
+    const slider = document.getElementById('optTranscriptFs');
+    if (slider) slider.value = savedFs;
+});

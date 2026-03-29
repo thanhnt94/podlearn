@@ -23,6 +23,7 @@ from ..models.lesson import Lesson
 from ..models.video import Video
 from ..models.note import Note
 from ..models.subtitle import SubtitleTrack
+from ..models.shadowing import ShadowingHistory
 from ..services.subtitle_service import get_subtitle_track, get_lines_as_dicts
 
 api_bp = Blueprint('api', __name__)
@@ -92,14 +93,52 @@ def score_pronunciation():
         hira_matches = sum(block.size for block in hira_matcher.get_matching_blocks())
         hira_score = hira_matches / len(orig_hira) if len(orig_hira) > 0 else 1.0
 
-        # CHỐT ĐIỂM: Lấy hệ thống nào điểm cao hơn, tối đa là 100%
+    # CHỐT ĐIỂM
+    if lang == 'ja':
         final_score = min(100, int(max(raw_score, hira_score) * 100))
+    else:
+        # Simple word-based match fallback for other languages
+        orig_words = re.findall(r'\w+', original.lower())
+        spoken_words = re.findall(r'\w+', spoken.lower())
+        if not orig_words:
+            final_score = 100
+        else:
+            match_count = sum(1 for w in spoken_words if w in orig_words)
+            final_score = min(100, int((match_count / len(orig_words)) * 100))
 
-        # DEBUG logging for server console
-        print(f"\n[DEBUG-ShadowAI] Gốc (Clean): '{orig_clean}' (Len: {len(orig_clean)})")
-        print(f"[DEBUG-ShadowAI] Đọc (Clean): '{spoken_clean}'")
-        print(f"[DEBUG-ShadowAI] => ĐIỂM: {final_score}% (Không phạt chữ thừa)\n")
+    # SAVE HISTORY IF CONTEXT PROVIDED
+    lesson_id = data.get('lesson_id')
+    start_time = data.get('start_time')
+    end_time = data.get('end_time')
 
+    if lesson_id is not None and start_time is not None:
+        try:
+            lesson = Lesson.query.get(int(lesson_id))
+            if lesson and lesson.user_id == current_user.id:
+                history = ShadowingHistory(
+                    user_id=current_user.id,
+                    video_id=lesson.video_id,
+                    lesson_id=lesson.id,
+                    start_time=float(start_time),
+                    end_time=float(end_time) if end_time else float(start_time) + 2.0,
+                    original_text=original,
+                    spoken_text=spoken,
+                    accuracy_score=final_score
+                )
+                db.session.add(history)
+                db.session.commit()
+                print(f"[ShadowingHistory] Saved: {final_score}% at {start_time}s")
+            else:
+                print(f"[ShadowingHistory] Lesson {lesson_id} not found or permission denied.")
+        except Exception as e:
+            import traceback
+            print(f"[ShadowingHistory ERROR] Failed to save to database!")
+            print(f"Error Type: {type(e).__name__}")
+            print(f"Error Message: {str(e)}")
+            traceback.print_exc()
+            db.session.rollback()
+
+    if lang == 'ja':
         # For visual guides in UI
         _, orig_full = get_japanese_segments(original)
         _, spoken_full = get_japanese_segments(spoken)
@@ -112,16 +151,37 @@ def score_pronunciation():
             "debug": {"raw_score": int(raw_score*100), "hira_score": int(hira_score*100)}
         })
     else:
-        # Simple word-based match fallback for other languages
-        orig_words = re.findall(r'\w+', original.lower())
-        spoken_words = re.findall(r'\w+', spoken.lower())
-        if not orig_words: return jsonify({'score': 100})
-        
-        match_count = sum(1 for w in spoken_words if w in orig_words)
-        score = (match_count / len(orig_words)) * 100
-        return jsonify({'score': min(100, int(score))})
+        return jsonify({'score': final_score, 'original_text': original})
 
 
+@api_bp.route('/lesson/<int:lesson_id>/shadowing-stats', methods=['GET'])
+@login_required
+def get_shadowing_stats(lesson_id):
+    """Fetch summarized shadowing stats for each subtitle line in a lesson."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    
+    # Group by start_time and calculate count and average score
+    from sqlalchemy import func
+    stats = db.session.query(
+        ShadowingHistory.start_time,
+        func.count(ShadowingHistory.id).label('attempt_count'),
+        func.avg(ShadowingHistory.accuracy_score).label('avg_score'),
+        func.max(ShadowingHistory.accuracy_score).label('best_score')
+    ).filter(
+        ShadowingHistory.lesson_id == lesson_id
+    ).group_by(
+        ShadowingHistory.start_time
+    ).all()
+
+    results = {}
+    for s in stats:
+        results[str(round(float(s.start_time), 3))] = {
+            'count': s.attempt_count,
+            'avg': int(s.avg_score),
+            'best': s.best_score
+        }
+
+    return jsonify({'stats': results})
 
 @api_bp.route('/translate', methods=['POST'])
 @login_required

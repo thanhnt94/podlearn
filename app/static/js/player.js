@@ -201,10 +201,12 @@ function toggleShadowingMode() {
 
     const btn = document.getElementById('btn-shadowing');
     const hud = document.getElementById('shadowingHUD');
+    const transcriptLines = document.getElementById('transcriptLines');
 
     if (btn) {
         if (isShadowingMode) {
             btn.classList.add('btn--accent');
+            if (transcriptLines) transcriptLines.classList.add('is-shadowing-mode');
             btn.innerHTML = `
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 <span>Shadowing: ON</span>
@@ -212,6 +214,7 @@ function toggleShadowingMode() {
             lastShadowedIndex = -1; // Reset to catch current line if needed
         } else {
             btn.classList.remove('btn--accent');
+            if (transcriptLines) transcriptLines.classList.remove('is-shadowing-mode');
             btn.innerHTML = `
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 <span>Shadowing</span>
@@ -429,6 +432,9 @@ function cancelShadowingMode() {
     const btn = document.getElementById('btn-shadowing');
     if (btn) btn.classList.remove('btn--accent');
 
+    const transcriptLines = document.getElementById('transcriptLines');
+    if (transcriptLines) transcriptLines.classList.remove('is-shadowing-mode');
+
     // Restoration
     const subOverlay = document.getElementById('videoSubOverlay');
     if (subOverlay) subOverlay.style.visibility = 'visible';
@@ -474,7 +480,10 @@ async function calculatePronunciationScore(original, spoken, langCode) {
             body: JSON.stringify({
                 original_text: original,
                 spoken_text: spoken,
-                lang_code: langCode
+                lang_code: langCode,
+                lesson_id: LESSON_ID,
+                start_time: currentShadowingLine?.start,
+                end_time: currentShadowingLine?.end
             })
         });
 
@@ -483,6 +492,11 @@ async function calculatePronunciationScore(original, spoken, langCode) {
         const threshold = parseFloat(document.getElementById('optShadowAccuracy')?.value) || 80;
 
         console.log(`[ShadowAI-Backend] Score: ${score.toFixed(1)}% | Threshold: ${threshold}%`);
+
+        // UPDATE UI STATS IN TRANSCRIPT
+        if (typeof updateLineShadowStats === 'function' && currentShadowingLine) {
+            updateLineShadowStats(currentShadowingLine.start, Math.round(score));
+        }
 
         // Get display texts (Use original text for main display as requested)
         const finalTarget = data.original_text || original;
@@ -661,6 +675,9 @@ async function uploadSubtitle() {
         // Auto-select the newly uploaded file as Subtitle 1
         document.getElementById('displaySub1').value = langCode;
 
+        // Load stats before rendering transcript
+        if (typeof loadShadowingStats === 'function') await loadShadowingStats();
+
         // Render transcript immediately
         renderTranscript([data.lines]);
         status.textContent = `Displaying: ${langCode.toUpperCase()} (${data.line_count} lines)`;
@@ -734,6 +751,9 @@ async function loadDisplaySubtitles() {
 
     // Save choice + settings to backend (unified)
     await saveLessonSettings();
+
+    // Load stats before rendering transcript
+    if (typeof loadShadowingStats === 'function') await loadShadowingStats();
 
     renderTranscript(tracksData);
     if (tracksData[0]) {
@@ -1157,6 +1177,11 @@ function applyVisualOptions() {
         noteOverlay.style.boxShadow = 'none';
         noteOverlay.style.backdropFilter = 'none';
     }
+
+    // 3. Transcript Font Size Sync
+    const transcriptFs = document.getElementById('optTranscriptFs')?.value || '16px';
+    document.documentElement.style.setProperty('--transcript-fs', transcriptFs);
+    localStorage.setItem('podlearn_transcript_fs', transcriptFs);
 }
 
 
@@ -1281,7 +1306,12 @@ function formatTime(s) {
 // ── Keyboard Shortcuts ────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
     // Ignore if user is typing in an input/textarea
-    if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+    }
+
+    if (!ytPlayer || !isPlayerReady) return;
 
     switch(e.key) {
         case '[':
@@ -1295,10 +1325,45 @@ document.addEventListener('keydown', (e) => {
             break;
         case ' ': // Space for play/pause
             e.preventDefault();
-            if (ytPlayer && isPlayerReady) {
-                const state = ytPlayer.getPlayerState();
-                if (state === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
-                else ytPlayer.playVideo();
+            const state = ytPlayer.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+            else ytPlayer.playVideo();
+            break;
+        case 'r':
+        case 'R':
+            // Repeat current sentence
+            if (typeof currentActiveIndex !== 'undefined' && currentActiveIndex >= 0) {
+                const line = mergedLines[currentActiveIndex];
+                if (line) {
+                    ytPlayer.seekTo(line.start, true);
+                    ytPlayer.playVideo();
+                }
+            }
+            break;
+        case 'ArrowLeft':
+            // Seek to start of current sentence, or previous if near start
+            if (typeof currentActiveIndex !== 'undefined' && currentActiveIndex >= 0) {
+                const line = mergedLines[currentActiveIndex];
+                const cur = ytPlayer.getCurrentTime();
+                if (cur - line.start < 1.0 && currentActiveIndex > 0) {
+                    // Go to previous
+                    const prev = mergedLines[currentActiveIndex - 1];
+                    ytPlayer.seekTo(prev.start, true);
+                } else {
+                    // Back to start of current
+                    ytPlayer.seekTo(line.start, true);
+                }
+                ytPlayer.playVideo();
+                e.preventDefault();
+            }
+            break;
+        case 'ArrowRight':
+            // Seek to start of next sentence
+            if (typeof currentActiveIndex !== 'undefined' && currentActiveIndex >= 0 && currentActiveIndex < mergedLines.length - 1) {
+                const next = mergedLines[currentActiveIndex + 1];
+                ytPlayer.seekTo(next.start, true);
+                ytPlayer.playVideo();
+                e.preventDefault();
             }
             break;
     }
