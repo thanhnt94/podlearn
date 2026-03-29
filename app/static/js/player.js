@@ -798,6 +798,13 @@ function initFromSaved() {
         if (SAVED_SETTINGS.note_theme && document.getElementById('optNoteColor')) document.getElementById('optNoteColor').value = SAVED_SETTINGS.note_theme;
         if (SAVED_SETTINGS.note_pos && document.getElementById('optNotePos')) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
         
+        // Transcript
+        if (SAVED_SETTINGS.transcript_fs && document.getElementById('optTranscriptFs')) document.getElementById('optTranscriptFs').value = SAVED_SETTINGS.transcript_fs;
+        if (SAVED_SETTINGS.transcript_color_1 && document.getElementById('optTranscriptColor1')) document.getElementById('optTranscriptColor1').value = SAVED_SETTINGS.transcript_color_1;
+        if (SAVED_SETTINGS.transcript_color_2 && document.getElementById('optTranscriptColor2')) document.getElementById('optTranscriptColor2').value = SAVED_SETTINGS.transcript_color_2;
+        if (SAVED_SETTINGS.transcript_color_3 && document.getElementById('optTranscriptColor3')) document.getElementById('optTranscriptColor3').value = SAVED_SETTINGS.transcript_color_3;
+        if (SAVED_SETTINGS.transcript_bg && document.getElementById('optTranscriptBg')) document.getElementById('optTranscriptBg').value = SAVED_SETTINGS.transcript_bg;
+        
         // Show/Hide Toggles
         const showSub = (SAVED_SETTINGS.show_sub !== undefined) ? SAVED_SETTINGS.show_sub : true;
         const showNote = (SAVED_SETTINGS.show_note !== undefined) ? SAVED_SETTINGS.show_note : true;
@@ -1103,9 +1110,8 @@ function applyVisualOptions() {
         const noteTheme = document.getElementById('optNoteColor')?.value || 'dark';
         const notePos = document.getElementById('optNotePos')?.value || 'top-right';
 
-        noteOverlay.style.fontSize = noteSize;
-        const textEl = document.getElementById('notePopupText');
-        if (textEl) textEl.style.fontSize = noteSize;
+        // Sử dụng CSS Variable để có thể override trên mobile
+        document.documentElement.style.setProperty('--user-note-fs', noteSize);
         
         // Reset old positioning bounds
         noteOverlay.style.top = 'auto';
@@ -1126,20 +1132,7 @@ function applyVisualOptions() {
         } else if (notePos === 'bottom-left') {
             noteOverlay.style.bottom = '60px'; // clear youtube controls
             noteOverlay.style.left = '20px';
-        } else if (notePos === 'right-center') {
-            noteOverlay.style.top = '50%';
-            noteOverlay.style.right = '20px';
-            noteOverlay.style.transform = 'translateY(-50%)';
-        } else if (notePos === 'left-center') {
-            noteOverlay.style.top = '50%';
-            noteOverlay.style.left = '20px';
-            noteOverlay.style.transform = 'translateY(-50%)';
-        } else if (notePos === 'center') {
-            noteOverlay.style.top = '50%';
-            noteOverlay.style.left = '50%';
-            noteOverlay.style.transform = 'translate(-50%, -50%)';
         }
-
 
         // Apply theme palettes
         const items = noteOverlay.querySelectorAll('.video-note-item');
@@ -1147,7 +1140,7 @@ function applyVisualOptions() {
         items.forEach(item => {
             item.style.padding = '10px 15px';
             item.style.borderRadius = '10px';
-            item.style.fontSize = noteSize;
+            // Không set fontSize inline nữa, để CSS lo
             item.style.fontWeight = '500';
             item.style.backdropFilter = 'blur(8px)';
             item.style.maxWidth = '320px';
@@ -1162,6 +1155,26 @@ function applyVisualOptions() {
                 item.style.color = '#2d3436';
                 item.style.border = '1px solid #fdcb6e';
                 item.style.boxShadow = '0 5px 15px rgba(253, 203, 110, 0.2)';
+            } else if (noteTheme === 'blue') {
+                item.style.background = 'rgba(9, 132, 227, 0.95)';
+                item.style.color = '#fff';
+                item.style.border = '1px solid #74b9ff';
+                item.style.boxShadow = '0 5px 15px rgba(9, 132, 227, 0.3)';
+            } else if (noteTheme === 'green') {
+                item.style.background = 'rgba(0, 184, 148, 0.95)';
+                item.style.color = '#fff';
+                item.style.border = '1px solid #55efc4';
+                item.style.boxShadow = '0 5px 15px rgba(0, 184, 148, 0.3)';
+            } else if (noteTheme === 'purple') {
+                item.style.background = 'rgba(108, 92, 231, 0.95)';
+                item.style.color = '#fff';
+                item.style.border = '1px solid #a29bfe';
+                item.style.boxShadow = '0 5px 15px rgba(108, 92, 231, 0.3)';
+            } else if (noteTheme === 'red') {
+                item.style.background = 'rgba(214, 48, 49, 0.95)';
+                item.style.color = '#fff';
+                item.style.border = '1px solid #ff7675';
+                item.style.boxShadow = '0 5px 15px rgba(214, 48, 49, 0.3)';
             } else {
                 // Dark Glass (Default)
                 item.style.background = 'rgba(15, 23, 42, 0.85)';
@@ -1178,10 +1191,24 @@ function applyVisualOptions() {
         noteOverlay.style.backdropFilter = 'none';
     }
 
-    // 3. Transcript Font Size Sync
+    // 3. Transcript Settings Sync
     const transcriptFs = document.getElementById('optTranscriptFs')?.value || '16px';
+    const transcriptColor1 = document.getElementById('optTranscriptColor1')?.value || '#e8ecf4';
+    const transcriptColor2 = document.getElementById('optTranscriptColor2')?.value || '#f1c40f';
+    const transcriptColor3 = document.getElementById('optTranscriptColor3')?.value || '#00cec9';
+    const transcriptBg = document.getElementById('optTranscriptBg')?.value || '#111827';
+    
     document.documentElement.style.setProperty('--transcript-fs', transcriptFs);
+    document.documentElement.style.setProperty('--transcript-color-1', transcriptColor1);
+    document.documentElement.style.setProperty('--transcript-color-2', transcriptColor2);
+    document.documentElement.style.setProperty('--transcript-color-3', transcriptColor3);
+    document.documentElement.style.setProperty('--transcript-bg', transcriptBg);
+    
     localStorage.setItem('podlearn_transcript_fs', transcriptFs);
+    localStorage.setItem('podlearn_transcript_color_1', transcriptColor1);
+    localStorage.setItem('podlearn_transcript_color_2', transcriptColor2);
+    localStorage.setItem('podlearn_transcript_color_3', transcriptColor3);
+    localStorage.setItem('podlearn_transcript_bg', transcriptBg);
 }
 
 
@@ -1207,6 +1234,12 @@ async function saveLessonSettings() {
         shadowing_accuracy: document.getElementById('optShadowAccuracy')?.value || 80,
         shadow_interactive: document.getElementById('toggleShadowInteractive')?.checked || false,
         shadow_language: document.getElementById('optShadowLanguage')?.value || 'ja',
+
+        transcript_fs: document.getElementById('optTranscriptFs')?.value || '16px',
+        transcript_color_1: document.getElementById('optTranscriptColor1')?.value || '#e8ecf4',
+        transcript_color_2: document.getElementById('optTranscriptColor2')?.value || '#f1c40f',
+        transcript_color_3: document.getElementById('optTranscriptColor3')?.value || '#00cec9',
+        transcript_bg: document.getElementById('optTranscriptBg')?.value || '#111827',
         
         show_sub: document.getElementById('toggleScriptOverlay')?.checked ?? true,
         show_note: document.getElementById('toggleNoteOverlay')?.checked ?? true,

@@ -1141,9 +1141,28 @@ document.addEventListener('click', (e) => {
 // Initialize font size from storage if available
 document.addEventListener('DOMContentLoaded', () => {
     const savedFs = localStorage.getItem('podlearn_transcript_fs') || '16px';
+    const savedColor1 = localStorage.getItem('podlearn_transcript_color_1') || '#e8ecf4';
+    const savedColor2 = localStorage.getItem('podlearn_transcript_color_2') || '#f1c40f';
+    const savedColor3 = localStorage.getItem('podlearn_transcript_color_3') || '#00cec9';
+    const savedBg = localStorage.getItem('podlearn_transcript_bg') || '#111827';
+
     document.documentElement.style.setProperty('--transcript-fs', savedFs);
+    document.documentElement.style.setProperty('--transcript-color-1', savedColor1);
+    document.documentElement.style.setProperty('--transcript-color-2', savedColor2);
+    document.documentElement.style.setProperty('--transcript-color-3', savedColor3);
+    document.documentElement.style.setProperty('--transcript-bg', savedBg);
     
     // Sync slider if it exists
     const slider = document.getElementById('optTranscriptFs');
     if (slider) slider.value = savedFs;
+
+    const colorPicker1 = document.getElementById('optTranscriptColor1');
+    if (colorPicker1) colorPicker1.value = savedColor1;
+    const colorPicker2 = document.getElementById('optTranscriptColor2');
+    if (colorPicker2) colorPicker2.value = savedColor2;
+    const colorPicker3 = document.getElementById('optTranscriptColor3');
+    if (colorPicker3) colorPicker3.value = savedColor3;
+
+    const bgPicker = document.getElementById('optTranscriptBg');
+    if (bgPicker) bgPicker.value = savedBg;
 });
