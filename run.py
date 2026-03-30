@@ -8,8 +8,16 @@ app = create_app()
 with app.app_context():
     from app.extensions import db
     from app.models.user import User
+    from app.models.setting import AppSetting
+    import os
     
-    # 1. Create tables
+    # 1. Create database directory if it doesn't exist
+    db_path = "c:\\Code\\Ecosystem\\Storage\\database"
+    if not os.path.exists(db_path):
+        os.makedirs(db_path)
+        print(f"Created directory: {db_path}")
+
+    # 2. Create tables
     db.create_all()
     
     # 2. Seed Admin if not exists
@@ -42,4 +50,4 @@ with app.app_context():
     print("Database ready.")
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5002)

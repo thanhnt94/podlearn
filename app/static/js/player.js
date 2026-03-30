@@ -1086,13 +1086,17 @@ function applyVisualOptions() {
     if (subOverlay) {
         const subPos = document.getElementById('optSubPos')?.value || 'bottom';
         
-        // Remove all old position classes
-        subOverlay.classList.remove('vso--pos-top', 'vso--pos-bottom', 'vso--pos-top-left', 'vso--pos-top-right', 'vso--pos-bottom-left', 'vso--pos-bottom-right');
+        // Remove all possible old position classes
+        subOverlay.classList.remove(
+            'vso--pos-top', 'vso--pos-bottom', 
+            'vso--pos-top-left', 'vso--pos-top-right', 
+            'vso--pos-bottom-left', 'vso--pos-bottom-right'
+        );
         
         // Add new position class
         subOverlay.classList.add(`vso--pos-${subPos}`);
 
-        // Remove old inline overrides that block CSS hover
+        // Clean up any stray inline styles that might interfere with CSS classes
         subOverlay.style.removeProperty('top');
         subOverlay.style.removeProperty('bottom');
         subOverlay.style.removeProperty('left');
@@ -1100,7 +1104,6 @@ function applyVisualOptions() {
         subOverlay.style.removeProperty('transform');
         subOverlay.style.removeProperty('align-items');
         subOverlay.style.removeProperty('text-align');
-
     }
 
     // 2. Note Overlay Override

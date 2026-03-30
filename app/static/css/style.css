@@ -1131,7 +1131,25 @@ body.dictation-active .dictation-blur-overlay {
     transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Position Classes */
+.vso--pos-top { top: 40px; left: 50%; transform: translateX(-50%); }
 .vso--pos-bottom { bottom: 40px; left: 50%; transform: translateX(-50%); }
+.vso--pos-top-left { top: 40px; left: 40px; align-items: flex-start; text-align: left; }
+.vso--pos-top-right { top: 40px; right: 40px; align-items: flex-end; text-align: right; }
+.vso--pos-bottom-left { bottom: 40px; left: 40px; align-items: flex-start; text-align: left; }
+.vso--pos-bottom-right { bottom: 40px; right: 40px; align-items: flex-end; text-align: right; }
+
+/* SMART LIFT: Lift the subtitles when user hovers the player area (e.g. to see timeline) */
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom,
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom-left,
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom-right {
+    transform: translateY(-45px);
+}
+
+/* If centered, we must keep the -50% X translation */
+.player-video-wrap:hover .video-sub-overlay.vso--pos-bottom {
+    transform: translate(-50%, -45px);
+}
 
 .vso-line {
     background: rgba(0, 0, 0, 0.75);

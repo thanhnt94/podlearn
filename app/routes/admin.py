@@ -153,3 +153,92 @@ def delete_user(user_id):
     flash(f'User {username} deleted successfully.', 'success')
     return redirect(url_for('admin.users'))
 
+# --- New Settings Routes ---
+
+@admin_bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def settings():
+    from ..models.setting import AppSetting
+    if request.method == 'POST':
+        # Handled if multiple settings added later
+        pass
+        
+    # Get current settings
+    settings = {
+        'AUTH_PROVIDER': AppSetting.get('AUTH_PROVIDER', 'local'),
+        'CENTRAL_AUTH_SERVER_ADDRESS': AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', ''),
+        'CENTRAL_AUTH_CLIENT_ID': AppSetting.get('CENTRAL_AUTH_CLIENT_ID', 'podlearn-sso'),
+        'CENTRAL_AUTH_CLIENT_SECRET': AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', ''),
+    }
+    
+    return render_template('admin/settings.html', settings=settings)
+
+@admin_bp.route('/test-auth', methods=['POST'])
+@login_required
+@admin_required
+def test_auth_connection():
+    """V2 Handshake & Auto-Discovery for SSO Integration."""
+    from ..models.setting import AppSetting
+    import requests
+    
+    data = request.get_json()
+    base_url = data.get('base_url', '').rstrip('/')
+    client_id = data.get('client_id', '')
+    client_secret = data.get('client_secret', '')
+
+    if not base_url:
+        return {'success': False, 'message': 'Vui lòng nhập địa chỉ máy chủ CentralAuth.'}, 400
+
+    try:
+        # 1. Attempt Auto-Discovery
+        discovery_url = f"{base_url}/api/auth/discovery"
+        discovery_response = requests.get(discovery_url, timeout=5)
+        
+        if discovery_response.status_code != 200:
+            return {'success': False, 'message': f'Không thể kết nối tới Discovery endpoint ({discovery_response.status_code}).'}, 400
+            
+        discovery_data = discovery_response.json()
+        
+        # 2. Verify Credentials using the validated endpoint
+        validate_url = f"{base_url}/api/auth/validate-client"
+        verify_response = requests.post(
+            validate_url,
+            json={'client_id': client_id, 'client_secret': client_secret},
+            timeout=5
+        )
+        
+        if verify_response.status_code != 200:
+            return {'success': False, 'message': 'Thông tin Client ID hoặc Secret không chính xác.'}, 401
+
+        # 3. Clean and Save configuration upon success
+        actual_web_url = discovery_data.get('authorization_endpoint', '').split('/api/auth/login')[0].rstrip('/') or base_url
+        
+        AppSetting.set('AUTH_PROVIDER', 'central', category='auth')
+        AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
+        AppSetting.set('CENTRAL_SSO_WEB_URL', actual_web_url, category='auth')
+        AppSetting.set('CENTRAL_AUTH_API_URL', base_url, category='auth') # Assuming same for now
+        AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
+        AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
+        
+        return {
+            'success': True,
+            'message': f'Kết nối thành công! Đã tự động cấu hình cho {discovery_data.get("issuer")}.',
+            'discovery': discovery_data
+        }
+    except Exception as e:
+        return {'success': False, 'message': f'Lỗi hệ thống: {str(e)}'}, 500
+
+@admin_bp.route('/toggle-sso', methods=['POST'])
+@login_required
+@admin_required
+def toggle_sso():
+    from ..models.setting import AppSetting
+    data = request.get_json()
+    enabled = data.get('enabled', False)
+    
+    new_provider = 'central' if enabled else 'local'
+    AppSetting.set('AUTH_PROVIDER', new_provider, category='auth')
+    
+    return {'success': True, 'message': f'Đã chuyển sang chế độ xác thực: {new_provider}'}
+

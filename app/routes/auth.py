@@ -53,6 +53,13 @@ def register():
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    from ..models.setting import AppSetting
+    auth_provider = AppSetting.get('AUTH_PROVIDER', 'local')
+    
+    # Bridge: Redirect to SSO if provider is set to central
+    if auth_provider == 'central' and request.endpoint == 'auth.login':
+        return redirect(url_for('auth_center.login', **request.args))
+
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.index'))
 
@@ -76,6 +83,12 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
+    from ..models.setting import AppSetting
+    auth_provider = AppSetting.get('AUTH_PROVIDER', 'local')
+    
+    if auth_provider == 'central':
+        return redirect(url_for('auth_center.logout'))
+        
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('auth.login'))
