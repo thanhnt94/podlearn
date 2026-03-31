@@ -38,10 +38,15 @@ def create_app(config_name: str | None = None) -> Flask:
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
-    app.register_blueprint(player_bp)
-    app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(admin_bp)
     app.register_blueprint(auth_center_bp)
+
+    # ── ECOSYSTEM HEALTH CHECK ─────────────────────────────────
+    from flask import jsonify
+    @app.route('/api/health')
+    def api_health():
+        """Public endpoint for CentralAuth health checks."""
+        return jsonify({"status": "online", "service": "podlearn"})
 
     # ── User loader for Flask-Login ────────────────────────────
     from .models.user import User

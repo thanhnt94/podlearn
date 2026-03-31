@@ -80,6 +80,28 @@ def login():
     return render_template('auth/login.html')
 
 
+@auth_bp.route('/admin-login', methods=['GET', 'POST'])
+def admin_login():
+    """Emergency local-only login for administrators (SSO Bypass)."""
+    if current_user.is_authenticated and getattr(current_user, 'is_admin', False):
+        return redirect(url_for('admin.dashboard'))
+
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+
+        user = User.query.filter_by(username=username).first()
+
+        if user is None or not user.check_password(password) or not getattr(user, 'is_admin', False):
+            flash('Invalid local admin credentials.', 'error')
+            return render_template('auth/login.html', username=username, emergency=True)
+
+        login_user(user, remember=True)
+        return redirect(url_for('admin.dashboard'))
+
+    return render_template('auth/login.html', emergency=True)
+
+
 @auth_bp.route('/logout')
 @login_required
 def logout():

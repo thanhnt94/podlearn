@@ -20,9 +20,9 @@ def admin_required(f):
     return decorated_function
 
 @admin_bp.route('/')
-@login_required
-@admin_required
 def dashboard():
+    if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
+        return redirect(url_for('auth.admin_login', next=request.url))
     # Basic statistics
     stats = {
         'users_count': User.query.count(),

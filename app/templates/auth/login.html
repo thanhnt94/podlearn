@@ -6,6 +6,15 @@
 <div class="auth-container">
     <div class="auth-card">
         <div class="auth-header">
+            {% if emergency %}
+            <div class="emergency-banner" style="background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.2); padding: 10px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                <span class="pulse-dot" style="width: 8px; height: 8px; background: #dc2626; border-radius: 50%; box-shadow: 0 0 10px #dc2626; animation: pulse 1.5s infinite;"></span>
+                <span style="font-size: 11px; font-weight: 800; color: #dc2626; text-transform: uppercase; letter-spacing: 1px;">Emergency Local Portal</span>
+            </div>
+            <style>
+                @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+            </style>
+            {% endif %}
             <h1 class="auth-logo" style="display:flex; justify-content:center; align-items:center; gap:10px; font-weight:700; margin-bottom:10px;">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
