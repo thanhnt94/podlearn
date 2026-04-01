@@ -1,5 +1,5 @@
 /**
- * PodLearn — YouTube IFrame Player Controller
+ * AuraFlow — YouTube IFrame Player Controller
  *
  * Manages:
  *  - YouTube IFrame API embed + ready/state-change events
@@ -78,8 +78,8 @@ function onYouTubeIframeAPIReady() {
         // Show/Hide Toggles
     }
 
-    console.log('[PodLearn] UI State restored from saved config');
-    console.log('[PodLearn] YouTube IFrame API loaded');
+    console.log('[AuraFlow] UI State restored from saved config');
+    console.log('[AuraFlow] YouTube IFrame API loaded');
     ytPlayer = new YT.Player('ytPlayer', {
         videoId: YOUTUBE_ID,
         width: '100%',
@@ -102,7 +102,7 @@ function onYouTubeIframeAPIReady() {
 
 async function onPlayerReady(event) {
     isPlayerReady = true;
-    console.log('[PodLearn] YouTube player ready');
+    console.log('[AuraFlow] YouTube player ready');
     
     // Crucial: Wait for language lists to be populated from DB before restoring
     await loadAvailableLanguages();
@@ -111,7 +111,7 @@ async function onPlayerReady(event) {
         try {
             initFromSaved();
         } catch (err) {
-            console.error('[PodLearn] initFromSaved error:', err);
+            console.error('[AuraFlow] initFromSaved error:', err);
         }
     }
     
@@ -123,7 +123,7 @@ async function onPlayerReady(event) {
 
 
 function onPlayerError(event) {
-    console.error('[PodLearn] YouTube player error:', event.data);
+    console.error('[AuraFlow] YouTube player error:', event.data);
 }
 
 function onPlayerStateChange(event) {
@@ -611,7 +611,7 @@ async function loadAvailableLanguages() {
         if (SAVED_THIRD) displaySub3.value = SAVED_THIRD;
 
     } catch (err) {
-        console.error('[PodLearn] Failed to load DB subtitles:', err);
+        console.error('[AuraFlow] Failed to load DB subtitles:', err);
     }
 }
 
@@ -693,7 +693,7 @@ async function uploadSubtitle() {
         closeModals();
 
     } catch (err) {
-        console.error('[PodLearn] Subtitle upload error:', err);
+        console.error('[AuraFlow] Subtitle upload error:', err);
         status.textContent = 'Error: ' + err.message;
         alert(err.message);
     } finally {
@@ -744,7 +744,7 @@ async function loadDisplaySubtitles() {
             if (res.ok) {
                 tracksData.push(data.lines);
             } else {
-                console.warn(`[PodLearn] Could not load ${lang} subs:`, data.error);
+                console.warn(`[AuraFlow] Could not load ${lang} subs:`, data.error);
                 tracksData.push([]);
             }
         }
@@ -763,7 +763,7 @@ async function loadDisplaySubtitles() {
 
 
     } catch (err) {
-        console.error('[PodLearn] Display load error:', err);
+        console.error('[AuraFlow] Display load error:', err);
         status.textContent = 'Error: ' + err.message;
     } finally {
         const loadBtn = document.getElementById('loadSubsBtn');
@@ -831,7 +831,7 @@ function initFromSaved() {
     
     // Auto-load if languages are selected
     if (window.SAVED_ORIGINAL || window.SAVED_TARGET || window.SAVED_THIRD) {
-        console.log("[PodLearn] Auto-loading subtitles...");
+        console.log("[AuraFlow] Auto-loading subtitles...");
         setTimeout(loadDisplaySubtitles, 500);
     }
 }
@@ -994,7 +994,7 @@ async function downloadYoutubeSub(langCode, isAuto) {
     if (!confirm(`Download and import ${langCode.toUpperCase()} subtitle from YouTube?`)) return;
 
     try {
-        console.log(`[PodLearn] Downloading yt sub: ${langCode} (auto=${isAuto})`);
+        console.log(`[AuraFlow] Downloading yt sub: ${langCode} (auto=${isAuto})`);
         
         const res = await fetch(`/api/youtube/subtitles-download/${LESSON_ID}`, {
             method: 'POST',
@@ -1018,7 +1018,7 @@ async function downloadYoutubeSub(langCode, isAuto) {
             await openSubtitleManager(); 
         }
     } catch (err) {
-        console.error("[PodLearn] Download error:", err);
+        console.error("[AuraFlow] Download error:", err);
         alert("Error: " + err.message);
     }
 }
@@ -1040,7 +1040,7 @@ async function deleteSubtitle(id) {
             alert("Failed to delete.");
         }
     } catch (err) {
-        console.error("[PodLearn] Delete error:", err);
+        console.error("[AuraFlow] Delete error:", err);
     }
 }
 
@@ -1207,11 +1207,11 @@ function applyVisualOptions() {
     document.documentElement.style.setProperty('--transcript-color-3', transcriptColor3);
     document.documentElement.style.setProperty('--transcript-bg', transcriptBg);
     
-    localStorage.setItem('podlearn_transcript_fs', transcriptFs);
-    localStorage.setItem('podlearn_transcript_color_1', transcriptColor1);
-    localStorage.setItem('podlearn_transcript_color_2', transcriptColor2);
-    localStorage.setItem('podlearn_transcript_color_3', transcriptColor3);
-    localStorage.setItem('podlearn_transcript_bg', transcriptBg);
+    localStorage.setItem('AuraFlow_transcript_fs', transcriptFs);
+    localStorage.setItem('AuraFlow_transcript_color_1', transcriptColor1);
+    localStorage.setItem('AuraFlow_transcript_color_2', transcriptColor2);
+    localStorage.setItem('AuraFlow_transcript_color_3', transcriptColor3);
+    localStorage.setItem('AuraFlow_transcript_bg', transcriptBg);
 }
 
 
@@ -1281,9 +1281,9 @@ async function saveLessonSettings() {
         if (sub1) window.SAVED_ORIGINAL = sub1;
         if (sub2) window.SAVED_TARGET = sub2;
         if (sub3) window.SAVED_THIRD = sub3;
-        console.log("[PodLearn] Lesson settings saved");
+        console.log("[AuraFlow] Lesson settings saved");
     } catch (err) {
-        console.error('[PodLearn] Failed to save settings:', err);
+        console.error('[AuraFlow] Failed to save settings:', err);
     }
 }
 
@@ -1478,7 +1478,7 @@ async function syncTimeTrack() {
             body: JSON.stringify({ seconds_added: secondsToSend })
         });
     } catch (err) {
-        console.error('[PodLearn] Study track sync error:', err);
+        console.error('[AuraFlow] Study track sync error:', err);
         // Put back to retry
         activeStudySeconds += secondsToSend;
     }
@@ -1497,7 +1497,7 @@ async function toggleLessonCompletion() {
             updateCompletionUI();
         }
     } catch (err) {
-        console.error('[PodLearn] Failed to toggle completion:', err);
+        console.error('[AuraFlow] Failed to toggle completion:', err);
     }
 }
 

@@ -12,3 +12,6 @@ webvtt-py==0.5.1
 deep-translator==1.11.4
 pykakasi
 Flask-WTF
+edge-tts
+gTTS
+pydub

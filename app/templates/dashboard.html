@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}My Library — PodLearn{% endblock %}
+{% block title %}My Library — AuraFlow{% endblock %}
 {% block body_class %}dashboard-page{% endblock %}
 
 {% block content %}
@@ -12,7 +12,7 @@
                     <polyline points="7 10 12 15 17 10"></polyline>
                     <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
-                <span style="letter-spacing: -0.5px;">Pod<span style="color:var(--accent);">Learn</span></span>
+                <span style="letter-spacing: -0.5px;">Aura<span style="color:var(--accent);">Flow</span></span>
             </h1>
         </div>
         <div class="dashboard-header__right">
@@ -54,80 +54,153 @@
 
 
         <div class="dashboard-toolbar">
-            <h2 style="font-size: 18px; font-weight: 600; color: var(--text-primary);">Resume Learning</h2>
-            <button class="btn btn--primary btn--sm" id="addLessonToggle" onclick="toggleAddForm()">
-                + Add Video
-            </button>
-        </div>
+            <div class="welcome-section">
+                <h2 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: 5px;">Chào mừng bạn đến với AuraFlow.</h2>
+                <p style="color: var(--text-secondary); font-size: 16px;">Hôm nay bạn muốn <strong>Khám phá</strong> nội dung mới hay <strong>Luyện phản xạ</strong>?</p>
+            </div>
 
-        <!-- Add Lesson Form -->
-        <div class="add-lesson-form" id="addLessonForm" style="display: none;">
-            <form method="POST" action="{{ url_for('dashboard.add_lesson') }}" class="add-lesson-form__inner" id="addForm">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-                <div class="form-group" style="flex: 1;">
-                    <input type="text" name="youtube_url" id="youtubeUrl"
-                           placeholder="Paste a YouTube URL (e.g. https://youtube.com/watch?v=...)"
-                           required autocomplete="off">
+            <div class="track-switcher">
+                <div class="track-btn active" onclick="switchTrack('discovery', this)">
+                    <i data-lucide="compass"></i>
+                    Khám Phá
                 </div>
-                <button type="submit" class="btn btn--primary" id="addLessonBtn">
-                    <span class="btn-text">Add to Library</span>
-                    <span class="btn-loading" style="display: none;">Adding...</span>
-                </button>
-                <button type="button" class="btn btn--ghost" onclick="toggleAddForm()">Cancel</button>
-            </form>
+                <div class="track-btn" onclick="switchTrack('reflexive', this)">
+                    <i data-lucide="zap"></i>
+                    Phản Xạ
+                </div>
+            </div>
+
+            <div class="toolbar-actions" style="display:flex; gap:10px;">
+                <a href="{{ url_for('dashboard.import_page') }}" class="btn btn--primary btn--sm" id="importLink">
+                    <span id="addBtnText">+ Thêm nội dung</span>
+                </a>
+            </div>
         </div>
 
-        <!-- Lesson Grid -->
-        <div class="lesson-grid" id="lessonGrid">
-            {% if lessons %}
-                {% for lesson in lessons %}
-                <div class="lesson-card" id="lessonCard{{ lesson.id }}">
-                    <a href="{{ url_for('player.view', lesson_id=lesson.id) }}" class="lesson-card__link">
-                        <div class="lesson-card__thumb-wrapper" style="position:relative;">
-                            <img src="{{ lesson.video.thumbnail_url }}" 
-                                 alt="{{ lesson.video.title }}" 
-                                 class="lesson-card__thumb"
-                                 loading="lazy">
-                            {% if lesson.is_completed %}
-                            <div class="lesson-card__badge" style="position:absolute; top:10px; right:10px; background:#55efc4; color:#000; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,0.3);">COMPLETED</div>
-                            {% endif %}
-                            
-                            <!-- PROGRESS BAR -->
-                            {% set total = lesson.video.duration_seconds or 1 %}
-                            {% set spent = lesson.time_spent or 0 %}
-                            {% set percent = (spent / total * 100) | round(0) %}
-                            {% if percent > 100 %}{% set percent = 100 %}{% endif %}
-                            <div class="lesson-card__progress-track" style="position:absolute; bottom:0; left:0; right:0; height:4px; background:rgba(255,255,255,0.1);">
-                                <div class="lesson-card__progress-fill" style="width:{{ percent }}%; height:100%; background:var(--accent); transition: width 0.3s;"></div>
-                            </div>
+        <!-- Integrated Add Menu -->
+        <div id="addMenu" class="glass-panel" style="display: none; margin-bottom: 30px; padding: 25px; border-radius: 20px; border: 1px solid var(--border); background: rgba(255,255,255,0.02);">
+            <div style="display:flex; gap:30px; flex-wrap:wrap;">
+                <!-- Add Video -->
+                <div style="flex: 1; min-width: 300px;">
+                    <h4 style="font-size: 14px; color: var(--accent); margin-bottom: 15px; text-transform: uppercase; font-weight: 700;">Thêm Video YouTube</h4>
+                    <form method="POST" action="{{ url_for('dashboard.add_lesson') }}" style="display:flex; gap:10px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="text" name="youtube_url" placeholder="Dán link YouTube tại đây..." 
+                               style="flex:1; background:var(--bg-input); border:1px solid var(--border); padding:10px; border-radius:10px; color:white;">
+                        <button type="submit" class="btn btn--primary btn--sm">Thêm Video</button>
+                    </form>
+                </div>
+                
+                <div style="width: 1px; background: var(--border); align-self: stretch;"></div>
+
+                <!-- Add Sentence -->
+                <div style="flex: 1; min-width: 300px;">
+                    <h4 style="font-size: 14px; color: #a78bfa; margin-bottom: 15px; text-transform: uppercase; font-weight: 700;">Thêm Mẫu Câu</h4>
+                    <form method="POST" action="{{ url_for('dashboard.add_sentence') }}" style="display:flex; flex-direction:column; gap:10px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="text" name="original_text" placeholder="Câu gốc (vd: 頑張ってください)" required
+                               style="background:var(--bg-input); border:1px solid var(--border); padding:10px; border-radius:10px; color:white;">
+                        <div style="display:flex; gap:10px;">
+                            <input type="text" name="translated_text" placeholder="Nghĩa / Ghi chú" 
+                                   style="flex:1; background:var(--bg-input); border:1px solid var(--border); padding:10px; border-radius:10px; color:white;">
+                            <button type="submit" class="btn btn--accent btn--sm" style="background:#8b5cf6;">Lưu câu</button>
                         </div>
-                        <div class="lesson-card__body">
-                            <h3 class="lesson-card__title">{{ lesson.video.title }}</h3>
-                            <div class="lesson-card__meta">
-                                <span class="lesson-card__duration">{{ lesson.video.duration_seconds | duration }}</span>
-                                <span class="lesson-card__progress-text" style="color:var(--text-muted); font-size:11px;">{{ percent }}% study progress</span>
-                                <span class="lesson-card__last-access" style="color:var(--text-muted); font-size:10px; display:block; margin-top:4px;">Last: {{ lesson.last_accessed.strftime('%b %d, %H:%M') if lesson.last_accessed else 'Never' }}</span>
+                    </form>
+                </div>
+            </div>
+            <div style="margin-top: 15px; text-align: center;">
+                <button class="btn btn--ghost btn--sm" onclick="toggleAddMenu()" style="border:none; color:var(--text-muted);">Đóng bảng điều khiển</button>
+            </div>
+        </div>
+
+        <!-- DISCOVERY TRACK (VIDEOS) -->
+        <div id="discoveryContent" class="tab-content active">
+            <div class="lesson-grid">
+                {% if lessons %}
+                    {% for lesson in lessons %}
+                    <div class="lesson-card" id="lessonCard{{ lesson.id }}">
+                        <a href="{{ url_for('player.view', lesson_id=lesson.id) }}" class="lesson-card__link">
+                            <div class="lesson-card__thumb-wrapper" style="position:relative;">
+                                <img src="{{ lesson.video.thumbnail_url }}" 
+                                     alt="{{ lesson.video.title }}" 
+                                     class="lesson-card__thumb"
+                                     loading="lazy">
+                                {% if lesson.is_completed %}
+                                <div class="lesson-card__badge" style="position:absolute; top:10px; right:10px; background:#55efc4; color:#000; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,0.3);">COMPLETED</div>
+                                {% endif %}
+                                
+                                <!-- PROGRESS BAR -->
+                                {% set total = lesson.video.duration_seconds or 1 %}
+                                {% set spent = lesson.time_spent or 0 %}
+                                {% set percent = (spent / total * 100) | round(0) %}
+                                {% if percent > 100 %}{% set percent = 100 %}{% endif %}
+                                <div class="lesson-card__progress-track" style="position:absolute; bottom:0; left:0; right:0; height:4px; background:rgba(255,255,255,0.1);">
+                                    <div class="lesson-card__progress-fill" style="width:{{ percent }}%; height:100%; background:var(--accent); transition: width 0.3s;"></div>
+                                </div>
                             </div>
+                            <div class="lesson-card__body">
+                                <h3 class="lesson-card__title">{{ lesson.video.title }}</h3>
+                                <div class="lesson-card__meta">
+                                    <span class="lesson-card__duration">{{ lesson.video.duration_seconds | duration }}</span>
+                                    <span class="lesson-card__progress-text" style="color:var(--text-muted); font-size:11px;">{{ percent }}% progress</span>
+                                    <span class="lesson-card__last-access" style="color:var(--text-muted); font-size:10px; display:block; margin-top:4px;">{{ lesson.last_accessed.strftime('%b %d') if lesson.last_accessed else 'New' }}</span>
+                                </div>
+                            </div>
+                        </a>
+                        <div class="lesson-card__actions">
+                            <form method="POST" action="{{ url_for('dashboard.delete_lesson', lesson_id=lesson.id) }}" 
+                                   onsubmit="return confirm('Xóa video này?')">
+                                <button type="submit" class="btn btn--danger btn--sm" id="deleteLesson{{ lesson.id }}" title="Remove">✕</button>
+                            </form>
                         </div>
-                    </a>
-                    <div class="lesson-card__actions">
-                        <form method="POST" action="{{ url_for('dashboard.delete_lesson', lesson_id=lesson.id) }}" 
-                               onsubmit="return confirm('Remove this lesson?')">
-                            <button type="submit" class="btn btn--danger btn--sm" id="deleteLesson{{ lesson.id }}" title="Remove">
-                                ✕
-                            </button>
-                        </form>
                     </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <div class="empty-state__icon">📚</div>
-                    <p>No lessons yet.</p>
-                    <p class="empty-state__hint">Click <strong>+ Add Video</strong> to get started!</p>
-                </div>
-            {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state__icon">📚</div>
+                        <p>Thư viện video đang trống.</p>
+                        <p class="empty-state__hint">Thêm video đầu tiên để bắt đầu hành trình khám phá!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- REFLEXIVE TRACK (SENTENCES) -->
+        <div id="reflexiveContent" class="tab-content">
+            <div class="sentence-grid">
+                {% if sentences %}
+                    {% for s in sentences %}
+                    <div class="sentence-card">
+                        <div class="sentence-card__header">
+                            <span class="sentence-card__badge">Reflexive Pattern</span>
+                            <form method="POST" action="{{ url_for('dashboard.delete_sentence', sentence_id=s.id) }}" 
+                                  onsubmit="return confirm('Xóa mẫu câu này?')">
+                                <button type="submit" class="sentence-card__btn sentence-card__btn--delete" title="Gỡ bỏ">✕</button>
+                            </form>
+                        </div>
+                        <div class="sentence-card__content">
+                            <div class="sentence-card__original">{{ s.original_text }}</div>
+                            <div class="sentence-card__translated">{{ s.translated_text or 'Chưa có bản dịch' }}</div>
+                        </div>
+                        <div class="sentence-card__footer">
+                            <div class="sentence-card__actions">
+                                <a href="{{ url_for('practice.sentence_practice', sentence_id=s.id) }}" class="sentence-card__btn" title="Học chi tiết">
+                                    <i data-lucide="book-open"></i>
+                                </a>
+                                <button class="sentence-card__btn" title="Nghe câu mẫu"><i data-lucide="headphones"></i></button>
+                            </div>
+                            <span style="font-size: 10px; color: var(--text-muted);">{{ s.created_at.strftime('%d/%m/%Y') }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state__icon">⚡</div>
+                        <p>Chưa có mẫu câu phản xạ nào.</p>
+                        <p class="empty-state__hint">Lưu các mẫu câu khó từ phụ đề hoặc thêm thủ công tại đây!</p>
+                    </div>
+                {% endif %}
+            </div>
         </div>
     </main>
 </div>
@@ -135,23 +208,37 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
 <script>
-    function toggleAddForm() {
-        const form = document.getElementById('addLessonForm');
-        const isHidden = form.style.display === 'none';
-        form.style.display = isHidden ? 'block' : 'none';
-        if (isHidden) {
-            document.getElementById('youtubeUrl').focus();
-        }
+    lucide.createIcons();
+
+    function switchTrack(trackId, element) {
+        // Toggle Buttons
+        document.querySelectorAll('.track-btn').forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
+
+        // Toggle Content
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.getElementById(trackId + 'Content').classList.add('active');
+
+        // Store preference
+        localStorage.setItem('aura_dashboard_track', trackId);
     }
 
-    // Show loading state on submit
-    document.getElementById('addForm').addEventListener('submit', function() {
-        const btn = document.getElementById('addLessonBtn');
-        btn.querySelector('.btn-text').style.display = 'none';
-        btn.querySelector('.btn-loading').style.display = 'inline';
-        btn.disabled = true;
-    });
+    // Load preference
+    window.onload = function() {
+        const savedTrack = localStorage.getItem('aura_dashboard_track');
+        if (savedTrack) {
+            const btn = document.querySelector(`.track-btn[onclick*='${savedTrack}']`);
+            if (btn) btn.click();
+        }
+    };
+
+    function toggleAddMenu() {
+        const menu = document.getElementById('addMenu');
+        const isHidden = menu.style.display === 'none';
+        menu.style.display = isHidden ? 'block' : 'none';
+    }
 
     // Activity Chart Initialization
     const ctx = document.getElementById('activityChart').getContext('2d');

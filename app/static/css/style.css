@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   PodLearn — Design System
+   AuraFlow — Design System
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── CSS Custom Properties ──────────────────────────────────── */
@@ -436,6 +436,52 @@ body.dictation-active .dictation-blur-overlay {
     align-items: center;
     justify-content: space-between;
     margin-bottom: var(--space-xl);
+    gap: var(--space-lg);
+}
+
+/* ── Track Switcher ─────────────────────────────────────────── */
+.track-switcher {
+    display: flex;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 4px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    position: relative;
+    user-select: none;
+}
+
+.track-btn {
+    padding: 10px 24px;
+    border-radius: 10px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1;
+}
+
+.track-btn i {
+    font-size: 1.1rem;
+    opacity: 0.7;
+}
+
+.track-btn:hover {
+    color: var(--text-primary);
+}
+
+.track-btn.active {
+    background: var(--bg-card);
+    color: var(--accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(108, 92, 231, 0.2);
+}
+
+.track-btn.active i {
+    opacity: 1;
 }
 
 .dashboard-toolbar h2 {
@@ -581,6 +627,119 @@ body.dictation-active .dictation-blur-overlay {
     background: rgba(255, 107, 107, 0.8);
     color: white;
     border: none;
+}
+
+/* ── Sentence Card ──────────────────────────────────────────── */
+.sentence-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: var(--space-lg);
+}
+
+.sentence-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    transition: all var(--transition-base);
+    position: relative;
+    min-height: 180px;
+}
+
+.sentence-card:hover {
+    border-color: rgba(139, 92, 246, 0.3);
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(139, 92, 246, 0.1);
+}
+
+.sentence-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.sentence-card__badge {
+    background: rgba(139, 92, 246, 0.1);
+    color: #a78bfa;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.sentence-card__content {
+    flex: 1;
+}
+
+.sentence-card__original {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.sentence-card__translated {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.sentence-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--space-sm);
+}
+
+.sentence-card__actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.sentence-card__btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.sentence-card__btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.sentence-card__btn--delete:hover {
+    background: var(--error);
+    border-color: var(--error);
+}
+
+/* ── Tab Visibility ─────────────────────────────────────────── */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 
@@ -1020,6 +1179,32 @@ body.dictation-active .dictation-blur-overlay {
     background: rgba(15, 23, 42, 0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
+    /* Interlinear Translation & Token Colors */
+.token-box {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 4px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+.token-box:hover {
+    background-color: rgba(255,255,255,0.05) !important;
+}
+.token-box ruby { font-family: 'Inter', sans-serif; letter-spacing: 0.5px; }
+.token-box rt { font-size: 0.65em; color: rgba(255,255,255,0.4); font-weight: 500; font-family: sans-serif; }
+
+/* Color Groups - Optimized for Dark/Light Themes */
+.color-group-0 { color: #8892a8; background-color: transparent; } /* Particles/Helper */
+.color-group-1 { color: #d946ef; background-color: rgba(217, 70, 239, 0.1); } 
+.color-group-2 { color: #0ea5e9; background-color: rgba(14, 165, 233, 0.1); } 
+.color-group-3 { color: #10b981; background-color: rgba(16, 185, 129, 0.1); } 
+.color-group-4 { color: #f59e0b; background-color: rgba(245, 158, 11, 0.1); } 
+.color-group-5 { color: #ef4444; background-color: rgba(239, 68, 68, 0.1); } 
+.color-group-6 { color: #8b5cf6; background-color: rgba(139, 92, 246, 0.1); } 
+.color-group-7 { color: #14b8a6; background-color: rgba(20, 184, 166, 0.1); }
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     padding: 6px;

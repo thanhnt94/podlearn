@@ -1,5 +1,5 @@
 /**
- * PodLearn — Notes System
+ * AuraFlow — Notes System
  *
  * Manages:
  *  - Fetching, creating, deleting notes
@@ -135,7 +135,7 @@ async function loadNotes() {
         notesList = data.notes || [];
         renderNotesList();
     } catch (err) {
-        console.error('[PodLearn] Error loading notes:', err);
+        console.error('[AuraFlow] Error loading notes:', err);
     }
 }
 
@@ -180,7 +180,7 @@ async function saveNote() {
             ytPlayer.playVideo();
         }
     } catch (err) {
-        console.error('[PodLearn] Error saving note:', err);
+        console.error('[AuraFlow] Error saving note:', err);
         alert('Error saving note.');
     }
 }
@@ -209,7 +209,7 @@ async function deleteNote(noteId, event) {
 
         renderNotesList();
     } catch (err) {
-        console.error('[PodLearn] Error deleting note:', err);
+        console.error('[AuraFlow] Error deleting note:', err);
         alert('Error deleting note.');
     }
 }

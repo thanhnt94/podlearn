@@ -4,7 +4,6 @@ import os
 import tempfile
 import webvtt
 import re
-import difflib
 from datetime import datetime, timezone, date, timedelta
 
 from werkzeug.utils import secure_filename
@@ -14,7 +13,6 @@ from flask_login import login_required, current_user
 
 import yt_dlp
 from deep_translator import GoogleTranslator
-import pykakasi
 
 
 from ..extensions import db
@@ -24,38 +22,23 @@ from ..models.video import Video
 from ..models.note import Note
 from ..models.subtitle import SubtitleTrack
 from ..models.shadowing import ShadowingHistory
-from ..services.subtitle_service import get_subtitle_track, get_lines_as_dicts
+from ..models.sentence import Sentence
+from ..services.subtitle_service import (
+    get_subtitle_track, 
+    get_lines_as_dicts, 
+    get_available_subs_from_youtube,
+    download_and_parse_youtube_sub,
+    parse_uploaded_subtitle
+)
+from ..services.youtube_service import extract_video_id
+from ..services.shadowing_service import evaluate_pronunciation
+from ..services.lesson_service import update_study_progress_and_streak
+from ..services.audio_service import generate_bilingual_audio
+from ..services.sentence_service import import_sentence_from_raw_json
 
 api_bp = Blueprint('api', __name__)
 
-kks = pykakasi.kakasi()
 
-def clean_jp_text(text):
-    # Xóa toàn bộ khoảng trắng, tab, xuống dòng và các dấu câu phổ biến
-    return re.sub(r'[ \s\t\n.,!?。、！？「」『』（）()\[\]\-]', '', text)
-
-def get_japanese_segments(text):
-    # Step 1: Remove punctuation but KEEP English/Numbers
-    text = re.sub(r'[\s.,!?。、！？！]', ' ', text)
-    result = kks.convert(text)
-    
-    hira_only = []
-    all_segments = []
-    
-    for item in result:
-        h = item['hira'].strip()
-        o = item['orig'].strip()
-        if not o: continue
-        
-        # If the origin has English/Numbers, treat as English segment
-        if re.search(r'[a-zA-Z0-9]', o):
-            all_segments.append(o)
-        else:
-            # It's Japanese (Kanji/Kana)
-            all_segments.append(h)
-            hira_only.append(h)
-    
-    return hira_only, all_segments
 
 
 @api_bp.route('/score-pronunciation', methods=['POST'])
@@ -66,92 +49,21 @@ def score_pronunciation():
     spoken = data.get('spoken_text', '')
     lang = data.get('lang_code', 'en')
     
-    if lang == 'ja':
-        # Chỉ giữ lại tiếng Nhật (Hiragana, Katakana, Kanji)
-        # Các từ tiếng Anh/Dấu câu sẽ bị loại bỏ khỏi cả 2 chuỗi để không tính vào tỷ lệ lệ
-        def clean_jp_only(text):
-            return re.sub(r'[^\u3040-\u30FF\u4E00-\u9FFF]', '', text)
-
-        orig_clean = clean_jp_only(original)
-        spoken_clean = clean_jp_only(spoken)
-
-        # Nếu câu gốc toàn tiếng Anh (sau khi clean bị rỗng) -> Auto Pass
-        if len(orig_clean) == 0:
-            return jsonify({"score": 100, "original_text": original})
-
-        # HỆ THỐNG 1: Đếm số ký tự khớp trực tiếp (Raw Match)
-        raw_matcher = difflib.SequenceMatcher(None, orig_clean, spoken_clean)
-        # Chỉ đếm số ký tự TRÚNG, không quan tâm spoken_clean bị dài bao nhiêu (không phạt chữ thừa)
-        raw_matches = sum(block.size for block in raw_matcher.get_matching_blocks())
-        raw_score = raw_matches / len(orig_clean) 
-
-        # HỆ THỐNG 2: Đếm số ký tự khớp bằng Hiragana (Cứu cánh cho Kanji)
-        orig_hira = "".join([item['hira'] for item in kks.convert(orig_clean)])
-        spoken_hira = "".join([item['hira'] for item in kks.convert(spoken_clean)])
-
-        hira_matcher = difflib.SequenceMatcher(None, orig_hira, spoken_hira)
-        hira_matches = sum(block.size for block in hira_matcher.get_matching_blocks())
-        hira_score = hira_matches / len(orig_hira) if len(orig_hira) > 0 else 1.0
-
-    # CHỐT ĐIỂM
-    if lang == 'ja':
-        final_score = min(100, int(max(raw_score, hira_score) * 100))
-    else:
-        # Simple word-based match fallback for other languages
-        orig_words = re.findall(r'\w+', original.lower())
-        spoken_words = re.findall(r'\w+', spoken.lower())
-        if not orig_words:
-            final_score = 100
-        else:
-            match_count = sum(1 for w in spoken_words if w in orig_words)
-            final_score = min(100, int((match_count / len(orig_words)) * 100))
-
-    # SAVE HISTORY IF CONTEXT PROVIDED
     lesson_id = data.get('lesson_id')
     start_time = data.get('start_time')
     end_time = data.get('end_time')
 
-    if lesson_id is not None and start_time is not None:
-        try:
-            lesson = Lesson.query.get(int(lesson_id))
-            if lesson and lesson.user_id == current_user.id:
-                history = ShadowingHistory(
-                    user_id=current_user.id,
-                    video_id=lesson.video_id,
-                    lesson_id=lesson.id,
-                    start_time=float(start_time),
-                    end_time=float(end_time) if end_time else float(start_time) + 2.0,
-                    original_text=original,
-                    spoken_text=spoken,
-                    accuracy_score=final_score
-                )
-                db.session.add(history)
-                db.session.commit()
-                print(f"[ShadowingHistory] Saved: {final_score}% at {start_time}s")
-            else:
-                print(f"[ShadowingHistory] Lesson {lesson_id} not found or permission denied.")
-        except Exception as e:
-            import traceback
-            print(f"[ShadowingHistory ERROR] Failed to save to database!")
-            print(f"Error Type: {type(e).__name__}")
-            print(f"Error Message: {str(e)}")
-            traceback.print_exc()
-            db.session.rollback()
+    result = evaluate_pronunciation(
+        user_id=current_user.id,
+        lesson_id=lesson_id,
+        original_text=original,
+        spoken_text=spoken,
+        lang=lang,
+        start_time=start_time,
+        end_time=end_time
+    )
 
-    if lang == 'ja':
-        # For visual guides in UI
-        _, orig_full = get_japanese_segments(original)
-        _, spoken_full = get_japanese_segments(spoken)
-
-        return jsonify({
-            "score": final_score,
-            "original_text": original,
-            "original_hira": " ".join(orig_full),
-            "spoken_hira": " ".join(spoken_full),
-            "debug": {"raw_score": int(raw_score*100), "hira_score": int(hira_score*100)}
-        })
-    else:
-        return jsonify({'score': final_score, 'original_text': original})
+    return jsonify(result)
 
 
 @api_bp.route('/lesson/<int:lesson_id>/shadowing-stats', methods=['GET'])
@@ -217,43 +129,13 @@ def track_time(lesson_id):
     data = request.get_json() or {}
     seconds = data.get('seconds_added', 0)
 
-    # 1. Update Lesson stats
-    lesson.time_spent += int(seconds)
-    lesson.last_accessed = datetime.now(timezone.utc)
+    # Call service to update progress and streaks
+    result = update_study_progress_and_streak(current_user, lesson, seconds)
 
-    # 2. Gamification: Study Streak
-    user = current_user
-    today = date.today()
-    
-    if seconds > 0: # Only count if they actually studied
-        if user.last_study_date is None:
-            # First time ever
-            user.current_streak = 1
-            user.last_study_date = today
-        else:
-            if user.last_study_date == today:
-                # Already studied today, do nothing to streak
-                pass
-            elif user.last_study_date == today - timedelta(days=1):
-                # Studied yesterday! Increase streak
-                user.current_streak += 1
-                user.last_study_date = today
-            else:
-                # Gap in study, reset streak to 1
-                user.current_streak = 1
-                user.last_study_date = today
-        
-        # Update longest streak
-        cur = user.current_streak or 0
-        lng = user.longest_streak or 0
-        if cur > lng:
-            user.longest_streak = cur
-
-    db.session.commit()
     return jsonify({
         'success': True, 
-        'current_streak': user.current_streak or 0,
-        'longest_streak': user.longest_streak or 0
+        'current_streak': result['current_streak'],
+        'longest_streak': result['longest_streak']
     })
 
 
@@ -302,63 +184,12 @@ def delete_subtitle(sub_id):
 @api_bp.route('/youtube/subtitles-list/<video_id>', methods=['GET'])
 @login_required
 def get_youtube_subs_list(video_id):
-    """Fetch available subtitle languages from YouTube using yt-dlp."""
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    
-    # Đảm bảo đường dẫn tuyệt đối cho cookies
-    cookie_path = os.path.abspath(os.path.join(os.getcwd(), 'youtube_cookies.txt'))
-    if not os.path.exists(cookie_path):
-        print(f"[API ERROR] Cookie file not found at: {cookie_path}")
-        return jsonify({"error": f"Không tìm thấy file youtube_cookies.txt tại {cookie_path}. Vui lòng kiểm tra lại vị trí file."}), 500
-
-    ydl_opts = {
-        'skip_download': True,
-        'quiet': True,
-        'no_warnings': True,
-        'cookiefile': cookie_path, # Kích hoạt bypass bằng cookies
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-        }
-    }
-
-
-    
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            
-            subs = info.get('subtitles', {})
-            autos = info.get('automatic_captions', {})
-            
-            # Formulate a simplified list
-            available = []
-            
-            # Manual subs
-            for code, formats in subs.items():
-                available.append({
-                    'lang_code': code,
-                    'name': formats[0].get('name', code) if formats else code,
-                    'is_auto': False
-                })
-            
-            for code, formats in autos.items():
-                if any(a['lang_code'] == code for a in available): continue
-                available.append({
-                    'lang_code': code,
-                    'name': (formats[0].get('name', code) if formats else code) + " (Auto)",
-                    'is_auto': True
-                })
-                
-            return jsonify({'subtitles': available})
-            
-    except yt_dlp.utils.DownloadError as e:
-        error_msg = str(e)
-        if '429' in error_msg or 'Too Many Requests' in error_msg:
-            return jsonify({"error": "YouTube đang chặn yêu cầu của máy chủ (Lỗi 429). Vui lòng thử lại sau hoặc Upload file thủ công."}), 429
-        return jsonify({"error": f"YouTube Error: {error_msg}"}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    """Fetch available subtitle languages from YouTube using service."""
+    result = get_available_subs_from_youtube(video_id)
+    if 'error' in result:
+        status_code = 429 if result['error'] == '429' else 400
+        return jsonify(result), status_code
+    return jsonify(result)
 
 
 @api_bp.route('/youtube/subtitles-download/<int:lesson_id>', methods=['POST'])
@@ -372,129 +203,29 @@ def download_youtube_sub(lesson_id):
     
     if not lang_code:
         return jsonify({'error': 'lang_code is required'}), 400
-        
-    v_id = lesson.video.youtube_id
-    url = f"https://www.youtube.com/watch?v={v_id}"
+
+    result = download_and_parse_youtube_sub(lesson.video.youtube_id, lang_code, is_auto)
+    if 'error' in result:
+        status_code = 429 if result['error'] == '429' else 400
+        return jsonify(result), status_code
+
+    parsed_lines = result['lines']
+    track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code).first()
+    if not track:
+        track = SubtitleTrack(video_id=lesson.video.id, language_code=lang_code)
+        db.session.add(track)
     
-    # Đảm bảo đường dẫn tuyệt đối cho cookies
-    cookie_path = os.path.abspath(os.path.join(os.getcwd(), 'youtube_cookies.txt'))
-    if not os.path.exists(cookie_path):
-        print(f"[API ERROR] Cookie file not found at: {cookie_path}")
-        return jsonify({"error": "Máy chủ thiếu cấu hình youtube_cookies.txt để vượt qua chặn từ YouTube."}), 500
-
-    # yt-dlp options specifically for fetching the vtt
-    temp_dir = tempfile.gettempdir()
-    ydl_opts = {
-        'skip_download': True,
-        'writesubtitles': not is_auto,
-        'writeautomaticsub': is_auto,
-        'subtitleslangs': [lang_code],
-        'subtitlesformat': 'vtt',
-        'outtmpl': os.path.join(temp_dir, f'sub_%(id)s_%(lang)s'),
-        'quiet': True,
-        'cookiefile': cookie_path, # Kích hoạt bypass bằng cookies
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-        }
-    }
-
-
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-            
-            target_path = os.path.join(temp_dir, f'sub_{v_id}_{lang_code}.vtt')
-            
-            if not os.path.exists(target_path):
-                import glob
-                matches = glob.glob(os.path.join(temp_dir, f'sub_{v_id}_*.vtt'))
-                if matches:
-                    target_path = matches[0]
-                else:
-                    return jsonify({'error': 'Failed to find downloaded subtitle file'}), 500
-
-            parsed_lines = []
-            for caption in webvtt.read(target_path):
-                s = caption.start_in_seconds
-                e = caption.end_in_seconds
-                parsed_lines.append({
-                    'start': round(s, 3),
-                    'end': round(e, 3),
-                    'duration': round(e - s, 3),
-                    'text': caption.text.replace('\n', ' ').strip()
-                })
-            
-            if os.path.exists(target_path):
-                os.remove(target_path)
-
-            if not parsed_lines:
-                return jsonify({'error': 'Parsed lines were empty'}), 500
-
-            track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code).first()
-            if not track:
-                track = SubtitleTrack(video_id=lesson.video.id, language_code=lang_code)
-                db.session.add(track)
-            
-            track.content_json = parsed_lines
-            track.is_auto_generated = is_auto
-            track.uploader_name = "YouTube"
-            track.fetched_at = datetime.now(timezone.utc)
-            
-            db.session.commit()
-            return jsonify({'success': True, 'line_count': len(parsed_lines)})
-
-    except yt_dlp.utils.DownloadError as e:
-        error_msg = str(e)
-        if '429' in error_msg or 'Too Many Requests' in error_msg:
-            return jsonify({"error": "YouTube đang chặn tải tự động (Lỗi 429). Vui lòng tải file vtt về máy và sử dụng Tab 'Upload File' để nộp thủ công."}), 429
-        return jsonify({"error": f"Lỗi tải phụ đề: {error_msg}"}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-
-def _parse_timestamp(ts):
-    """Convert SRT/VTT timestamp to seconds."""
-    ts = ts.replace(',', '.')
-    parts = ts.split(':')
-    if len(parts) == 3:
-        h, m, s = parts
-        return int(h) * 3600 + int(m) * 60 + float(s)
-    return 0
-
-def _parse_srt(filepath):
-    """Simple regex-based SRT parser."""
-    with open(filepath, 'r', encoding='utf-8-sig') as f:
-        content = f.read()
+    track.content_json = parsed_lines
+    track.is_auto_generated = is_auto
+    track.uploader_name = "YouTube"
+    track.fetched_at = datetime.now(timezone.utc)
     
-    # Normalize line endings
-    content = content.replace('\r\n', '\n')
-    blocks = content.split('\n\n')
-    entries = []
-    
-    for block in blocks:
-        if not block.strip(): continue
-        lines = block.strip().split('\n')
-        if len(lines) < 3: continue
-        
-        # Line 0 is ID, Line 1 is times, Line 2+ is text
-        times = lines[1]
-        text = " ".join(lines[2:])
-        
-        # 00:00:01,000 --> 00:00:04,000
-        match = re.search(r'(\d+:\d+:\d+[.,]\d+)\s*-->\s*(\d+:\d+:\d+[.,]\d+)', times)
-        if match:
-            start = _parse_timestamp(match.group(1))
-            end = _parse_timestamp(match.group(2))
-            entries.append({
-                'start': round(start, 3),
-                'end': round(end, 3),
-                'duration': round(end - start, 3),
-                'text': text.strip()
-            })
-    return entries
+    db.session.commit()
+    return jsonify({'success': True, 'line_count': len(parsed_lines)})
+
+
+
+
 
 @api_bp.route('/subtitles/fetch/<int:lesson_id>', methods=['POST'])
 @login_required
@@ -539,26 +270,11 @@ def upload_subtitle(lesson_id):
         os.close(temp_fd)
         file.save(temp_path)
         
-        parsed_lines = []
-        if ext == '.vtt':
-            for caption in webvtt.read(temp_path):
-                # webvtt returns captions with start, end, text
-                # We normalize to 'start', 'end', 'duration', 'text'
-                s = caption.start_in_seconds
-                e = caption.end_in_seconds
-                parsed_lines.append({
-                    'start': round(s, 3),
-                    'end': round(e, 3),
-                    'duration': round(e - s, 3),
-                    'text': caption.text.replace('\n', ' ').strip()
-                })
-        elif ext == '.srt':
-            parsed_lines = _parse_srt(temp_path)
-        else:
-            return jsonify({'error': 'Unsupported file format'}), 400
+        result = parse_uploaded_subtitle(temp_path, ext)
+        if 'error' in result:
+            return jsonify(result), 400
 
-        if not parsed_lines:
-            return jsonify({'error': 'No lines found in file'}), 400
+        parsed_lines = result['lines']
 
         # Check for existing track
         track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code).first()
@@ -689,3 +405,95 @@ def toggle_complete(lesson_id):
     db.session.commit()
     return jsonify({'is_completed': lesson.is_completed})
 
+@api_bp.route('/sentences/import-json', methods=['POST'])
+@login_required
+def import_sentence():
+    """Import a sentence pattern from a raw JSON analysis string."""
+    data = request.get_json() or {}
+    json_data = data.get('json_data')
+    source_video_id = data.get('source_video_id')
+
+    if not json_data:
+        return jsonify({'error': 'json_data is required'}), 400
+
+    result = import_sentence_from_raw_json(
+        json_string=json_data,
+        user_id=current_user.id,
+        source_video_id=source_video_id
+    )
+
+    if not result.get('success'):
+        return jsonify(result), 400
+
+    return jsonify(result)
+@api_bp.route('/video/import', methods=['POST'])
+@login_required
+def import_video():
+    """AJAX-based video import and lesson creation."""
+    data = request.get_json() or {}
+    url = data.get('youtube_url', '').strip()
+
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+
+    video_id_str = extract_video_id(url)
+    if not video_id_str:
+        return jsonify({'error': 'Invalid YouTube URL'}), 400
+
+    video = Video.query.filter_by(youtube_id=video_id_str).first()
+    if not video:
+        video = Video(youtube_id=video_id_str, title="Processing...", status='pending')
+        db.session.add(video)
+        db.session.commit()
+        
+        # Trigger background task
+        from ..tasks import process_video_metadata
+        process_video_metadata.delay(video.id)
+
+    # Check if lesson exists
+    existing = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
+    if not existing:
+        lesson = Lesson(user_id=current_user.id, video_id=video.id)
+        db.session.add(lesson)
+        db.session.commit()
+    
+    return jsonify({
+        'success': True, 
+        'video_id': video.id, 
+        'title': video.title, 
+        'message': 'Video imported and added to library.'
+    })
+@api_bp.route('/sentences/<int:sentence_id>/audio', methods=['POST'])
+@login_required
+def get_sentence_audio(sentence_id):
+    """Bilingual TTS audio generation with server-side caching."""
+    from flask import current_app
+    sentence = Sentence.query.filter_by(id=sentence_id, user_id=current_user.id).first_or_404()
+
+    # Caching check
+    if sentence.audio_url:
+        full_path = os.path.join(current_app.static_folder, sentence.audio_url.lstrip('/static/'))
+        if os.path.exists(full_path):
+            return jsonify({'success': True, 'audio_url': sentence.audio_url, 'cached': True})
+
+    # Generation logic
+    try:
+        # Pass config if present in metadata
+        analysis = sentence.detailed_analysis or {}
+        config = analysis.get('metadata', {})
+        
+        generated_url = generate_bilingual_audio(
+            sentence_id=sentence.id,
+            original_text=sentence.original_text,
+            translated_text=sentence.translated_text,
+            config_json=config
+        )
+
+        # Update DB
+        sentence.audio_url = generated_url
+        db.session.commit()
+
+        return jsonify({'success': True, 'audio_url': generated_url, 'cached': False})
+    except Exception as e:
+        print(f"[API ERROR] TTS Generation failed for sentence {sentence_id}: {str(e)}")
+        return jsonify({'error': str(e), 'success': False}), 500

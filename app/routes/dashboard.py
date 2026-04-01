@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models.video import Video
 from ..models.lesson import Lesson
 from ..services.youtube_service import extract_video_id, fetch_video_info
+from ..models.sentence import Sentence
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -17,6 +18,21 @@ from sqlalchemy import func, cast, Date
 from datetime import timedelta
 
 @dashboard_bp.route('/')
+def landing():
+    """Public landing page."""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+    return render_template('landing.html')
+
+
+@dashboard_bp.route('/import')
+@login_required
+def import_page():
+    """Dedicated import page with dual tracks."""
+    return render_template('import.html')
+
+
+@dashboard_bp.route('/dashboard')
 @login_required
 def index():
     lessons = (
@@ -62,8 +78,16 @@ def index():
         ).scalar() or 0
         chart_values.append(count)
 
+    sentences = (
+        Sentence.query
+        .filter_by(user_id=current_user.id)
+        .order_by(Sentence.created_at.desc())
+        .all()
+    )
+
     return render_template('dashboard.html', 
                            lessons=lessons,
+                           sentences=sentences,
                            current_streak=current_user.current_streak,
                            longest_streak=current_user.longest_streak,
                            total_time_formatted=total_time_formatted,
@@ -141,6 +165,43 @@ def delete_lesson(lesson_id):
     db.session.commit()
 
     flash(f'Removed: {title}', 'info')
+    return redirect(url_for('dashboard.index'))
+
+
+@dashboard_bp.route('/add-sentence', methods=['POST'])
+@login_required
+def add_sentence():
+    original = request.form.get('original_text', '').strip()
+    translation = request.form.get('translated_text', '').strip()
+
+    if not original:
+        flash('Please enter the original sentence text.', 'error')
+        return redirect(url_for('dashboard.index'))
+
+    sentence = Sentence(
+        user_id=current_user.id,
+        original_text=original,
+        translated_text=translation
+    )
+    db.session.add(sentence)
+    db.session.commit()
+
+    flash('New sentence pattern added to your reflexive track.', 'success')
+    return redirect(url_for('dashboard.index'))
+
+
+@dashboard_bp.route('/delete-sentence/<int:sentence_id>', methods=['POST'])
+@login_required
+def delete_sentence(sentence_id):
+    sentence = Sentence.query.filter_by(
+        id=sentence_id,
+        user_id=current_user.id
+    ).first_or_404()
+
+    db.session.delete(sentence)
+    db.session.commit()
+
+    flash('Sentence removed.', 'info')
     return redirect(url_for('dashboard.index'))
 
 

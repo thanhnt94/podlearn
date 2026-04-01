@@ -1,5 +1,5 @@
 /**
- * PodLearn — Transcript Engine
+ * AuraFlow — Transcript Engine
  *
  * Manages:
  *  - Rendering dual-subtitle lines (original + translated)
@@ -24,7 +24,7 @@ function initTranscript() {
     loadShadowingStats();
 
     // Set initial font size from localStorage
-    const savedFs = localStorage.getItem('podlearn_transcript_fs') || '16px';
+    const savedFs = localStorage.getItem('AuraFlow_transcript_fs') || '16px';
     updateTranscriptFontSize(savedFs);
 }
 
@@ -1123,7 +1123,7 @@ function updateTranscriptFontSize(size) {
     document.documentElement.style.setProperty('--transcript-fs', size);
     
     // Also save to localStorage for persistence if possible
-    localStorage.setItem('podlearn_transcript_fs', size);
+    localStorage.setItem('AuraFlow_transcript_fs', size);
 }
 
 // Global click listener to close transcript menus when clicking elsewhere
@@ -1140,11 +1140,11 @@ document.addEventListener('click', (e) => {
 
 // Initialize font size from storage if available
 document.addEventListener('DOMContentLoaded', () => {
-    const savedFs = localStorage.getItem('podlearn_transcript_fs') || '16px';
-    const savedColor1 = localStorage.getItem('podlearn_transcript_color_1') || '#e8ecf4';
-    const savedColor2 = localStorage.getItem('podlearn_transcript_color_2') || '#f1c40f';
-    const savedColor3 = localStorage.getItem('podlearn_transcript_color_3') || '#00cec9';
-    const savedBg = localStorage.getItem('podlearn_transcript_bg') || '#111827';
+    const savedFs = localStorage.getItem('AuraFlow_transcript_fs') || '16px';
+    const savedColor1 = localStorage.getItem('AuraFlow_transcript_color_1') || '#e8ecf4';
+    const savedColor2 = localStorage.getItem('AuraFlow_transcript_color_2') || '#f1c40f';
+    const savedColor3 = localStorage.getItem('AuraFlow_transcript_color_3') || '#00cec9';
+    const savedBg = localStorage.getItem('AuraFlow_transcript_bg') || '#111827';
 
     document.documentElement.style.setProperty('--transcript-fs', savedFs);
     document.documentElement.style.setProperty('--transcript-color-1', savedColor1);

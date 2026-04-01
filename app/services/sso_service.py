@@ -6,7 +6,7 @@ from .central_auth_client import CentralAuthClient
 
 class SSOService:
     """
-    Dedicated service for managing CentralAuth SSO integration in PodLearn.
+    Dedicated service for managing CentralAuth SSO integration in AuraFlow.
     Handles user provisioning and token validation.
     """
 
@@ -47,7 +47,7 @@ class SSOService:
 
     @staticmethod
     def provision_user(user_payload):
-        """JIT Provisioning: Sync CentralAuth user into PodLearn database."""
+        """JIT Provisioning: Sync CentralAuth user into AuraFlow database."""
         central_id = user_payload.get('id')
         email = user_payload.get('email')
         username = user_payload.get('username') or email.split('@')[0]

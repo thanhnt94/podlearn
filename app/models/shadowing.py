@@ -13,8 +13,9 @@ class ShadowingHistory(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=False, index=True)
     lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=False, index=True)
+    sentence_id = db.Column(db.Integer, db.ForeignKey('sentences.id'), nullable=True, index=True)
     
-    # Sentence identification
+    # Sentence identification (legacy for video-based tracking)
     start_time = db.Column(db.Float, nullable=False)
     end_time = db.Column(db.Float, nullable=False)
     original_text = db.Column(db.Text)
@@ -29,6 +30,7 @@ class ShadowingHistory(db.Model):
     user = db.relationship('User', backref=db.backref('shadowing_history', lazy='dynamic'))
     video = db.relationship('Video', backref=db.backref('shadowing_history', lazy='dynamic'))
     lesson = db.relationship('Lesson', backref=db.backref('shadowing_history', lazy='dynamic'))
+    sentence = db.relationship('Sentence', backref=db.backref('shadowing_history', lazy='dynamic'))
 
     def __repr__(self):
         return f'<ShadowingHistory user={self.user_id} score={self.accuracy_score} time={self.start_time}>'

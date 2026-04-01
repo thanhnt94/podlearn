@@ -1,4 +1,4 @@
-"""PodLearn entry point."""
+"""AuraFlow entry point."""
 
 from app import create_app
 
@@ -7,8 +7,7 @@ app = create_app()
 # Ensure all database tables are created and seed default admin
 with app.app_context():
     from app.extensions import db
-    from app.models.user import User
-    from app.models.setting import AppSetting
+    from app.models import User, AppSetting, Sentence, ShadowingHistory, Video
     import os
     
     # 1. Create database directory if it doesn't exist
@@ -23,7 +22,7 @@ with app.app_context():
     # 2. Seed Admin if not exists
     # Check by both username and email to prevent IntegrityError
     admin_by_user = User.query.filter_by(username='admin').first()
-    admin_by_email = User.query.filter_by(email='admin@podlearn.local').first()
+    admin_by_email = User.query.filter_by(email='admin@AuraFlow.local').first()
     
     target_admin = admin_by_user or admin_by_email
 
@@ -31,7 +30,7 @@ with app.app_context():
         print("Seeding default admin user (admin/admin)...")
         admin = User(
             username='admin', 
-            email='admin@podlearn.local', 
+            email='admin@AuraFlow.local', 
             is_admin=True
         )
         admin.set_password('admin')

@@ -1,7 +1,7 @@
 import sys
 import os
 # Make sure we can import 'app' from current directory
-sys.path.append(r'c:\Code\PodLearn\podlearn')
+sys.path.append(r'c:\Code\AuraFlow\AuraFlow')
 from app import create_app
 from app.extensions import db
 from app.models.subtitle import SubtitleTrack

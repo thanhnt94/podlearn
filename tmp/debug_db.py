@@ -1,8 +1,8 @@
 import sys
 import os
 
-# Add current directory to path so we can import 'podlearn'
-sys.path.append(r'c:\Code\PodLearn\podlearn')
+# Add current directory to path so we can import 'AuraFlow'
+sys.path.append(r'c:\Code\AuraFlow\AuraFlow')
 
 try:
     from app import create_app

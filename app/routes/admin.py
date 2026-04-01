@@ -168,7 +168,7 @@ def settings():
     settings = {
         'AUTH_PROVIDER': AppSetting.get('AUTH_PROVIDER', 'local'),
         'CENTRAL_AUTH_SERVER_ADDRESS': AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', ''),
-        'CENTRAL_AUTH_CLIENT_ID': AppSetting.get('CENTRAL_AUTH_CLIENT_ID', 'podlearn-sso'),
+        'CENTRAL_AUTH_CLIENT_ID': AppSetting.get('CENTRAL_AUTH_CLIENT_ID', 'AuraFlow-sso'),
         'CENTRAL_AUTH_CLIENT_SECRET': AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', ''),
     }
     
