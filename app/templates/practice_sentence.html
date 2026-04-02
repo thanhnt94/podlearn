@@ -289,8 +289,16 @@
                         <i data-lucide="mic" class="w-5 h-5 text-[#10b981]"></i>
                         <h2 class="text-[10px] font-black uppercase tracking-widest text-[#e8ecf4]">Luyện phát âm</h2>
                     </div>
-                    <div class="px-2.5 py-1 rounded-lg bg-[#10b981]/10 border border-[#10b981]/20 text-[10px] font-black text-[#10b981]">
-                        BEST: <span id="stat-best">0</span>%
+                    <div class="flex items-center gap-2">
+                        <div class="px-2.5 py-1 rounded-lg bg-teal-500/10 border border-teal-500/20 text-[9px] font-black text-teal-400">
+                            BEST: <span id="stat-best">0</span>%
+                        </div>
+                        <div class="px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-black text-indigo-400">
+                            AVG: <span id="stat-avg">0</span>%
+                        </div>
+                        <div class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[9px] font-black text-[#8892a8]">
+                            X<span id="stat-attempts">0</span>
+                        </div>
                     </div>
                 </div>
 
@@ -305,32 +313,98 @@
                             <span class="text-[10px] font-black uppercase text-[#5a6478]">Phản hồi:</span>
                             <span id="score-display" class="font-black text-xl text-[#10b981]">0%</span>
                         </div>
-                        <div id="spoken-text-display" class="text-sm text-[#e8ecf4] italic border-t border-white/5 pt-3"></div>
-                        <div id="hira-comparison-display" class="text-[10px] text-[#8892a8]"></div>
+                        <div id="spoken-text-display" class="text-sm text-[#e8ecf4] leading-relaxed border-t border-white/5 pt-3 mb-4"></div>
+                        
+                        <!-- Local Session History -->
+                        <div class="pt-4 border-t border-white/5">
+                            <span class="text-[9px] font-black uppercase text-[#5a6478] mb-3 block">Lịch sử phiên tập</span>
+                            <div id="shadowing-session-history" class="space-y-2 max-h-32 overflow-y-auto scroll-utility pr-2">
+                                <!-- Appended via JS -->
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
 
             <!-- Grammar Card (Expandable) -->
-            {% if analysis.grammar_formula %}
+            <!-- Grammar Anatomy Card (Expandable) -->
+            {% set grammar = analysis.get('linguistic_analysis', {}).get('grammar_focus') %}
+            {% if grammar %}
             <div class="masonry-item expandable-card border border-[#6c5ce7]/10">
-                <div class="flex items-center gap-3 text-[#a78bfa] mb-6">
+                <div class="flex items-center gap-3 text-indigo-400 mb-6">
                     <i data-lucide="layers" class="w-4 h-4"></i>
-                    <span class="text-[10px] font-black uppercase tracking-widest">Ngữ pháp cốt lõi</span>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-[#e8ecf4]">Giải phẫu Ngữ pháp</span>
                 </div>
+                
+                <div class="p-4 rounded-2xl mb-6 bg-indigo-500/10 border border-indigo-500/20">
+                    <h5 class="text-indigo-400 mb-2 font-black text-sm uppercase tracking-tight">{{ grammar.pattern }}</h5>
+                    <p class="mb-0 text-[#e8ecf4] text-xs leading-relaxed font-medium">{{ grammar.meaning }}</p>
+                </div>
+
                 <div class="card-content">
-                    <div class="space-y-4">
-                        <div class="text-sm font-black text-white bg-[#6c5ce7]/20 px-4 py-2 rounded-xl inline-block border border-[#6c5ce7]/30">
-                            {{ analysis.grammar_formula.pattern }}
+                    {% if grammar.get('formation_rules') %}
+                    <div class="mb-5">
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-3">
+                            <i data-lucide="link-2" class="w-3 h-3"></i> Cách kết hợp
+                        </span>
+                        <ul class="space-y-2 ps-3 border-l-2 border-indigo-500/20">
+                            {% for rule in grammar.formation_rules %}
+                            <li class="text-[#8892a8] text-xs leading-relaxed">{{ rule }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if grammar.get('related_structures') %}
+                    <div class="mb-5 space-y-4">
+                        {% if grammar.related_structures.get('synonyms') %}
+                        <div>
+                            <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-2">Đồng nghĩa:</span>
+                            <div class="flex flex-wrap gap-2">
+                                {% for syn in grammar.related_structures.synonyms %}
+                                <span class="px-2 py-1 rounded bg-teal-500/10 text-teal-400 border border-teal-500/20 text-[10px] font-bold">{{ syn }}</span>
+                                {% endfor %}
+                            </div>
                         </div>
-                        <p class="text-sm text-[#e8ecf4] font-medium leading-relaxed">{{ analysis.grammar_formula.meaning }}</p>
-                        {% if analysis.grammar_formula.explanation %}
-                        <div class="pt-4 mt-4 border-t border-white/5 text-xs text-[#8892a8] leading-relaxed">
-                            {{ analysis.grammar_formula.explanation }}
+                        {% endif %}
+                        
+                        {% if grammar.related_structures.get('antonyms') %}
+                        <div>
+                            <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-2">Trái nghĩa:</span>
+                            <div class="flex flex-wrap gap-2">
+                                {% for ant in grammar.related_structures.antonyms %}
+                                <span class="px-2 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold">{{ ant }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if grammar.related_structures.get('confusing_with') %}
+                        <div>
+                            <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-2">Dễ nhầm lẫn:</span>
+                            <div class="flex flex-wrap gap-2">
+                                {% for conf in grammar.related_structures.confusing_with %}
+                                <span class="px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">{{ conf }}</span>
+                                {% endfor %}
+                            </div>
                         </div>
                         {% endif %}
                     </div>
+                    {% endif %}
+
+                    {% if grammar.get('other_usages') %}
+                    <div class="mt-4 pt-4 border-t border-white/5">
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest flex items-center gap-2 mb-3">
+                            <i data-lucide="git-branch" class="w-3 h-3"></i> Cách dùng khác
+                        </span>
+                        <ul class="space-y-2 ps-3 list-disc list-inside">
+                            {% for usage in grammar.other_usages %}
+                            <li class="text-[#8892a8] text-[11px] leading-relaxed">{{ usage }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -385,10 +459,11 @@
                 <div class="card-content">
                     <div class="space-y-4">
                         <p class="text-sm text-[#e8ecf4] leading-relaxed">{{ analysis.cultural_note.get('explanation', '') }}</p>
-                        {% if analysis.get('pragmatics') %}
+                        {% set usage = analysis.get('usage_context') %}
+                        {% if usage and usage.get('nuance') %}
                         <div class="mt-6 pt-6 border-t border-white/5 space-y-2">
                             <span class="text-[9px] font-black uppercase text-[#5a6478]">Sắc thái bổ sung:</span>
-                            <p class="text-xs text-amber-200/60 italic">{{ analysis.pragmatics.nuance if analysis.pragmatics is mapping else analysis.pragmatics }}</p>
+                            <p class="text-xs text-amber-200/60 italic">{{ usage.nuance }}</p>
                         </div>
                         {% endif %}
                     </div>
@@ -585,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function syncJsonToForm() {
         document.getElementById('edit-form-original').value = currentEditData.core_sentence?.original_text || "";
         document.getElementById('edit-form-translation').value = currentEditData.core_sentence?.translated_text || "";
-        document.getElementById('edit-form-nuance').value = currentEditData.pragmatics?.nuance || currentEditData.pragmatics || "";
+        document.getElementById('edit-form-nuance').value = currentEditData.usage_context?.nuance || currentEditData.pragmatics?.nuance || currentEditData.pragmatics || "";
         
         const container = document.getElementById('token-rows-container');
         container.innerHTML = "";
@@ -633,7 +708,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 translated_text: document.getElementById('edit-form-translation').value
             },
             color_mapped_tokens: tokens,
-            pragmatics: { nuance: document.getElementById('edit-form-nuance').value }
+            usage_context: { nuance: document.getElementById('edit-form-nuance').value }
         };
         document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
     }
@@ -708,8 +783,20 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(r => r.json()).then(d => {
                 document.getElementById('score-display').innerText = d.score + '%';
-                document.getElementById('spoken-text-display').innerText = text;
+                // Render the highlighted diff
+                document.getElementById('spoken-text-display').innerHTML = d.diff_html || d.spoken_text;
                 resultBox.classList.remove('hidden');
+                
+                // Append to local session history
+                const historyList = document.getElementById('shadowing-session-history');
+                const historyItem = document.createElement('div');
+                historyItem.className = "flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5 text-[10px]";
+                historyItem.innerHTML = `
+                    <span class="text-[#8892a8] truncate max-w-[150px] italic">"${d.spoken_text}"</span>
+                    <span class="font-bold ${d.score >= 80 ? 'text-emerald-400' : 'text-amber-400'}">${d.score}%</span>
+                `;
+                historyList.prepend(historyItem);
+
                 loadShadowingStats();
             }).finally(() => { btnRecord.classList.remove('bg-red-500/20'); statusText.classList.add('hidden'); });
         };

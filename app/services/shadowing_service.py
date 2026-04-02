@@ -88,7 +88,7 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
         history = None
         if sentence_id:
             sentence = Sentence.query.get(int(sentence_id))
-            if sentence and sentence.user_id == user_id:
+            if sentence:
                 history = ShadowingHistory(
                     user_id=user_id,
                     video_id=sentence.source_video_id, # Could be None
@@ -125,10 +125,34 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
         traceback.print_exc()
         db.session.rollback()
 
+    # ── GENERATE DIFF HTML ────────────────────────────────
+    diff_html = ""
+    # Decide which strings to diff for visual feedback
+    if lang == 'ja':
+        s1 = "".join([item['hira'] for item in kks.convert(orig_clean)])
+        s2 = "".join([item['hira'] for item in kks.convert(spoken_clean)])
+    else:
+        s1 = original_text.lower()
+        s2 = spoken_text.lower()
+
+    matcher = difflib.SequenceMatcher(None, s1, s2)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            diff_html += f'<span class="text-emerald-400">{s2[j1:j2]}</span>'
+        elif tag == 'replace':
+            # Highlight what was spoken instead of original
+            diff_html += f'<span class="text-rose-500 underline decoration-rose-500/30">{s2[j1:j2]}</span>'
+        elif tag == 'insert':
+            diff_html += f'<span class="text-rose-400 opacity-70 italic">{s2[j1:j2]}</span>'
+        elif tag == 'delete':
+            # Show original characters that were skipped
+            diff_html += f'<span class="text-rose-600/50 line-through decoration-rose-600/30">{s1[i1:i2]}</span>'
+
     # Prepare response data
     result = {
         "score": final_score,
         "original_text": original_text,
+        "diff_html": diff_html
     }
 
     if lang == 'ja':
