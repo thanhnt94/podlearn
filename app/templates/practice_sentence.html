@@ -101,30 +101,57 @@
     .playlist-item.active { background: rgba(108, 92, 231, 0.1); border-color: rgba(108, 92, 231, 0.2); }
     .scroll-utility::-webkit-scrollbar { width: 4px; }
     .scroll-utility::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-    /* 1. Tinh chỉnh Thẻ Câu chính */
+    
+    /* 1. Tinh chỉnh Thẻ Câu chính (Scroll-to-Shrink) */
+    .spotlight-layout-anchor {
+        position: relative;
+        min-height: 480px; /* Placeholder to prevent jumping content below */
+        transition: min-height 0.4s ease;
+    }
+    
     .sticky-spotlight {
         position: sticky;
-        top: 70px; /* Nằm ngay dưới thanh Header */
+        top: 80px; 
         z-index: 1030;
-        background: #111827; /* Giữ màu nền dark mode */
-        transition: all 0.3s ease;
-        border: 1px solid rgba(255,255,255,0.05);
+        background: rgba(17, 24, 39, 0.9);
+        backdrop-filter: blur(20px);
+        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        width: 100%;
     }
-    .sentence-container { justify-content: flex-start !important; }
-    .jp-text ruby { font-size: 1.8rem; } /* Thu nhỏ chữ tiếng Nhật gốc */
-    .vi-text { font-size: 0.8rem; }
-    .translated-text-display { font-size: 1.1rem; text-align: left; margin-top: 15px;}
-
-    /* Khi scroll cuộn xuống, thẻ sẽ tự động thêm class .is-scrolled để thu nhỏ gọn lại */
+    
     .sticky-spotlight.is-scrolled {
-        padding: 10px 20px !important;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        padding: 12px 32px !important;
+        border-radius: 24px !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        background: rgba(17, 24, 39, 0.96);
+        border-color: rgba(108, 92, 231, 0.4);
     }
-    .sticky-spotlight.is-scrolled .jp-text ruby { font-size: 1.2rem; }
-    .sticky-spotlight.is-scrolled .vi-text { display: none; } /* Ẩn bớt nghĩa tiếng Việt để tiết kiệm diện tích khi cuộn */
-    .sticky-spotlight.is-scrolled .translated-text-display { display: none; }
-    .sticky-spotlight.is-scrolled #btn-play-audio { width: 40px; height: 40px; padding: 0; }
+
+    /* Smooth Fade for Sub-Labels */
+    .vi-text, .translated-text-display {
+        opacity: 1;
+        max-height: 200px;
+        transition: opacity 0.3s ease, max-height 0.4s ease, margin 0.4s ease;
+        overflow: hidden;
+    }
+
+    .sticky-spotlight.is-scrolled .vi-text,
+    .sticky-spotlight.is-scrolled .translated-text-display {
+        opacity: 0;
+        max-height: 0;
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+        pointer-events: none;
+    }
+
+    .sticky-spotlight.is-scrolled .jp-text { margin-bottom: 0 !important; }
+    .sticky-spotlight.is-scrolled .jp-text ruby { font-size: 1.15rem !important; }
+    .sticky-spotlight.is-scrolled #btn-play-audio { width: 44px; height: 44px; }
     .sticky-spotlight.is-scrolled #btn-play-audio i { width: 1.2rem; height: 1.2rem; }
+    .sticky-spotlight.is-scrolled .token-display { padding: 4px 10px !important; }
+    .sticky-spotlight.is-scrolled .sentence-container { gap: 10px !important; margin-bottom: 0 !important; }
 
     /* 2. Playlist Drawer (Ngăn kéo bên phải) */
     .playlist-drawer {
@@ -240,14 +267,16 @@
 
     <!-- Main Workspace -->
     <main class="flex-1 max-w-[1600px] mx-auto w-full px-6 py-8 space-y-8">
-        <!-- 2. Main Spotlight Card (Sticky) -->
-        <div id="sentence-container-hero" class="sticky-spotlight bg-[#111827]/50 border border-white/10 rounded-[40px] p-8 md:p-12 shadow-2xl backdrop-blur-xl relative overflow-hidden group transition-all duration-500 mb-8">
+        <!-- 2. Main Spotlight Card (Sticky with Anchor) -->
+        <div class="spotlight-layout-anchor">
+            <div id="sentence-container-hero" class="sticky-spotlight bg-[#111827]/50 border border-white/10 rounded-[40px] p-8 md:p-12 shadow-2xl backdrop-blur-xl relative overflow-hidden group transition-all duration-500 mb-8">
             <div class="absolute -top-32 -right-32 w-80 h-80 bg-[#6c5ce7]/10 blur-[120px] rounded-full pointer-events-none transition-all group-hover:bg-[#6c5ce7]/20"></div>
             
             <div class="relative flex flex-col md:flex-row items-center gap-10">
                 <div class="flex-1 w-full">
                     <div class="jp-text flex flex-wrap items-end justify-start gap-x-4 gap-y-12 mb-10 sentence-container">
-                        {% for token in analysis.color_mapped_tokens %}
+                        {% set tokens = analysis.color_mapped_tokens or analysis.get('linguistic_analysis', {}).get('color_mapped_tokens', []) %}
+                        {% for token in tokens %}
                         <div class="flex flex-col items-center group/token {% if token.is_blank %}is-blank-true{% endif %}">
                             <div class="token-display p-3 rounded-2xl transition-all duration-300 color-group-{{ token.color_group }}">
                                 <ruby class="font-black tracking-wider">
@@ -410,7 +439,8 @@
             {% endif %}
 
             <!-- Context Card (Expandable) -->
-            {% if analysis.get('dialogue_context') %}
+            {% set context = analysis.get('dialogue_context') or analysis.get('usage_context', {}).get('dialogue_scenario') %}
+            {% if context %}
             <div class="masonry-item expandable-card">
                 <div class="flex items-center gap-3 text-cyan-400 mb-6">
                     <i data-lucide="message-square" class="w-4 h-4"></i>
@@ -419,10 +449,10 @@
                 <div class="card-content">
                     <div class="space-y-4 flex flex-col">
                         <div class="chat-bubble chat-bubble-a self-start">
-                            {{ analysis.dialogue_context.get('previous_line', '...') }}
+                            {{ context.get('previous_line', '...') }}
                         </div>
                         <div class="chat-bubble chat-bubble-b self-end">
-                            {{ analysis.dialogue_context.get('expected_response', sentence.original_text) }}
+                            {{ context.get('expected_response', sentence.original_text) }}
                         </div>
                     </div>
                 </div>
@@ -430,7 +460,8 @@
             {% endif %}
 
             <!-- Mnemonics Card (Expandable) -->
-            {% if analysis.get('mnemonics') %}
+            {% set mnemonic = analysis.get('mnemonics') or analysis.get('cognitive_assets', {}).get('mnemonics') %}
+            {% if mnemonic %}
             <div class="masonry-item expandable-card">
                 <div class="flex items-center gap-3 text-amber-400 mb-6">
                     <i data-lucide="brain" class="w-4 h-4"></i>
@@ -438,10 +469,10 @@
                 </div>
                 <div class="card-content">
                     <div class="space-y-4">
-                        <p class="text-sm text-[#e8ecf4] leading-relaxed">{{ analysis.mnemonics.get('memory_story', '') }}</p>
-                        {% if analysis.mnemonics.get('visual_prompt') %}
+                        <p class="text-sm text-[#e8ecf4] leading-relaxed">{{ mnemonic.get('memory_story', mnemonic.get('target_item', '')) }}</p>
+                        {% if mnemonic.get('visual_prompt') or mnemonic.get('visual_association') %}
                         <div class="mt-4 p-3 bg-white/5 rounded-xl border border-white/5 text-[10px] text-[#8892a8] italic">
-                            💡 Hình ảnh gợi ý: {{ analysis.mnemonics.get('visual_prompt') }}
+                            💡 Hình ảnh gợi ý: {{ mnemonic.get('visual_prompt') or mnemonic.get('visual_association') }}
                         </div>
                         {% endif %}
                     </div>
@@ -450,7 +481,8 @@
             {% endif %}
 
             <!-- Culture Card (Expandable) -->
-            {% if analysis.get('cultural_note') %}
+            {% set culture = analysis.get('cultural_note') or analysis.get('cognitive_assets', {}).get('cultural_note') %}
+            {% if culture %}
             <div class="masonry-item expandable-card">
                 <div class="flex items-center gap-3 text-rose-400 mb-6">
                     <i data-lucide="globe" class="w-4 h-4"></i>
@@ -458,7 +490,7 @@
                 </div>
                 <div class="card-content">
                     <div class="space-y-4">
-                        <p class="text-sm text-[#e8ecf4] leading-relaxed">{{ analysis.cultural_note.get('explanation', '') }}</p>
+                        <p class="text-sm text-[#e8ecf4] leading-relaxed">{{ culture.get('explanation', culture.get('topic', '')) }}</p>
                         {% set usage = analysis.get('usage_context') %}
                         {% if usage and usage.get('nuance') %}
                         <div class="mt-6 pt-6 border-t border-white/5 space-y-2">
@@ -477,7 +509,7 @@
 </div>
 
 <!-- Modal: Quick Add Sentence -->
-<div id="quick-add-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+<div id="quick-add-modal" class="hidden fixed inset-0 z-[2000] items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
     <div class="relative w-full max-w-lg bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl p-10 flex flex-col">
         <div class="flex items-center justify-between mb-8">
             <h3 class="text-2xl font-bold">Thêm mẫu câu nhanh</h3>
@@ -509,7 +541,7 @@
 </div>
 
 <!-- Modal: Edit Sentence (Shadow Editor) -->
-<div id="edit-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+<div id="edit-modal" class="hidden fixed inset-0 z-[3000] items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
     <div class="relative w-full max-w-5xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
         <!-- Modal Header & Tabs -->
         <div class="p-8 border-b border-white/5 bg-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -587,9 +619,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const spotlightCard = document.querySelector('.sticky-spotlight');
     if (spotlightCard) {
         window.addEventListener('scroll', function() {
-            if (window.scrollY > 50) {
+            const scrollPos = window.scrollY;
+            if (scrollPos > 40) {
                 spotlightCard.classList.add('is-scrolled');
-            } else {
+            } else if (scrollPos < 20) {
                 spotlightCard.classList.remove('is-scrolled');
             }
         });
