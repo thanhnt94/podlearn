@@ -11,8 +11,8 @@ class ShadowingHistory(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=False, index=True)
-    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=False, index=True)
+    video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=True, index=True)
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=True, index=True)
     sentence_id = db.Column(db.Integer, db.ForeignKey('sentences.id'), nullable=True, index=True)
     
     # Sentence identification (legacy for video-based tracking)

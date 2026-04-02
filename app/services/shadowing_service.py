@@ -38,10 +38,12 @@ def get_japanese_segments(text):
     
     return hira_only, all_segments
 
-def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang, start_time, end_time):
+def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang, start_time=None, end_time=None, sentence_id=None):
     """
     Logic for scoring pronunciation and saving to ShadowingHistory.
+    Supports both video-based lessons and individual sentence patterns.
     """
+    from ..models.sentence import Sentence
     raw_score = 0
     hira_score = 0
     
@@ -82,8 +84,23 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
             final_score = min(100, int((match_count / len(orig_words)) * 100))
 
     # SAVE HISTORY
-    if lesson_id is not None and start_time is not None:
-        try:
+    try:
+        history = None
+        if sentence_id:
+            sentence = Sentence.query.get(int(sentence_id))
+            if sentence and sentence.user_id == user_id:
+                history = ShadowingHistory(
+                    user_id=user_id,
+                    video_id=sentence.source_video_id, # Could be None
+                    lesson_id=None, # No direct lesson for standalone sentence practice
+                    sentence_id=sentence.id,
+                    start_time=0.0,
+                    end_time=0.0,
+                    original_text=original_text,
+                    spoken_text=spoken_text,
+                    accuracy_score=final_score
+                )
+        elif lesson_id and start_time is not None:
             lesson = Lesson.query.get(int(lesson_id))
             if lesson and lesson.user_id == user_id:
                 history = ShadowingHistory(
@@ -96,16 +113,17 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
                     spoken_text=spoken_text,
                     accuracy_score=final_score
                 )
-                db.session.add(history)
-                db.session.commit()
-                print(f"[ShadowingHistory] Saved: {final_score}% for user {user_id}")
-            else:
-                print(f"[ShadowingHistory] Lesson {lesson_id} not found or permission denied for user {user_id}")
-        except Exception as e:
-            import traceback
-            print(f"[ShadowingHistory ERROR] Failed to save to database!")
-            traceback.print_exc()
-            db.session.rollback()
+        
+        if history:
+            db.session.add(history)
+            db.session.commit()
+            print(f"[ShadowingHistory] Saved: {final_score}% for user {user_id}")
+            
+    except Exception as e:
+        import traceback
+        print(f"[ShadowingHistory ERROR] Failed to save to database!")
+        traceback.print_exc()
+        db.session.rollback()
 
     # Prepare response data
     result = {

@@ -2,7 +2,7 @@ import json
 from ..extensions import db
 from ..models.sentence import Sentence
 
-def import_sentence_from_raw_json(json_string, user_id, source_video_id=None):
+def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=None):
     """
     Parses a raw JSON string containing sentence analysis and saves it to the DB.
     Expects blocks: core_sentence, grammar_formula, color_mapped_tokens.
@@ -23,6 +23,7 @@ def import_sentence_from_raw_json(json_string, user_id, source_video_id=None):
     # Create Sentence object
     new_sentence = Sentence(
         user_id=user_id,
+        set_id=set_id,
         original_text=original_text,
         translated_text=translated_text,
         detailed_analysis=data,  # Store the full JSON

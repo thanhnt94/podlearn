@@ -22,7 +22,7 @@ from ..models.video import Video
 from ..models.note import Note
 from ..models.subtitle import SubtitleTrack
 from ..models.shadowing import ShadowingHistory
-from ..models.sentence import Sentence
+from ..models.sentence import Sentence, SentenceSet
 from ..services.subtitle_service import (
     get_subtitle_track, 
     get_lines_as_dicts, 
@@ -49,6 +49,7 @@ def score_pronunciation():
     spoken = data.get('spoken_text', '')
     lang = data.get('lang_code', 'en')
     
+    sentence_id = data.get('sentence_id')
     lesson_id = data.get('lesson_id')
     start_time = data.get('start_time')
     end_time = data.get('end_time')
@@ -60,7 +61,8 @@ def score_pronunciation():
         spoken_text=spoken,
         lang=lang,
         start_time=start_time,
-        end_time=end_time
+        end_time=end_time,
+        sentence_id=sentence_id
     )
 
     return jsonify(result)
@@ -411,14 +413,18 @@ def import_sentence():
     """Import a sentence pattern from a raw JSON analysis string."""
     data = request.get_json() or {}
     json_data = data.get('json_data')
+    set_id = data.get('set_id')
     source_video_id = data.get('source_video_id')
 
     if not json_data:
         return jsonify({'error': 'json_data is required'}), 400
+    if not set_id:
+        return jsonify({'error': 'set_id is required'}), 400
 
     result = import_sentence_from_raw_json(
         json_string=json_data,
         user_id=current_user.id,
+        set_id=set_id,
         source_video_id=source_video_id
     )
 
@@ -497,3 +503,135 @@ def get_sentence_audio(sentence_id):
     except Exception as e:
         print(f"[API ERROR] TTS Generation failed for sentence {sentence_id}: {str(e)}")
         return jsonify({'error': str(e), 'success': False}), 500
+
+@api_bp.route('/sentences/<int:sentence_id>/shadowing-stats', methods=['GET'])
+@login_required
+def get_sentence_shadowing_stats(sentence_id):
+    """Retrieve learning statistics for a specific sentence pattern."""
+    from sqlalchemy import func
+    from ..models.shadowing import ShadowingHistory
+    
+    stats = db.session.query(
+        func.count(ShadowingHistory.id).label('attempt_count'),
+        func.avg(ShadowingHistory.accuracy_score).label('avg_score'),
+        func.max(ShadowingHistory.accuracy_score).label('best_score')
+    ).filter(
+        ShadowingHistory.sentence_id == sentence_id,
+        ShadowingHistory.user_id == current_user.id
+    ).first()
+
+    return jsonify({
+        'attempts': stats.attempt_count or 0,
+        'avg_score': int(stats.avg_score) if stats.avg_score else 0,
+        'best_score': stats.best_score or 0
+    })
+
+
+# ── SENTENCE SET CRUD ──────────────────────────────────────────
+
+@api_bp.route('/sets/create', methods=['POST'])
+@login_required
+def create_set():
+    """Create a new thematic sentence collection."""
+    data = request.get_json() or {}
+    title = data.get('title', '').strip()
+    description = data.get('description', '').strip()
+
+    if not title:
+        return jsonify({'success': False, 'error': 'Title is required'}), 400
+
+    new_set = SentenceSet(
+        user_id=current_user.id,
+        title=title,
+        description=description
+    )
+    db.session.add(new_set)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'set': {
+            'id': new_set.id,
+            'title': new_set.title,
+            'description': new_set.description
+        }
+    })
+
+@api_bp.route('/sets/<int:set_id>', methods=['PATCH'])
+@login_required
+def update_set(set_id):
+    """Update title or description of a set."""
+    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+    
+    if 'title' in data:
+        s_set.title = data['title'].strip()
+    if 'description' in data:
+        s_set.description = data['description'].strip()
+        
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/sets/<int:set_id>', methods=['DELETE'])
+@login_required
+def delete_set(set_id):
+    """Delete a set and all its sentences (via cascade)."""
+    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
+    db.session.delete(s_set)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ── SENTENCE MANAGEMENT ────────────────────────────────────────
+
+@api_bp.route('/sentences/import-json', methods=['POST'])
+@login_required
+def import_json_sentence():
+    """Route to import a sentence from raw JSON analysis, now requires set_id."""
+    data = request.get_json() or {}
+    json_data = data.get('json_data')
+    set_id = data.get('set_id')
+    source_video_id = data.get('source_video_id')
+
+    if not json_data:
+        return jsonify({'success': False, 'error': 'JSON data is required'}), 400
+    if not set_id:
+        return jsonify({'success': False, 'error': 'Target Set ID is required'}), 400
+
+    # Ensure the set belongs to the user
+    SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
+
+    result = import_sentence_from_raw_json(
+        json_string=json_data,
+        user_id=current_user.id,
+        set_id=set_id,
+        source_video_id=source_video_id
+    )
+    return jsonify(result)
+
+@api_bp.route('/sentences/<int:sentence_id>', methods=['DELETE'])
+@login_required
+def delete_sentence_api(sentence_id):
+    """Individual sentence deletion."""
+    sentence = Sentence.query.filter_by(id=sentence_id, user_id=current_user.id).first_or_404()
+    db.session.delete(sentence)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/sentences/<int:sentence_id>', methods=['PATCH'])
+@login_required
+def update_sentence(sentence_id):
+    """Update sentence text or analysis."""
+    sentence = Sentence.query.filter_by(id=sentence_id, user_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+
+    if 'original_text' in data:
+        sentence.original_text = data['original_text']
+    if 'translated_text' in data:
+        sentence.translated_text = data['translated_text']
+    if 'detailed_analysis' in data:
+        # Expecting a full dictionary here
+        sentence.detailed_analysis = data['detailed_analysis']
+
+    db.session.commit()
+    return jsonify({'success': True})

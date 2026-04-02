@@ -8,7 +8,7 @@ from ..extensions import db
 from ..models.video import Video
 from ..models.lesson import Lesson
 from ..services.youtube_service import extract_video_id, fetch_video_info
-from ..models.sentence import Sentence
+from ..models.sentence import Sentence, SentenceSet
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -42,59 +42,79 @@ def index():
         .all()
     )
 
-    # 1. Overview Stats
+    # 1. Overview Stats (Podcast Track)
     total_seconds = db.session.query(func.sum(Lesson.time_spent)).filter(Lesson.user_id == current_user.id).scalar() or 0
-    
-    # Calculate Detailed Components
     total_h = total_seconds // 3600
     total_m = (total_seconds % 3600) // 60
     total_s = total_seconds % 60
-    
-    total_time_formatted = f"{total_h}h {total_m}m {total_s}s"
-    if total_h == 0:
-        total_time_formatted = f"{total_m}m {total_s}s"
-        if total_m == 0:
-             total_time_formatted = f"{total_s}s"
-
+    total_time_formatted = f"{total_h}h {total_m}m {total_s}s" if total_h > 0 else (f"{total_m}m {total_s}s" if total_m > 0 else f"{total_s}s")
     
     completed_count = Lesson.query.filter_by(user_id=current_user.id, is_completed=True).count()
-    
+    total_lessons = Lesson.query.filter_by(user_id=current_user.id).count()
     total_notes = db.session.query(func.count(Note.id)).join(Lesson).filter(Lesson.user_id == current_user.id).scalar() or 0
 
-    # 2. Activity Chart (Last 7 Days)
-    # We'll use Note creation date as a proxy for activity if lesson time tracking is new
-    # or just use today's vs yesterday's etc.
+    # 2. Overview Stats (Sentence Track)
+    from ..models.shadowing import ShadowingHistory
+    total_sentences = db.session.query(func.count(Sentence.id)).filter(Sentence.user_id == current_user.id).scalar() or 0
+    shadow_stats = db.session.query(
+        func.count(ShadowingHistory.id).label('attempts'),
+        func.max(ShadowingHistory.accuracy_score).label('best')
+    ).filter(ShadowingHistory.user_id == current_user.id).first()
+    
+    total_attempts = shadow_stats.attempts or 0
+    best_score = shadow_stats.best or 0
+
+    # 3. Activity Chart (Last 7 Days - Dual Series)
     today = datetime.now(timezone.utc).date()
     days = [today - timedelta(days=i) for i in range(6, -1, -1)]
-    
     chart_labels = [d.strftime('%a') for d in days]
-    chart_values = []
+    
+    notes_data = []
+    sentences_data = []
     
     for d in days:
-        # Count notes created on this day
-        count = db.session.query(func.count(Note.id)).join(Lesson).filter(
+        # Notes (Podcast)
+        n_count = db.session.query(func.count(Note.id)).join(Lesson).filter(
             Lesson.user_id == current_user.id,
             cast(Note.created_at, Date) == d
         ).scalar() or 0
-        chart_values.append(count)
+        notes_data.append(n_count)
+        
+        # Sentences (Reflexive)
+        s_count = db.session.query(func.count(Sentence.id)).filter(
+            Sentence.user_id == current_user.id,
+            cast(Sentence.created_at, Date) == d
+        ).scalar() or 0
+        sentences_data.append(s_count)
 
-    sentences = (
-        Sentence.query
-        .filter_by(user_id=current_user.id)
-        .order_by(Sentence.created_at.desc())
-        .all()
-    )
+    # 4. Sentence Sets (Decks)
+    sets = SentenceSet.query.filter_by(user_id=current_user.id).order_by(SentenceSet.updated_at.desc()).all()
 
     return render_template('dashboard.html', 
                            lessons=lessons,
-                           sentences=sentences,
+                           sets=sets,
                            current_streak=current_user.current_streak,
                            longest_streak=current_user.longest_streak,
                            total_time_formatted=total_time_formatted,
                            completed_count=completed_count,
+                           total_lessons=total_lessons,
                            total_notes=total_notes,
+                           total_sentences=total_sentences,
+                           total_attempts=total_attempts,
+                           best_score=best_score,
                            chart_labels=chart_labels,
-                           chart_values=chart_values)
+                           notes_data=notes_data,
+                           sentences_data=sentences_data)
+
+
+@dashboard_bp.route('/sets/<int:set_id>')
+@login_required
+def set_details(set_id):
+    """View and manage sentences within a specific deck."""
+    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
+    sentences = s_set.sentences.order_by(Sentence.created_at.desc()).all()
+    
+    return render_template('set_details.html', s_set=s_set, sentences=sentences)
 
 
 
@@ -173,21 +193,36 @@ def delete_lesson(lesson_id):
 def add_sentence():
     original = request.form.get('original_text', '').strip()
     translation = request.form.get('translated_text', '').strip()
+    set_id = request.form.get('set_id')
 
     if not original:
         flash('Please enter the original sentence text.', 'error')
-        return redirect(url_for('dashboard.index'))
+        return redirect(request.referrer or url_for('dashboard.index'))
 
     sentence = Sentence(
         user_id=current_user.id,
+        set_id=int(set_id) if set_id else None,
         original_text=original,
         translated_text=translation
     )
+    
+    # Fallback to Personal Set if no set_id provided (data integrity)
+    if not sentence.set_id:
+        default_set = SentenceSet.query.filter_by(user_id=current_user.id).first()
+        if default_set:
+            sentence.set_id = default_set.id
+        else:
+            # Create a default set if none exists
+            default_set = SentenceSet(user_id=current_user.id, title="Bộ học tập cá nhân")
+            db.session.add(default_set)
+            db.session.flush()
+            sentence.set_id = default_set.id
+
     db.session.add(sentence)
     db.session.commit()
 
-    flash('New sentence pattern added to your reflexive track.', 'success')
-    return redirect(url_for('dashboard.index'))
+    flash('New sentence pattern added successfully.', 'success')
+    return redirect(request.referrer or url_for('dashboard.index'))
 
 
 @dashboard_bp.route('/delete-sentence/<int:sentence_id>', methods=['POST'])
