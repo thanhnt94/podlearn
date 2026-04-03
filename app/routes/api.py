@@ -153,6 +153,29 @@ def get_video_status(video_id):
         'status': video.status or 'unknown'
     })
 
+@api_bp.route('/status/<string:resource_type>/<int:resource_id>', methods=['GET'])
+@login_required
+def get_resource_status(resource_type, resource_id):
+    """
+    Unified polling endpoint for background tasks.
+    Supports 'video' and 'subtitle'.
+    """
+    if resource_type == 'video':
+        res = Video.query.get(resource_id)
+    elif resource_type == 'subtitle':
+        res = SubtitleTrack.query.get(resource_id)
+    else:
+        return jsonify({'error': 'Invalid resource type'}), 400
+
+    if not res:
+        return jsonify({'error': 'Resource not found'}), 404
+
+    return jsonify({
+        'id': res.id,
+        'type': resource_type,
+        'status': getattr(res, 'status', 'unknown')
+    })
+
 @api_bp.route('/subtitles/available/<int:lesson_id>', methods=['GET'])
 @login_required
 def get_available_subtitles(lesson_id):
@@ -451,10 +474,10 @@ def import_video():
         video = Video(youtube_id=video_id_str, title="Processing...", status='pending')
         db.session.add(video)
         db.session.commit()
-        
         # Trigger background task
         from ..tasks import process_video_metadata
-        process_video_metadata.delay(video.id)
+        from ..utils.background_tasks import run_in_background
+        run_in_background(process_video_metadata, video.id)
 
     # Check if lesson exists
     existing = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
@@ -525,6 +548,25 @@ def get_sentence_shadowing_stats(sentence_id):
         'avg_score': int(stats.avg_score) if stats.avg_score else 0,
         'best_score': stats.best_score or 0
     })
+
+@api_bp.route('/sentences/<int:sentence_id>/shadowing-history', methods=['GET'])
+@login_required
+def get_sentence_shadowing_history(sentence_id):
+    """Fetch individual shadowing attempts for a sentence."""
+    history = ShadowingHistory.query.filter_by(
+        sentence_id=sentence_id,
+        user_id=current_user.id
+    ).order_by(ShadowingHistory.created_at.desc()).limit(10).all()
+
+    results = []
+    for h in history:
+        results.append({
+            'spoken_text': h.spoken_text,
+            'score': h.accuracy_score,
+            'created_at': h.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    return jsonify({'history': results})
 
 
 # ── SENTENCE SET CRUD ──────────────────────────────────────────

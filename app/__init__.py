@@ -25,8 +25,21 @@ def create_app(config_name: str | None = None) -> Flask:
     login_manager.init_app(app)
 
     
-    from .extensions import celery_init_app
-    celery_init_app(app)
+    # Removed celery_init_app(app)
+
+    # ── Initialize Storage Provider ────────────────────────────
+    from .services.storage_service import LocalStorageProvider, S3StorageProvider
+    from . import extensions
+    
+    if app.config.get('STORAGE_TYPE') == 's3':
+        extensions.storage = S3StorageProvider(
+            bucket_name=app.config.get('S3_BUCKET'),
+            access_key=app.config.get('S3_ACCESS_KEY'),
+            secret_key=app.config.get('S3_SECRET_KEY'),
+            region=app.config.get('S3_REGION')
+        )
+    else:
+        extensions.storage = LocalStorageProvider(static_folder=app.static_folder)
 
     # ── Register blueprints ────────────────────────────────────
     from .routes.auth import auth_bp

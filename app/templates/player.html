@@ -76,39 +76,48 @@
             </div>
 
             <!-- Shadowing Mode Indicator Overlay -->
-            <div id="shadowingHUD" class="shadowing-hud" style="display: none;">
+            <div id="shadowingHUD" class="shadowing-hud">
                 <div class="shadowing-hud__content">
-                    <!-- Global Close Button -->
+                    <!-- Close Button -->
                     <button id="btn-shadow-cancel" class="hud-close-btn" onclick="cancelShadowingMode()" title="Exit Shadowing Mode">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
-
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                    <div class="shadowing-hud__label">SHADOWING</div>
-                    <div id="shadowingSubText" class="shadowing-hud__sub">Repeat the sentence now!</div>
-
-                    <!-- NEW: Interactive Toggle -->
-                    <div style="margin-top: 15px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.7);">
-                        <input type="checkbox" id="toggleShadowInteractive" onchange="syncShadowInteractive(this.checked)" style="cursor: pointer;">
-                        <label for="toggleShadowInteractive" style="cursor: pointer; user-select: none;">Interactive (Speech AI)</label>
+                    
+                    <!-- Flashcard: Sentence Display -->
+                    <div class="sentence-card">
+                        <div id="shadowResultGuide" class="sentence-card__reading">...</div>
+                        <div id="shadowResultTarget" class="sentence-card__main">...</div>
+                        <div id="shadowResultTranslation" class="sentence-card__footer">...</div>
                     </div>
 
-
-                    <div id="shadowMicContainer" style="display: none; margin-top: 20px; flex-direction: column; align-items: center; gap: 15px;">
-                        <div class="shadow-controls-vertical">
-                            <button id="btn-shadow-mic" class="mic-btn" onclick="startShadowSpeechRecognition()" title="Start Recording">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                            </button>
-                            
-                            <button id="btn-shadow-submit" class="hud-btn hud-btn--submit" onclick="forceStopRecognition()" style="display: none; min-width: 140px; justify-content: center;" title="Submit Recording">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
-                                <span>Nộp bài</span>
-                            </button>
-                        </div>
-
-                        <div id="shadowSpeechStatus" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">READY</div>
-                        <div id="shadowSpeechResult" style="font-size: 15px; color: var(--accent); max-width: 320px; text-align: center; font-weight: 500; min-height: 20px;"></div>
+                    <!-- Result: Spoken Feedback -->
+                    <div id="shadowSpeechResultArea" class="shadowing-result-area">
+                        <div class="shadowing-status" id="shadowSpeechStatus">READY</div>
+                        <div id="shadowResultSpoken" class="result-text result-text--spoken">...</div>
                     </div>
+
+                    <!-- Action Bar: Controls -->
+                    <div class="sentence-card__actions">
+                        <button class="action-btn" onclick="playOriginalAudio()" title="Nghe Audio gốc">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        </button>
+                        
+                        <button id="btn-shadow-mic" class="mic-btn-main" onclick="startShadowSpeechRecognition()" title="Ghi âm Shadowing">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                        </button>
+
+                        <button id="btn-shadow-submit" class="action-btn" onclick="forceStopRecognition()" title="Đánh giá / Submit">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        </button>
+                    </div>
+
+                    <!-- Interactive Toggle (Secondary) -->
+                    <div class="shadowing-hud__interactive-toggle">
+                        <input type="checkbox" id="toggleShadowInteractive" onchange="syncShadowInteractive(this.checked)">
+                        <label for="toggleShadowInteractive">Speech AI</label>
+                    </div>
+                </div>
+            </div>
 
 
                 </div>
@@ -621,9 +630,6 @@
     </div>
 </div>
 
-<div id="shadowingHUD" style="display:none; position:fixed; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#fff; padding:12px 24px; border-radius:50px; border:1px solid var(--accent); z-index:999; font-weight:600; pointer-events:none;">
-    Shadowing... Speak now!
-</div>
 <script>
     function closeModals() {
         document.getElementById('subtitleManagerModal').style.display = 'none';
@@ -664,8 +670,8 @@
     var SAVED_ORIGINAL = '{{ lesson.original_lang_code or "" }}';
     var SAVED_TARGET = '{{ lesson.target_lang_code or "" }}';
     var SAVED_THIRD = '{{ lesson.third_lang_code or "" }}';
-    var SAVED_SETTINGS = {{ lesson.settings_json | safe if lesson.settings_json else "{}" }};
-    var IS_COMPLETED = ( '{{ lesson.is_completed }}' === 'True' );
+    var SAVED_SETTINGS = {% if lesson.settings_json %}{{ lesson.settings_json | safe }}{% else %}{}{% endif %};
+    var IS_COMPLETED = ('{{ lesson.is_completed }}' === 'True');
 
     var NOTE_BEFORE = Number('{{ lesson.note_appear_before if lesson.note_appear_before is not none else 2.0 }}');
     var NOTE_DURATION = Number('{{ lesson.note_duration if lesson.note_duration is not none else 4.0 }}');
@@ -673,7 +679,7 @@
     var SHADOW_EXTRA = Number('{{ lesson.shadowing_extra_time if lesson.shadowing_extra_time is not none else 2.0 }}');
     var SHADOW_HIDE = ('{{ lesson.shadowing_hide_subs }}' === 'True');
     
-    var INITIAL_STUDY_TIME = {{ lesson.time_spent if lesson.time_spent is not none else 0 }};
+    var INITIAL_STUDY_TIME = Number('{{ lesson.time_spent if lesson.time_spent is not none else 0 }}');
 
 
 

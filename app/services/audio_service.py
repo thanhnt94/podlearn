@@ -5,6 +5,49 @@ from gtts import gTTS
 from pydub import AudioSegment
 import tempfile
 from flask import current_app
+from abc import ABC, abstractmethod
+
+class BaseTTSEngine(ABC):
+    """
+    Abstract Base Class for TTS Engines.
+    """
+    @abstractmethod
+    def generate_audio(self, text, voice, output_path):
+        pass
+
+class EdgeTTSEngine(BaseTTSEngine):
+    """
+    TTS Engine using Microsoft Edge TTS (asynchronous).
+    """
+    def generate_audio(self, text, voice, output_path):
+        async def _run():
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(output_path)
+        
+        asyncio.run(_run())
+
+class GoogleTTSEngine(BaseTTSEngine):
+    """
+    TTS Engine using Google Translate TTS (gTTS).
+    """
+    def generate_audio(self, text, voice, output_path):
+        # Extract language code (e.g., 'ja' from 'ja-JP-NanamiNeural')
+        lang = voice.split('-')[0] if '-' in voice else voice
+        tts = gTTS(text=text, lang=lang)
+        tts.save(output_path)
+
+class TTSFactory:
+    """
+    Factory to return the appropriate TTS engine.
+    """
+    @staticmethod
+    def get_engine(engine_name):
+        if engine_name == 'edge-tts':
+            return EdgeTTSEngine()
+        elif engine_name == 'google':
+            return GoogleTTSEngine()
+        else:
+            raise ValueError(f"Unsupported TTS engine: {engine_name}")
 
 def generate_bilingual_audio(sentence_id, original_text, translated_text, config_json=None):
     """
@@ -14,7 +57,7 @@ def generate_bilingual_audio(sentence_id, original_text, translated_text, config
     if config_json is None:
         config_json = {}
 
-    engine = config_json.get('tts_engine', 'edge-tts')
+    engine_name = config_json.get('tts_engine', 'edge-tts')
     voice_orig = config_json.get('tts_voice_source', 'ja-JP-NanamiNeural')
     voice_trans = config_json.get('tts_voice_target', 'vi-VN-HoaiMyNeural')
 
@@ -26,35 +69,18 @@ def generate_bilingual_audio(sentence_id, original_text, translated_text, config
     output_filename = f"sentence_{sentence_id}.mp3"
     output_path = os.path.join(output_dir, output_filename)
 
+    # Instantiate engine using Strategy Pattern
+    engine = TTSFactory.get_engine(engine_name)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         temp_orig = os.path.join(tmpdir, "temp_orig.mp3")
         temp_trans = os.path.join(tmpdir, "temp_trans.mp3")
 
-        if engine == 'edge-tts':
-            async def _run_edge_tts():
-                # Original Text
-                communicate_orig = edge_tts.Communicate(original_text, voice_orig)
-                await communicate_orig.save(temp_orig)
-                # Translated Text
-                communicate_trans = edge_tts.Communicate(translated_text, voice_trans)
-                await communicate_trans.save(temp_trans)
+        # Part 1: Generate audio for both parts
+        engine.generate_audio(original_text, voice_orig, temp_orig)
+        engine.generate_audio(translated_text, voice_trans, temp_trans)
 
-            asyncio.run(_run_edge_tts())
-
-        elif engine == 'google':
-            # Original (Assuming language code is prefix of voice_orig or default to 'ja')
-            lang_orig = voice_orig.split('-')[0] if '-' in voice_orig else 'ja'
-            tts_orig = gTTS(text=original_text, lang=lang_orig)
-            tts_orig.save(temp_orig)
-            
-            # Translated (Assuming Vietnamese)
-            tts_trans = gTTS(text=translated_text, lang='vi')
-            tts_trans.save(temp_trans)
-        
-        else:
-            raise ValueError(f"Unsupported TTS engine: {engine}")
-
-        # Concatenate using pydub
+        # Part 2: Concatenate using pydub (Keep original logic)
         orig_audio = AudioSegment.from_file(temp_orig)
         trans_audio = AudioSegment.from_file(temp_trans)
         silence = AudioSegment.silent(duration=1000) # 1 second

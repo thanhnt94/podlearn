@@ -223,7 +223,10 @@ function toggleShadowingMode() {
                 clearTimeout(shadowingPauseTimeout);
                 shadowingPauseTimeout = null;
             }
-            if (hud) hud.style.display = 'none';
+            if (hud) {
+                hud.classList.remove('active');
+                hud.className = 'shadowing-hud'; // Reset all states
+            }
         }
     }
 }
@@ -247,8 +250,10 @@ function syncShadowInteractive(checked) {
 
 function toggleShadowingTypeUI() {
     const isInteractive = document.getElementById('toggleShadowInteractive')?.checked || false;
-    const micContainer = document.getElementById('shadowMicContainer');
-    if (micContainer) micContainer.style.display = isInteractive ? 'flex' : 'none';
+    if (micContainer) {
+        if (isInteractive) micContainer.classList.add('active');
+        else micContainer.classList.remove('active');
+    }
     
     // If we were in the middle of a pause, toggle behavior
     if (isShadowingMode && currentShadowingLine) {
@@ -271,22 +276,43 @@ function pauseForShadowing(line) {
     
     const hud = document.getElementById('shadowingHUD');
     if (hud) {
-        hud.style.display = 'flex';
+        hud.classList.add('active');
+        // Reset state classes
+        hud.classList.remove('shadow-state-listening', 'shadow-state-processing', 'shadow-state-success', 'shadow-state-error');
+        
+        // Populate Flashcard hierarchy
+        const targetEl = document.getElementById('shadowResultTarget');
+        const guideEl = document.getElementById('shadowResultGuide');
+        const translationEl = document.getElementById('shadowResultTranslation');
+
+        if (targetEl) targetEl.textContent = line.texts[0] || "";
+        if (guideEl) {
+            guideEl.textContent = line.texts[1] || "";
+            guideEl.style.display = line.texts[1] ? 'block' : 'none';
+        }
+        if (translationEl) {
+            translationEl.textContent = line.texts[2] || "";
+            translationEl.style.display = line.texts[2] ? 'block' : 'none';
+        }
+
         document.getElementById('shadowSpeechStatus').textContent = 'READY';
-        document.getElementById('shadowSpeechResult').textContent = '';
-        document.getElementById('btn-shadow-mic')?.classList.remove('active');
+        document.getElementById('shadowResultSpoken').textContent = '...';
+        document.getElementById('btn-shadow-mic')?.classList.remove('active', 'listening', 'processing');
     }
 
     // Interactive switch
     const isInteractive = document.getElementById('toggleShadowInteractive')?.checked || false;
-    const micContainer = document.getElementById('shadowMicContainer');
-    if (micContainer) micContainer.style.display = isInteractive ? 'flex' : 'none';
+    const micContainer = document.querySelector('.sentence-card__actions'); // Updated reference
+    if (micContainer) {
+        if (isInteractive) micContainer.classList.add('active');
+        else micContainer.classList.remove('active');
+    }
 
     // Subtitles concealment
     const hideSubs = document.getElementById('toggleShadowHideSubs')?.checked || false;
     if (hideSubs) {
         const subOverlay = document.getElementById('videoSubOverlay');
-        if (subOverlay) subOverlay.style.visibility = 'hidden';
+        if (subOverlay) subOverlay.classList.add('is-hidden');
     }
 
     if (isInteractive) {
@@ -309,10 +335,13 @@ function resumeFromShadowing() {
         ytPlayer.playVideo();
     }
     const hud = document.getElementById('shadowingHUD');
-    if (hud) hud.style.display = 'none';
+    if (hud) {
+        hud.classList.remove('active');
+        hud.className = 'shadowing-hud';
+    }
     
     const subOverlay = document.getElementById('videoSubOverlay');
-    if (subOverlay) subOverlay.style.visibility = 'visible';
+    if (subOverlay) subOverlay.classList.remove('is-hidden');
 
     shadowingPauseTimeout = null;
 }
@@ -340,7 +369,7 @@ function startShadowSpeechRecognition() {
     shadowRecognition.interimResults = false;
 
     const statusEl = document.getElementById('shadowSpeechStatus');
-    const resultEl = document.getElementById('shadowSpeechResult');
+    const hud = document.getElementById('shadowingHUD');
     const micBtn = document.getElementById('btn-shadow-mic');
     const submitBtn = document.getElementById('btn-shadow-submit');
     const originalIcon = micBtn?.innerHTML;
@@ -350,10 +379,12 @@ function startShadowSpeechRecognition() {
 
     shadowRecognition.onstart = () => {
         statusEl.textContent = 'LISTENING...';
-        statusEl.style.color = 'var(--accent)';
+        hud?.classList.remove('shadow-state-processing', 'shadow-state-success', 'shadow-state-error');
+        hud?.classList.add('shadow-state-listening');
+        
         micBtn?.classList.remove('processing');
         micBtn?.classList.add('listening');
-        if (submitBtn) submitBtn.style.display = 'flex';
+        if (submitBtn) submitBtn.classList.add('active');
 
         // Timer Logic
         const durationSec = (currentShadowingLine?.end - currentShadowingLine?.start) || 2;
@@ -381,8 +412,8 @@ function startShadowSpeechRecognition() {
     shadowRecognition.onerror = (event) => {
         if (event.error === 'aborted') return;
         console.error("Speech Recognition Error:", event.error);
-        statusEl.textContent = 'ERROR: ' + event.error;
-        statusEl.style.color = 'var(--danger)';
+        statusEl.textContent = 'ERROR';
+        hud?.classList.add('shadow-state-error');
         cleanupShadowRecognitionUI(originalIcon);
     };
 
@@ -392,8 +423,9 @@ function startShadowSpeechRecognition() {
                 finalTranscript += event.results[i][0].transcript + ' ';
             }
         }
-        // Optional: show partial results
-        if (resultEl) resultEl.innerHTML = `<span style="color:rgba(255,255,255,0.4)">You said:</span> ${finalTranscript}`;
+        // Update spoken text area
+        const spokenEl = document.getElementById('shadowResultSpoken');
+        if (spokenEl) spokenEl.textContent = finalTranscript;
     };
 
     shadowRecognition.onend = () => {
@@ -427,7 +459,10 @@ function cancelShadowingMode() {
     
     // UI Cleanup
     const hud = document.getElementById('shadowingHUD');
-    if (hud) hud.style.display = 'none';
+    if (hud) {
+        hud.classList.remove('active');
+        hud.className = 'shadowing-hud';
+    }
     
     const btn = document.getElementById('btn-shadowing');
     if (btn) btn.classList.remove('btn--accent');
@@ -437,7 +472,7 @@ function cancelShadowingMode() {
 
     // Restoration
     const subOverlay = document.getElementById('videoSubOverlay');
-    if (subOverlay) subOverlay.style.visibility = 'visible';
+    if (subOverlay) subOverlay.classList.remove('is-hidden');
 
     // Reset local state but KEEP isShadowingMode true so it pauses on next sentence
     // Wait, the user said "quay lại chế độ xem thường" which usually means turning OFF the mode toggle.
@@ -456,7 +491,7 @@ function cleanupShadowRecognitionUI(originalIcon) {
     const submitBtn = document.getElementById('btn-shadow-submit');
     
     micBtn?.classList.remove('listening');
-    if (submitBtn) submitBtn.style.display = 'none';
+    if (submitBtn) submitBtn.classList.remove('active');
     
     clearTimeout(minTimeTimer);
     clearTimeout(safetyTimeout);
@@ -465,10 +500,11 @@ function cleanupShadowRecognitionUI(originalIcon) {
 
 async function calculatePronunciationScore(original, spoken, langCode) {
     const statusEl = document.getElementById('shadowSpeechStatus');
-    const resultEl = document.getElementById('shadowSpeechResult');
+    const hud = document.getElementById('shadowingHUD');
 
-    statusEl.textContent = 'PROCESSING...';
-    statusEl.style.color = 'var(--text-muted)';
+    if (statusEl) statusEl.textContent = 'PROCESSING...';
+    hud?.classList.remove('shadow-state-listening');
+    hud?.classList.add('shadow-state-processing');
 
     try {
         const response = await fetch('/api/score-pronunciation', {
@@ -491,52 +527,95 @@ async function calculatePronunciationScore(original, spoken, langCode) {
         const score = data.score || 0;
         const threshold = parseFloat(document.getElementById('optShadowAccuracy')?.value) || 80;
 
-        console.log(`[ShadowAI-Backend] Score: ${score.toFixed(1)}% | Threshold: ${threshold}%`);
-
-        // UPDATE UI STATS IN TRANSCRIPT
-        if (typeof updateLineShadowStats === 'function' && currentShadowingLine) {
-            updateLineShadowStats(currentShadowingLine.start, Math.round(score));
-        }
-
-        // Get display texts (Use original text for main display as requested)
+        // NEW: Diff Calculation
         const finalTarget = data.original_text || original;
         const finalSpoken = spoken;
+        const highlightedHtml = renderShadowDiffHTML(finalTarget, finalSpoken);
+
+        // Update UI Text
+        const spokenEl = document.getElementById('shadowResultSpoken');
+        const targetEl = document.getElementById('shadowResultTarget');
+
+        if (spokenEl) spokenEl.innerHTML = highlightedHtml;
+        if (targetEl) targetEl.textContent = finalTarget;
 
         if (score >= threshold) {
-            statusEl.textContent = `EXCELLENT (${Math.round(score)}%)`;
-            statusEl.style.color = '#10b981'; // Green
-            resultEl.innerHTML = `<span style="color:rgba(255,255,255,0.5)">You said:</span> ${finalSpoken}`;
-            setTimeout(resumeFromShadowing, 1000);
-        } else {
-            statusEl.textContent = `RETRY (${Math.round(score)}%)`;
-            statusEl.style.color = 'var(--danger)';
+            if (statusEl) statusEl.textContent = `EXCELLENT (${Math.round(score)}%)`;
+            hud?.classList.remove('shadow-state-processing', 'shadow-state-error');
+            hud?.classList.add('shadow-state-success');
             
-            let hiraGuide = "";
-            // Special guide only if it's Japanese and we have conversion
-            if (langCode === 'ja' && data.original_hira) {
-                hiraGuide = `<div style="margin-top:12px; font-size:12px; color:var(--accent); font-family: 'Inter', sans-serif; letter-spacing: 0.5px; line-height: 1.5;">
-                                <span style="color:rgba(255,255,255,0.4); text-transform: uppercase; font-size:10px; font-weight:700;">Pronunciation Guide:</span><br>
-                                <span style="background: rgba(108, 92, 231, 0.1); padding: 2px 6px; border-radius: 4px;">${data.original_hira}</span>
-                             </div>`;
-            }
-
-            resultEl.innerHTML = `
-                <div style="margin-bottom:8px; line-height: 1.4;">
-                    <span style="color:rgba(255,255,255,0.5)">You said:</span> <span style="color:var(--danger)">${finalSpoken || "..."}</span>
-                </div>
-                <div style="line-height: 1.4;">
-                    <span style="color:rgba(255,255,255,0.5)">Target:</span> ${finalTarget}
-                </div>
-                ${hiraGuide}
-            `;
+            setTimeout(resumeFromShadowing, 1200);
+        } else {
+            if (statusEl) statusEl.textContent = `RETRY (${Math.round(score)}%)`;
+            hud?.classList.remove('shadow-state-processing', 'shadow-state-success');
+            hud?.classList.add('shadow-state-error');
         }
-
-
     } catch (err) {
         console.error("[ShadowAI] Analysis failed:", err);
-        statusEl.textContent = "AI ANALYSIS FAILED";
-        statusEl.style.color = 'var(--danger)';
+        if (statusEl) statusEl.textContent = "AI ANALYSIS FAILED";
+        hud?.classList.remove('shadow-state-processing');
+        hud?.classList.add('shadow-state-error');
     }
+}
+
+/**
+ * Replay the original audio segment of the active sentence
+ */
+function playOriginalAudio() {
+    if (ytPlayer && isPlayerReady && currentShadowingLine) {
+        ytPlayer.seekTo(currentShadowingLine.start, true);
+        ytPlayer.playVideo();
+    }
+}
+
+/**
+ * ── Word-Level Diff Utility ─────────────────────────────────
+ */
+function renderShadowDiffHTML(target, spoken) {
+    const targetWords = target.split(/\s+/).filter(Boolean);
+    const spokenWords = spoken.split(/\s+/).filter(Boolean);
+
+    // 1. Simple LCS-based Diff
+    const matrix = Array(targetWords.length + 1).fill().map(() => Array(spokenWords.length + 1).fill(0));
+    
+    for (let i = 1; i <= targetWords.length; i++) {
+        for (let j = 1; j <= spokenWords.length; j++) {
+            if (normalizeWord(targetWords[i-1]) === normalizeWord(spokenWords[j-1])) {
+                matrix[i][j] = matrix[i-1][j-1] + 1;
+            } else {
+                matrix[i][j] = Math.max(matrix[i-1][j], matrix[i][j-1]);
+            }
+        }
+    }
+
+    // 2. Backtrack to find differences
+    let i = targetWords.length, j = spokenWords.length;
+    const result = [];
+
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && normalizeWord(targetWords[i-1]) === normalizeWord(spokenWords[j-1])) {
+            result.unshift({ type: 'correct', value: spokenWords[j-1] });
+            i--; j--;
+        } else if (j > 0 && (i === 0 || matrix[i][j-1] >= matrix[i-1][j])) {
+            result.unshift({ type: 'wrong', value: spokenWords[j-1] });
+            j--;
+        } else {
+            result.unshift({ type: 'missing', value: targetWords[i-1] });
+            i--;
+        }
+    }
+
+    // 3. Render HTML
+    return result.map(token => {
+        if (token.type === 'correct') return `<span class="word-correct">${token.value}</span>`;
+        if (token.type === 'wrong') return `<span class="word-wrong">${token.value}</span>`;
+        if (token.type === 'missing') return `<span class="word-missing">${token.value}</span>`;
+        return token.value;
+    }).join(' ');
+}
+
+function normalizeWord(word) {
+    return word.replace(/[.,!?;:()]/g, "").toLowerCase();
 }
 
 

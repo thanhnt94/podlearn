@@ -148,7 +148,8 @@ def add_lesson():
         
         # Trigger background task
         from ..tasks import process_video_metadata
-        process_video_metadata.delay(video.id)
+        from ..utils.background_tasks import run_in_background
+        run_in_background(process_video_metadata, video.id)
 
     # Check if user already has this lesson
     existing = Lesson.query.filter_by(

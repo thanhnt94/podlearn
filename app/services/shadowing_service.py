@@ -152,6 +152,7 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
     result = {
         "score": final_score,
         "original_text": original_text,
+        "spoken_text": spoken_text,
         "diff_html": diff_html
     }
 

@@ -11,6 +11,7 @@ class SubtitleTrack(db.Model):
     video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=False, index=True)
     language_code = db.Column(db.String(10), nullable=False)
     is_auto_generated = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
     fetched_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     
     # Uploader Info

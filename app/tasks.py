@@ -1,6 +1,5 @@
 
 import logging
-from celery import shared_task
 from .extensions import db
 from .models.video import Video
 from .services.youtube_service import fetch_video_info
@@ -8,7 +7,6 @@ from .services.subtitle_service import get_subtitle_track
 
 logger = logging.getLogger(__name__)
 
-@shared_task(ignore_result=False)
 def process_video_metadata(video_id_int: int):
     """Background task to fetch YouTube metadata and initial subtitles."""
     video = db.session.get(Video, video_id_int)

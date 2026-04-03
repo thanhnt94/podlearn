@@ -346,7 +346,13 @@
                         
                         <!-- Local Session History -->
                         <div class="pt-4 border-t border-white/5">
-                            <span class="text-[9px] font-black uppercase text-[#5a6478] mb-3 block">Lịch sử phiên tập</span>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-[9px] font-black uppercase text-[#5a6478] block">Lịch sử phiên tập</span>
+                                <button onclick="openHistoryModal()" class="text-[9px] font-bold text-[#6c5ce7] hover:text-[#a78bfa] transition-all uppercase tracking-widest flex items-center gap-1">
+                                    <i data-lucide="history" class="w-2.5 h-2.5"></i>
+                                    Xem chi tiết
+                                </button>
+                            </div>
                             <div id="shadowing-session-history" class="space-y-2 max-h-32 overflow-y-auto scroll-utility pr-2">
                                 <!-- Appended via JS -->
                             </div>
@@ -613,6 +619,49 @@
     </div>
 </div>
 
+<!-- Modal: Shadowing Detailed History -->
+<div id="history-modal" class="hidden fixed inset-0 z-[4000] items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+    <div class="relative w-full max-w-4xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden max-h-[85vh]">
+        <div class="p-8 border-b border-white/5 bg-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="p-3 rounded-2xl bg-[#10b981]/10 text-[#10b981]">
+                    <i data-lucide="history" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-[#e8ecf4]">Chi tiết Lịch sử Shadowing</h3>
+                    <p class="text-[10px] uppercase tracking-widest text-[#5a6478] font-bold mt-1">Lưu trữ 10 lượt tập gần nhất</p>
+                </div>
+            </div>
+            <button onclick="toggleHistoryModal(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-0">
+            <table class="w-full text-left border-collapse">
+                <thead class="sticky top-0 bg-[#111827] z-10">
+                    <tr class="text-[#5a6478] text-[10px] font-black uppercase tracking-widest border-b border-white/5">
+                        <th class="px-8 py-5">Bạn nói</th>
+                        <th class="px-8 py-5 text-center">Điểm số</th>
+                        <th class="px-8 py-5 text-right">Thời gian</th>
+                    </tr>
+                </thead>
+                <tbody id="history-table-body" class="divide-y divide-white/5">
+                    <!-- Loaded via API -->
+                </tbody>
+            </table>
+            <div id="history-empty-state" class="hidden py-20 text-center text-[#5a6478]">
+                <i data-lucide="mic-off" class="w-12 h-12 mx-auto mb-4 opacity-20"></i>
+                <p class="text-sm italic">Chưa có dữ liệu luyện tập cho câu này.</p>
+            </div>
+        </div>
+
+        <div class="p-8 border-t border-white/5 bg-white/5 flex justify-end">
+            <button onclick="toggleHistoryModal(false)" class="px-10 py-3 bg-white/5 text-[#8892a8] rounded-2xl font-bold hover:bg-white/10 transition-all">Đóng</button>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // ── STICKY SPOTLIGHT SCROLL EFFECT ─────────────────────
@@ -646,6 +695,52 @@ document.addEventListener('DOMContentLoaded', function() {
         if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
         else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
     };
+
+    window.toggleHistoryModal = function(show) {
+        const modal = document.getElementById('history-modal');
+        if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+        else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    };
+
+    window.openHistoryModal = function() {
+        loadDetailedHistory();
+        toggleHistoryModal(true);
+    };
+
+    async function loadDetailedHistory() {
+        const body = document.getElementById('history-table-body');
+        const empty = document.getElementById('history-empty-state');
+        body.innerHTML = '<tr><td colspan="3" class="px-8 py-10 text-center text-[#5a6478]"><i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto"></i></td></tr>';
+        lucide.createIcons();
+
+        try {
+            const res = await fetch(`/api/sentences/${sentenceId}/shadowing-history`);
+            const data = await res.json();
+            
+            if (data.history && data.history.length > 0) {
+                empty.classList.add('hidden');
+                body.innerHTML = data.history.map(item => `
+                    <tr class="hover:bg-white/[0.02] transition-colors">
+                        <td class="px-8 py-5 text-sm text-[#e8ecf4] font-medium italic">"${item.spoken_text || '...'}"</td>
+                        <td class="px-8 py-5 text-center">
+                            <span class="px-3 py-1 rounded-full text-[10px] font-black ${item.score >= 80 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}">
+                                ${item.score}%
+                            </span>
+                        </td>
+                        <td class="px-8 py-5 text-right text-[10px] text-[#5a6478] font-bold uppercase tracking-wider">
+                            ${new Date(item.created_at).toLocaleString('vi-VN', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'})}
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                body.innerHTML = '';
+                empty.classList.remove('hidden');
+            }
+        } catch (e) {
+            body.innerHTML = '<tr><td colspan="3" class="px-8 py-10 text-center text-rose-400 font-bold">Lỗi tải dữ liệu.</td></tr>';
+        }
+        lucide.createIcons();
+    }
 
     window.openEditModal = function(id) {
         currentEditId = id;
@@ -805,7 +900,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const recognition = window.SpeechRecognition ? new SpeechRecognition() : (window.webkitSpeechRecognition ? new webkitSpeechRecognition() : null);
     if (recognition && btnRecord) {
         recognition.lang = langCode;
-        recognition.onstart = () => { btnRecord.classList.add('bg-red-500/20'); statusText.classList.remove('hidden'); resultBox.classList.add('hidden'); };
+        recognition.onstart = () => { 
+            btnRecord.classList.add('bg-red-500/20'); 
+            statusText.innerText = "Đang nghe...";
+            statusText.classList.remove('hidden'); 
+            resultBox.classList.add('hidden'); 
+        };
         recognition.onresult = (e) => {
             const text = e.results[0][0].transcript;
             statusText.innerText = "Đang chấm điểm...";
@@ -815,23 +915,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ sentence_id: sentenceId, original_text: originalText, spoken_text: text, lang_code: langCode.split('-')[0] })
             })
             .then(r => r.json()).then(d => {
+                if (!d.success && d.error) {
+                    alert("Lỗi: " + d.error);
+                    return;
+                }
                 document.getElementById('score-display').innerText = d.score + '%';
                 // Render the highlighted diff
                 document.getElementById('spoken-text-display').innerHTML = d.diff_html || d.spoken_text;
                 resultBox.classList.remove('hidden');
                 
-                // Append to local session history
+                // Append to local session history (Using fixed d.spoken_text)
                 const historyList = document.getElementById('shadowing-session-history');
                 const historyItem = document.createElement('div');
                 historyItem.className = "flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5 text-[10px]";
                 historyItem.innerHTML = `
-                    <span class="text-[#8892a8] truncate max-w-[150px] italic">"${d.spoken_text}"</span>
+                    <span class="text-[#8892a8] truncate max-w-[150px] italic">"${d.spoken_text || '...'}"</span>
                     <span class="font-bold ${d.score >= 80 ? 'text-emerald-400' : 'text-amber-400'}">${d.score}%</span>
                 `;
                 historyList.prepend(historyItem);
-
+                
+                // Update stats
                 loadShadowingStats();
-            }).finally(() => { btnRecord.classList.remove('bg-red-500/20'); statusText.classList.add('hidden'); });
+            })
+            .catch(err => {
+                console.error("Score Error:", err);
+                statusText.innerText = "Lỗi kết nối!";
+            })
+            .finally(() => { 
+                btnRecord.classList.remove('bg-red-500/20'); 
+                statusText.classList.add('hidden'); 
+            });
         };
         btnRecord.addEventListener('click', () => recognition.start());
     }

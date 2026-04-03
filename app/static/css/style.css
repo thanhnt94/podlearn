@@ -1488,21 +1488,218 @@ input:checked + .switch-slider:before { transform: translateX(22px); }
     }
 }
 
-/* ── Shadowing HUD ─────────────────────────────────────────── */
+/* ── Shadowing HUD Re-Design ────────────────────────────────── */
 .shadowing-hud {
     position: absolute;
     inset: 0;
     z-index: 1000;
-    display: none;
+    display: none; /* Controlled by JS class toggle or style */
     justify-content: center;
     align-items: center;
-    background: rgba(0,0,0,0.4);
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    transition: all var(--transition-base);
 }
 
 .shadowing-hud__content {
     background: var(--bg-card);
-    padding: 30px;
-    border-radius: 20px;
-    border: 2px solid var(--accent);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     text-align: center;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow-xl);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    transition: all var(--transition-base);
+    backdrop-filter: blur(12px);
+}
+
+/* ── Sentence Card (Flashcard Style) ────────────────────────── */
+.sentence-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+}
+
+.sentence-card__reading {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.sentence-card__main {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.sentence-card__footer {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+/* ── Action Bar ────────────────────────────────────────────── */
+.sentence-card__actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.action-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.mic-btn-main {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.mic-btn-main:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(108, 92, 231, 0.6);
+}
+
+.mic-btn-main.listening {
+    animation: shadowPulse 1.5s infinite;
+    background: var(--error);
+}
+
+/* ── Result & Status ───────────────────────────────────────── */
+.shadowing-result-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.shadowing-status {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    text-transform: uppercase;
+}
+
+.result-text--spoken {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    min-height: 1.6em;
+}
+
+.result-guide {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--accent);
+    background: rgba(108, 92, 231, 0.1);
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    display: none; /* Shown by JS when needed */
+}
+
+/* ── HUD SELECTION STATES ───────────────────────────────────── */
+
+/* 1. Listening State */
+.shadow-state-listening .shadowing-hud__content {
+    border-color: var(--accent);
+    animation: shadowPulse 2s infinite ease-in-out;
+}
+
+.shadow-state-listening .shadowing-status {
+    color: var(--accent);
+    background: rgba(108, 92, 231, 0.15);
+}
+
+@keyframes shadowPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.4); }
+    70%  { box-shadow: 0 0 0 15px rgba(108, 92, 231, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(108, 92, 231, 0); }
+}
+
+/* 2. Processing State */
+.shadow-state-processing .shadowing-status {
+    color: var(--text-secondary);
+}
+
+/* 3. Success State */
+.shadow-state-success .shadowing-hud__content {
+    border-color: var(--success);
+}
+
+.shadow-state-success .shadowing-status {
+    color: var(--success);
+    background: rgba(0, 206, 201, 0.15);
+}
+
+/* 4. Error/Retry State */
+.shadow-state-error .shadowing-hud__content {
+    border-color: var(--error);
+}
+
+.shadow-state-error .shadowing-status {
+    color: var(--error);
+    background: rgba(255, 107, 107, 0.15);
+}
+
+.is-hidden {
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+/* ── Word-Level Feedback ────────────────────────────────────── */
+.word-correct {
+    color: var(--success);
+    font-weight: 700;
+}
+
+.word-wrong {
+    color: var(--error);
+    text-decoration: underline wavy var(--error);
+    font-weight: 600;
+}
+
+.word-missing {
+    color: rgba(255, 107, 107, 0.45); /* Muted red */
+    text-decoration: line-through;
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+.shadowing-result-area .result-text {
+    line-height: 1.8; /* More space for decorations */
 }

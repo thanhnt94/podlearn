@@ -12,13 +12,17 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Celery & Redis (Optional if Eager mode set below)
-    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6374/0')
-    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6374/0')
-    
-    # NEW: Run tasks synchronously (Eager Mode) - No Redis required!
-    CELERY_TASK_ALWAYS_EAGER = True
-    CELERY_TASK_EAGER_PROPAGATES = True
+    # Background Tasks config (if needed)
+
+    # Storage Settings
+    STORAGE_TYPE = os.environ.get('STORAGE_TYPE', 'local') # 'local' or 's3'
+    S3_BUCKET = os.environ.get('S3_BUCKET', 'auraflow-storage')
+    S3_REGION = os.environ.get('S3_REGION', 'us-east-1')
+    S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', None)
+    S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY', None)
+
+    # Ecosystem SSO Settings
+    CENTRAL_AUTH_SERVER_ADDRESS = os.environ.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://localhost:5000')
 
 
 

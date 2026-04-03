@@ -2,15 +2,32 @@
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
+import requests
+import logging
+from flask import current_app
 
 from ..extensions import db
 from ..models.user import User
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+def is_sso_alive():
+    """Circuit Breaker: Check if Central Auth server is reachable."""
+    try:
+        sso_url = current_app.config.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://localhost:5000')
+        response = requests.get(f"{sso_url}/api/health", timeout=1.5)
+        return response.status_code == 200
+    except (requests.RequestException, Exception):
+        return False
+
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
+    from ..models.setting import AppSetting
+    if AppSetting.get('AUTH_PROVIDER') == 'central':
+        flash('Cổng đăng ký nội bộ hiện đang đóng. Vui lòng đăng ký qua hệ thống Central Auth.', 'error')
+        return redirect(url_for('auth.login'))
+
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.index'))
 
@@ -57,8 +74,12 @@ def login():
     auth_provider = AppSetting.get('AUTH_PROVIDER', 'local')
     
     # Bridge: Redirect to SSO if provider is set to central
-    if auth_provider == 'central' and request.endpoint == 'auth.login':
-        return redirect(url_for('auth_center.login', **request.args))
+    if auth_provider == 'central' and request.method == 'GET':
+        if is_sso_alive():
+            return redirect(url_for('auth_center.login', **request.args))
+        else:
+            logging.warning("Central Auth is down. Falling back to local login.")
+            flash('Hệ thống Central Auth đang gián đoạn, tự động kích hoạt đăng nhập nội bộ.', 'warning')
 
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.index'))
