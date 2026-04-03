@@ -102,56 +102,41 @@
     .scroll-utility::-webkit-scrollbar { width: 4px; }
     .scroll-utility::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     
-    /* 1. Tinh chỉnh Thẻ Câu chính (Scroll-to-Shrink) */
-    .spotlight-layout-anchor {
+    /* 1. Thẻ Câu chính (Standard View) */
+    .sentence-spotlight {
+        background: rgba(17, 24, 39, 0.5);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 40px;
+        padding: 2rem 2.5rem;
+        margin-bottom: 2rem;
         position: relative;
-        min-height: 480px; /* Placeholder to prevent jumping content below */
-        transition: min-height 0.4s ease;
-    }
-    
-    .sticky-spotlight {
-        position: sticky;
-        top: 80px; 
-        z-index: 1030;
-        background: rgba(17, 24, 39, 0.9);
-        backdrop-filter: blur(20px);
+        overflow: visible; /* Cho shadow lọt ra ngoài */
         transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        border: 1px solid rgba(255,255,255,0.08);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        width: 100%;
-    }
-    
-    .sticky-spotlight.is-scrolled {
-        padding: 12px 32px !important;
-        border-radius: 24px !important;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-        background: rgba(17, 24, 39, 0.96);
-        border-color: rgba(108, 92, 231, 0.4);
     }
 
-    /* Smooth Fade for Sub-Labels */
-    .vi-text, .translated-text-display {
-        opacity: 1;
-        max-height: 200px;
-        transition: opacity 0.3s ease, max-height 0.4s ease, margin 0.4s ease;
-        overflow: hidden;
+    .spotlight-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 8px;
+        border-radius: 20px;
+        border: 1px solid rgba(255,255,255,0.05);
+        backdrop-filter: blur(10px);
     }
 
-    .sticky-spotlight.is-scrolled .vi-text,
-    .sticky-spotlight.is-scrolled .translated-text-display {
-        opacity: 0;
-        max-height: 0;
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-        pointer-events: none;
+    .jp-text ruby {
+        font-size: 3.5rem !important; /* To nhất */
+        line-height: normal;
     }
+    @media (min-width: 1200px) { .jp-text ruby { font-size: 4.5rem !important; } }
 
-    .sticky-spotlight.is-scrolled .jp-text { margin-bottom: 0 !important; }
-    .sticky-spotlight.is-scrolled .jp-text ruby { font-size: 1.15rem !important; }
-    .sticky-spotlight.is-scrolled #btn-play-audio { width: 44px; height: 44px; }
-    .sticky-spotlight.is-scrolled #btn-play-audio i { width: 1.2rem; height: 1.2rem; }
-    .sticky-spotlight.is-scrolled .token-display { padding: 4px 10px !important; }
-    .sticky-spotlight.is-scrolled .sentence-container { gap: 10px !important; margin-bottom: 0 !important; }
+    .translated-text-display p {
+        font-size: 1rem !important; /* Nhỏ lại */
+        color: #8892a8;
+        font-weight: 400;
+        letter-spacing: 0.5px;
+    }
 
     /* 2. Playlist Drawer (Ngăn kéo bên phải) */
     .playlist-drawer {
@@ -208,14 +193,6 @@
     .playlist-drawer .active-p-item { background: rgba(108, 92, 231, 0.1); border-left: 3px solid #6c5ce7; }
 </style>
 
-<script>
-    // AuraFlow Studio Global Page State
-    const sentenceId = {{ sentence.id | tojson }};
-    const originalText = {{ sentence.original_text | tojson }};
-    const analysisData = {{ analysis | tojson }};
-    const langCode = {{ (analysis.get('metadata', {}).get('language_code', 'ja-JP')) | tojson }};
-</script>
-
 <div class="min-h-screen bg-[#0a0e1a] text-[#e8ecf4] font-['Inter'] flex flex-col">
     <!-- 1. Sticky Header -->
     <header class="sticky-header">
@@ -267,99 +244,92 @@
 
     <!-- Main Workspace -->
     <main class="flex-1 max-w-[1600px] mx-auto w-full px-6 py-8 space-y-8">
-        <!-- 2. Main Spotlight Card (Sticky with Anchor) -->
-        <div class="spotlight-layout-anchor">
-            <div id="sentence-container-hero" class="sticky-spotlight bg-[#111827]/50 border border-white/10 rounded-[40px] p-8 md:p-12 shadow-2xl backdrop-blur-xl relative overflow-hidden group transition-all duration-500 mb-8">
+        <!-- 2. Main Spotlight Card -->
+        <div id="sentence-container-hero" class="sentence-spotlight shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl relative group">
             <div class="absolute -top-32 -right-32 w-80 h-80 bg-[#6c5ce7]/10 blur-[120px] rounded-full pointer-events-none transition-all group-hover:bg-[#6c5ce7]/20"></div>
             
-            <div class="relative flex flex-col md:flex-row items-center gap-10">
-                <div class="flex-1 w-full">
-                    <div class="jp-text flex flex-wrap items-end justify-start gap-x-4 gap-y-12 mb-10 sentence-container">
-                        {% set tokens = analysis.color_mapped_tokens or analysis.get('linguistic_analysis', {}).get('color_mapped_tokens', []) %}
-                        {% for token in tokens %}
-                        <div class="flex flex-col items-center group/token {% if token.is_blank %}is-blank-true{% endif %}">
-                            <div class="token-display p-3 rounded-2xl transition-all duration-300 color-group-{{ token.color_group }}">
-                                <ruby class="font-black tracking-wider">
-                                    {{ token.source_word }}
-                                    {% if token.reading and token.reading != token.source_word %}
-                                    <rt class="mb-1 opacity-70 serif text-xs">{{ token.reading }}</rt>
-                                    {% endif %}
-                                </ruby>
-                            </div>
-                            <div class="vi-text mt-4 text-[10px] font-black px-3 py-1 bg-white/5 rounded-lg border border-white/5 opacity-80 color-group-{{ token.color_group }} translation-text uppercase tracking-widest">
-                                {{ token.target_word if token.target_word else '-' }}
-                            </div>
-                        </div>
-                        {% endfor %}
+            <!-- Spotlight Header: Stats & Actions -->
+            <div class="relative flex items-center justify-between mb-8">
+                <!-- Left: Stats -->
+                <div class="flex items-center gap-3">
+                    <div class="px-3 py-1.5 rounded-xl bg-teal-500/10 border border-teal-500/20 text-[10px] font-black text-teal-400">
+                        BEST: <span id="stat-best">0</span>%
                     </div>
-                    <div class="translated-text-display pt-10 border-t border-white/5">
-                        <p class="text-xl md:text-2xl font-medium text-[#e8ecf4] leading-relaxed italic opacity-90 text-left">
-                            "{{ sentence.translated_text }}"
-                        </p>
+                    <div class="px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-black text-indigo-400">
+                        AVG: <span id="stat-avg">0</span>%
+                    </div>
+                    <div class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-black text-[#5a6478]">
+                        TRIALS: <span id="stat-attempts">0</span>
                     </div>
                 </div>
 
-                <!-- Repositioned Play Button -->
-                <div class="absolute top-0 right-0 p-4">
-                    <button id="btn-play-audio" class="w-16 h-16 flex items-center justify-center rounded-2xl bg-[#6c5ce7] text-white shadow-[0_10px_30px_rgba(108,92,231,0.2)] hover:scale-110 active:scale-95 transition-all">
-                        <i data-lucide="volume-2" class="w-8 h-8"></i>
-                    </button>
+                <!-- Right: Unified Actions -->
+                <div class="flex items-center gap-4">
+                    <div id="recording-status" class="text-[10px] font-black text-[#ef4444] animate-pulse hidden uppercase tracking-widest mr-2">Đang nghe...</div>
+                    <div class="spotlight-actions shadow-2xl">
+                        <button id="btn-record" class="w-12 h-12 flex items-center justify-center rounded-xl bg-[#ef4444]/10 text-[#ef4444] hover:bg-[#ef4444]/20 transition-all group">
+                            <i data-lucide="mic" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        </button>
+                        <div class="w-px h-6 bg-white/10"></div>
+                        <button id="btn-play-audio" class="w-12 h-12 flex items-center justify-center rounded-xl bg-[#6c5ce7] text-white hover:bg-[#a78bfa] transition-all group">
+                            <i data-lucide="volume-2" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                     <audio id="sentence-audio-player" class="hidden"></audio>
+                </div>
+            </div>
+
+            <div class="relative">
+                <div class="jp-text flex flex-wrap items-end justify-start gap-x-6 gap-y-10 mb-8 sentence-container">
+                    {% set tokens = analysis.color_mapped_tokens or analysis.get('linguistic_analysis', {}).get('color_mapped_tokens', []) %}
+                    {% for token in tokens %}
+                    <div class="flex flex-col items-center group/token {% if token.is_blank %}is-blank-true{% endif %}">
+                        <div class="token-display p-3 rounded-2xl transition-all duration-300 color-group-{{ token.color_group }}">
+                            <ruby class="font-black tracking-wider">
+                                {{ token.source_word }}
+                                {% if token.reading and token.reading != token.source_word %}
+                                <rt class="mb-2 opacity-70 serif text-sm tracking-normal">{{ token.reading }}</rt>
+                                {% endif %}
+                            </ruby>
+                        </div>
+                        <div class="vi-text mt-4 text-[10px] font-black px-3 py-1 bg-white/5 rounded-lg border border-white/5 opacity-60 color-group-{{ token.color_group }} translation-text uppercase tracking-widest">
+                            {{ token.target_word if token.target_word else '-' }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="flex flex-col md:flex-row items-end justify-between pt-8 border-t border-white/5 gap-8">
+                    <div class="translated-text-display flex-1">
+                        <p class="font-medium italic text-left opacity-80 leading-relaxed">
+                            "{{ sentence.translated_text }}"
+                        </p>
+                    </div>
+
+                    <!-- Compact Result Widget (Moves inside card) -->
+                    <div id="shadowing-result-box" class="w-full md:w-80 bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4 hidden animate-in slide-in-from-bottom-4 duration-500">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[9px] font-black uppercase text-[#5a6478]">Phản hồi:</span>
+                            <span id="score-display" class="font-black text-2xl text-[#10b981]">0%</span>
+                        </div>
+                        <div id="spoken-text-display" class="text-sm text-[#e8ecf4] leading-relaxed border-t border-white/5 pt-3 mb-4"></div>
+                        
+                        <div class="pt-4 border-t border-white/5">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-[9px] font-black uppercase text-[#5a6478] block">Lịch sử</span>
+                                <button onclick="openHistoryModal()" class="text-[9px] font-bold text-[#6c5ce7] hover:text-[#a78bfa] transition-all uppercase tracking-widest flex items-center gap-1">
+                                    <i data-lucide="history" class="w-2.5 h-2.5"></i>
+                                </button>
+                            </div>
+                            <div id="shadowing-session-history" class="space-y-2 max-h-24 overflow-y-auto scroll-utility pr-2"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 3. Masonry Grid (Pinterest Area) -->
         <div class="masonry-grid">
-            <!-- Shadowing Card (Always prioritized, not expandable) -->
-            <div class="masonry-item space-y-6">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <i data-lucide="mic" class="w-5 h-5 text-[#10b981]"></i>
-                        <h2 class="text-[10px] font-black uppercase tracking-widest text-[#e8ecf4]">Luyện phát âm</h2>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="px-2.5 py-1 rounded-lg bg-teal-500/10 border border-teal-500/20 text-[9px] font-black text-teal-400">
-                            BEST: <span id="stat-best">0</span>%
-                        </div>
-                        <div class="px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-black text-indigo-400">
-                            AVG: <span id="stat-avg">0</span>%
-                        </div>
-                        <div class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[9px] font-black text-[#8892a8]">
-                            X<span id="stat-attempts">0</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex flex-col items-center gap-6 py-4">
-                    <button id="btn-record" class="w-20 h-20 flex items-center justify-center rounded-full bg-[#ef4444]/10 border-2 border-[#ef4444]/20 text-[#ef4444] hover:bg-[#ef4444]/20 transition-all group">
-                        <i data-lucide="mic" class="w-8 h-8 group-hover:scale-110 transition-transform"></i>
-                    </button>
-                    <div id="recording-status" class="text-[10px] font-black text-[#ef4444] animate-pulse hidden uppercase tracking-widest">Đang nghe...</div>
-
-                    <div id="shadowing-result-box" class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4 hidden animate-in zoom-in-95 duration-300">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[10px] font-black uppercase text-[#5a6478]">Phản hồi:</span>
-                            <span id="score-display" class="font-black text-xl text-[#10b981]">0%</span>
-                        </div>
-                        <div id="spoken-text-display" class="text-sm text-[#e8ecf4] leading-relaxed border-t border-white/5 pt-3 mb-4"></div>
-                        
-                        <!-- Local Session History -->
-                        <div class="pt-4 border-t border-white/5">
-                            <div class="flex items-center justify-between mb-3">
-                                <span class="text-[9px] font-black uppercase text-[#5a6478] block">Lịch sử phiên tập</span>
-                                <button onclick="openHistoryModal()" class="text-[9px] font-bold text-[#6c5ce7] hover:text-[#a78bfa] transition-all uppercase tracking-widest flex items-center gap-1">
-                                    <i data-lucide="history" class="w-2.5 h-2.5"></i>
-                                    Xem chi tiết
-                                </button>
-                            </div>
-                            <div id="shadowing-session-history" class="space-y-2 max-h-32 overflow-y-auto scroll-utility pr-2">
-                                <!-- Appended via JS -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
 
             <!-- Grammar Card (Expandable) -->
@@ -664,18 +634,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // ── STICKY SPOTLIGHT SCROLL EFFECT ─────────────────────
-    const spotlightCard = document.querySelector('.sticky-spotlight');
-    if (spotlightCard) {
-        window.addEventListener('scroll', function() {
-            const scrollPos = window.scrollY;
-            if (scrollPos > 40) {
-                spotlightCard.classList.add('is-scrolled');
-            } else if (scrollPos < 20) {
-                spotlightCard.classList.remove('is-scrolled');
-            }
-        });
-    }
+    // AuraFlow Studio Global Page State
+    const sentenceId = {{ sentence.id | tojson }};
+    const originalText = {{ sentence.original_text | tojson }};
+    const analysisData = {{ analysis | tojson }};
+    const langCode = {{ (analysis.get('metadata', {}).get('language_code', 'ja-JP')) | tojson }};
 
     lucide.createIcons();
     
