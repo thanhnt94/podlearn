@@ -4,26 +4,60 @@ from ..models.sentence import Sentence
 
 def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=None, track_mode='mastery_sentence'):
     """
-    Parses a raw JSON string and saves it to the DB as a 'Sentence' record.
-    The primary display fields (original_text, translated_text) are extracted
-    differently based on the track_mode.
+    Parses a raw JSON string (or list) and saves it to the DB as 'Sentence' record(s).
     """
     try:
         if isinstance(json_string, str):
             data = json.loads(json_string)
         else:
-            data = json_string # Fallback if already parsed
+            data = json_string # Already parsed
     except json.JSONDecodeError as e:
         return {'success': False, 'error': f"Invalid JSON format: {str(e)}"}
 
-    # Handle Case if data is a list (take first element)
-    if isinstance(data, list) and len(data) > 0:
-        data = data[0]
+    # Handle Case if data is a list (Batch Import)
+    if isinstance(data, list):
+        if not data:
+            return {'success': False, 'error': "JSON array is empty."}
+        
+        success_count = 0
+        sentence_ids = []
+        errors = []
+        
+        for index, item in enumerate(data):
+            res = _import_single_item(item, user_id, set_id, source_video_id, track_mode)
+            if res.get('success'):
+                success_count += 1
+                sentence_ids.append(res.get('sentence_id'))
+            else:
+                errors.append(f"Item #{index+1}: {res.get('error')}")
+        
+        if success_count > 0:
+            db.session.commit()
+            return {
+                'success': True, 
+                'message': f"Imported {success_count} item(s) successfully!",
+                'count': success_count,
+                'sentence_ids': sentence_ids,
+                'errors': errors
+            }
+        else:
+            return {'success': False, 'error': "Batch import failed.", 'detailed_errors': errors}
+
+    # Handle single item
+    result = _import_single_item(data, user_id, set_id, source_video_id, track_mode)
+    if result.get('success'):
+        db.session.commit()
+    return result
+
+def _import_single_item(data, user_id, set_id, source_video_id, track_mode):
+    """Internal helper to process a single JSON object."""
+    if not data or not isinstance(data, dict):
+        return {'success': False, 'error': "Item is not a valid JSON object."}
 
     original_text = None
     translated_text = None
 
-    # AUTO-DETECTION FALLBACK: If track_mode says sentence but data looks like grammar/vocab
+    # AUTO-DETECTION FALLBACK
     actual_mode = track_mode
     if 'pattern' in data and track_mode == 'mastery_sentence':
         actual_mode = 'mastery_grammar'
@@ -31,43 +65,31 @@ def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=
         actual_mode = 'mastery_vocab'
 
     if actual_mode in ['mastery_grammar', 'grammar']:
-        # Grammar schema uses 'pattern' and 'meaning'
         original_text = data.get('pattern')
         translated_text = data.get('meaning')
     elif actual_mode in ['mastery_vocab', 'vocab']:
-        # Vocabulary schema uses 'word' and 'meaning'
         original_text = data.get('word')
         translated_text = data.get('meaning')
     else:
-        # Default mastery_sentence schema
         core = data.get('core_sentence', {})
         original_text = core.get('original_text')
         translated_text = core.get('translated_text')
 
     if not original_text:
-        error_msg = {
-            'mastery_grammar': "Missing 'pattern' in Grammar JSON.",
-            'mastery_vocab': "Missing 'word' in Vocabulary JSON.",
-            'mastery_sentence': "Missing 'original_text' in core_sentence block."
-        }.get(actual_mode, "Missing primary display text.")
-        
-        # Diagnostic logging for debugging
-        print(f"DEBUG IMPORT: Mode={actual_mode}, DataKeys={list(data.keys())}, OrigText={original_text}")
-        return {'success': False, 'error': error_msg}
+        return {'success': False, 'error': f"Missing primary display text for {actual_mode}."}
 
     # Create Sentence object
-    if not data: data = {}
     new_sentence = Sentence(
         user_id=user_id,
         set_id=set_id,
         original_text=original_text,
         translated_text=translated_text,
-        detailed_analysis=data,  # Store the full JSON (never an empty string)
+        detailed_analysis=data,
         source_video_id=source_video_id
     )
 
     db.session.add(new_sentence)
-    db.session.commit()
+    db.session.flush() # Get the ID without committing yet
 
     return {
         'success': True,

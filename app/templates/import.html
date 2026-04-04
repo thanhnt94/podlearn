@@ -203,10 +203,12 @@
 
             const result = await response.json();
             if (result.success) {
-                showMessage("Đã lưu mẫu câu thành công! Dữ liệu đã sẵn sàng để luyện tập.");
+                const count = result.count || 1;
+                showMessage(`Thành công! Đã nạp ${count} mẫu câu mới vào dữ liệu.`);
                 document.getElementById('json-sentence-input').value = "";
             } else {
-                showMessage(`Lỗi: ${result.error || "Không thể nạp dữ liệu. Kiểm tra định dạng JSON."}`, true);
+                const errorDetail = result.detailed_errors ? "\n- " + result.detailed_errors.join("\n- ") : "";
+                showMessage(`Lỗi: ${result.error || "Không thể nạp dữ liệu."}${errorDetail}`, true);
             }
         } catch (error) {
             showMessage("Hệ thống gặp sự cố khi kết nối. Vui lòng thử lại sau.", true);

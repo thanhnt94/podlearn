@@ -279,6 +279,42 @@ window.onSaveSuccess = function(data) {
         location.reload();
     }
 };
+
+// Batch Import Modal Handler
+document.addEventListener('DOMContentLoaded', () => {
+    const importBtn = document.getElementById('btn-submit-import-json');
+    if (importBtn) {
+        importBtn.addEventListener('click', async () => {
+            const rawText = document.getElementById('import-json-textarea').value.trim();
+            if (!rawText) return alert("Vui lòng dán nội dung JSON.");
+
+            importBtn.disabled = true;
+            const originalText = importBtn.innerText;
+            importBtn.innerText = "Đang xử lý...";
+
+            try {
+                const response = await fetch('/api/sentences/import-json', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': "{{ csrf_token() }}" },
+                    body: JSON.stringify({ json_data: rawText, set_id: setId })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    alert(`Thành công! Đã nạp ${res.count || 1} mẫu câu mới.`);
+                    location.reload();
+                } else {
+                    alert("Lỗi: " + (res.error || "Không thể nạp dữ liệu."));
+                    importBtn.disabled = false;
+                    importBtn.innerText = originalText;
+                }
+            } catch (e) {
+                alert("Lỗi kết nối.");
+                importBtn.disabled = false;
+                importBtn.innerText = originalText;
+            }
+        });
+    }
+});
 </script>
 
 <style>
