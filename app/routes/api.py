@@ -578,14 +578,21 @@ def create_set():
     data = request.get_json() or {}
     title = data.get('title', '').strip()
     description = data.get('description', '').strip()
+    set_type = data.get('set_type', 'mastery_sentence').strip()
 
     if not title:
         return jsonify({'success': False, 'error': 'Title is required'}), 400
 
+    # Strict validation of set_type
+    valid_types = ['mastery_sentence', 'mastery_grammar', 'mastery_vocab']
+    if set_type not in valid_types:
+        set_type = 'mastery_sentence' # Fallback
+
     new_set = SentenceSet(
         user_id=current_user.id,
         title=title,
-        description=description
+        description=description,
+        set_type=set_type
     )
     db.session.add(new_set)
     db.session.commit()
@@ -595,7 +602,8 @@ def create_set():
         'set': {
             'id': new_set.id,
             'title': new_set.title,
-            'description': new_set.description
+            'description': new_set.description,
+            'set_type': new_set.set_type
         }
     })
 
@@ -626,6 +634,30 @@ def delete_set(set_id):
 
 # ── SENTENCE MANAGEMENT ────────────────────────────────────────
 
+@api_bp.route('/sentences', methods=['POST'])
+@login_required
+def create_sentence_api():
+    """Create a new sentence record via JSON, supporting specialized tracks."""
+    data = request.json or {}
+    set_id = data.get('set_id')
+    detailed_analysis = data.get('detailed_analysis', {})
+    source_video_id = data.get('source_video_id')
+
+    if not set_id:
+        return jsonify({'success': False, 'error': 'Target Set ID is required'}), 400
+
+    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
+
+    # Reuse the import service as it handles all the track-aware logic
+    result = import_sentence_from_raw_json(
+        json_string=detailed_analysis,
+        user_id=current_user.id,
+        set_id=set_id,
+        source_video_id=source_video_id,
+        track_mode=s_set.set_type
+    )
+    return jsonify(result)
+
 @api_bp.route('/sentences/import-json', methods=['POST'])
 @login_required
 def import_json_sentence():
@@ -641,13 +673,14 @@ def import_json_sentence():
         return jsonify({'success': False, 'error': 'Target Set ID is required'}), 400
 
     # Ensure the set belongs to the user
-    SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
+    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
 
     result = import_sentence_from_raw_json(
         json_string=json_data,
         user_id=current_user.id,
         set_id=set_id,
-        source_video_id=source_video_id
+        source_video_id=source_video_id,
+        track_mode=s_set.set_type
     )
     return jsonify(result)
 

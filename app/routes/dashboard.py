@@ -107,13 +107,26 @@ def index():
                            sentences_data=sentences_data)
 
 
-@dashboard_bp.route('/sets/<int:set_id>')
+@dashboard_bp.route('/sets/<int:set_id>', endpoint='set_details_legacy')
+@dashboard_bp.route('/sets/<string:mode>/<int:set_id>', endpoint='set_details')
 @login_required
-def set_details(set_id):
-    """View and manage sentences within a specific deck."""
+def set_details(set_id, mode=None):
+    """View and manage sentences within a specific deck with type-aware context."""
     s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
-    sentences = s_set.sentences.order_by(Sentence.created_at.desc()).all()
     
+    # URL Integrity: Redirect to canonical mode-specific URL if accessing via generic or wrong type
+    mode_map = {
+        'mastery_grammar': 'grammar',
+        'mastery_vocab': 'vocab',
+        'mastery_sentence': 'sentence'
+    }
+    expected_mode = mode_map.get(s_set.set_type, 'sentence')
+    
+    # URL Integrity: Redirect to canonical mode-specific URL if path is legacy or mismatched
+    if mode != expected_mode:
+        return redirect(url_for('dashboard.set_details', set_id=set_id, mode=expected_mode))
+
+    sentences = s_set.sentences.order_by(Sentence.created_at.desc()).all()
     return render_template('set_details.html', s_set=s_set, sentences=sentences)
 
 

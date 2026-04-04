@@ -15,13 +15,24 @@
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
-    .masonry-grid {
-        column-count: 3;
-        column-gap: 20px;
+    .mastery-container {
         width: 100%;
+        margin: 0;
+        padding: 1.5rem 2.5rem;
+        display: flex;
+        flex-direction: row; /* Split Layout */
+        gap: 2rem;
+        height: calc(100vh - 84px);
+        overflow: hidden;
     }
-    @media (max-width: 992px) { .masonry-grid { column-count: 2; } }
-    @media (max-width: 768px) { .masonry-grid { column-count: 1; } }
+    @media (max-width: 1024px) {
+        .mastery-container { flex-direction: row; gap: 1rem; }
+        .masonry-grid { column-count: 2 !important; }
+    }
+    @media (max-width: 768px) {
+        .mastery-container { flex-direction: column; overflow-y: auto; height: auto; }
+        .masonry-grid { column-count: 1 !important; }
+    }
 
     .masonry-item {
         break-inside: avoid;
@@ -102,34 +113,77 @@
     .scroll-utility::-webkit-scrollbar { width: 4px; }
     .scroll-utility::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     
-    /* 1. Thẻ Câu chính (Standard View) */
+    /* 1. Thẻ Câu chính (Premium Glassmorphism) */
     .sentence-spotlight {
-        background: rgba(17, 24, 39, 0.5);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 40px;
-        padding: 2rem 2.5rem;
-        margin-bottom: 2rem;
+        background: rgba(15, 23, 42, 0.4);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 48px;
+        padding: 4rem 2.5rem;
         position: relative;
-        overflow: visible; /* Cho shadow lọt ra ngoài */
-        transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden; 
+        transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+        flex: 0 0 450px; /* Fixed side spotlight */
+        display: flex; flex-direction: column; justify-content: center;
+        align-self: flex-start;
+        box-shadow: 
+            0 50px 100px -20px rgba(0,0,0,0.7),
+            inset 0 0 80px rgba(99, 102, 241, 0.05); /* Soft indigo inner glow */
+    }
+    .sentence-spotlight:hover {
+        transform: translateY(-5px);
+        border-color: rgba(99, 102, 241, 0.3);
+        box-shadow: 
+            0 70px 120px -20px rgba(0,0,0,0.8),
+            0 0 40px rgba(99, 102, 241, 0.1);
+    }
+
+    .spotlight-watermark {
+        position: absolute;
+        bottom: -5%;
+        left: -5%;
+        font-size: 20rem;
+        font-weight: 900;
+        color: rgba(99, 102, 241, 0.04);
+        pointer-events: none;
+        user-select: none;
+        z-index: 0;
+        font-family: serif;
+    }
+
+    .sentence-spotlight::before {
+        content: ''; position: absolute; top: -10%; right: -10%;
+        width: 100%; height: 100%;
+        background: radial-gradient(circle at 70% 30%, rgba(99, 102, 241, 0.1), transparent 70%);
+        pointer-events: none;
+        z-index: 1;
     }
 
     .spotlight-actions {
+        position: relative;
+        z-index: 2;
         display: flex;
         align-items: center;
         gap: 12px;
-        background: rgba(0, 0, 0, 0.4);
-        padding: 8px;
-        border-radius: 20px;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 10px;
+        border-radius: 24px;
         border: 1px solid rgba(255,255,255,0.05);
         backdrop-filter: blur(10px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     }
 
     .jp-text ruby {
-        font-size: 3.5rem !important; /* To nhất */
-        line-height: normal;
+        font-size: 3rem !important; 
+        line-height: 1.2;
+        color: white;
+        text-shadow: 0 0 40px rgba(255, 255, 255, 0.15);
+        position: relative;
+        z-index: 2;
     }
-    @media (min-width: 1200px) { .jp-text ruby { font-size: 4.5rem !important; } }
+    @media (min-width: 1200px) { .jp-text ruby { font-size: 3.5rem !important; } }
 
     .translated-text-display p {
         font-size: 1rem !important; /* Nhỏ lại */
@@ -138,44 +192,45 @@
         letter-spacing: 0.5px;
     }
 
-    /* 2. Playlist Drawer (Ngăn kéo bên phải) */
+    /* 2. Playlist Drawer (Standardized Version) */
     .playlist-drawer {
-        position: fixed;
-        top: 120px;
-        right: -300px; /* Ẩn phần nội dung đi, chỉ chừa lại handle */
-        width: 340px;
-        height: calc(100vh - 140px);
-        background: rgba(30, 41, 59, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 16px 0 0 16px;
-        border: 1px solid rgba(255,255,255,0.1);
-        border-right: none;
-        z-index: 1040;
+        position: fixed; top: 0; right: -350px;
+        width: 350px; height: 100vh;
+        background: #0d111d;
+        border-left: 1px solid rgba(255,255,255,0.05);
+        z-index: 2000;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
-        transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: -5px 0 25px rgba(0,0,0,0.5);
     }
-
-    /* Vùng lồi ra để user rê chuột vào */
-    .drawer-handle {
-        width: 40px;
+    .playlist-drawer.is-open { right: 0; box-shadow: -20px 0 60px rgba(0,0,0,0.5); }
+    
+    .masonry-column-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+    .masonry-grid {
+        column-count: 2;
+        column-gap: 20px;
+        width: 100%;
+    }
+    .drawer-handle:hover { 
+        width: 56px; left: -56px;
         background: #6c5ce7;
-        color: white;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding-top: 20px;
-        cursor: pointer;
-        border-radius: 16px 0 0 16px;
+        box-shadow: -15px 0 40px rgba(108, 92, 231, 0.4);
     }
-    .drawer-handle .vertical-text {
+    .drawer-handle i { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+    
+    .drawer-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .vertical-text {
         writing-mode: vertical-rl;
         text-orientation: mixed;
-        margin-top: 20px;
-        font-weight: 600;
-        letter-spacing: 2px;
-        font-size: 12px;
+        font-size: 10px; font-weight: 900;
+        letter-spacing: 4px; transform: rotate(180deg);
+        text-transform: uppercase; opacity: 0.9;
     }
+    .active-p-item { background: rgba(108,92,231,0.1) !important; border-color: rgba(108, 92, 231, 0.2) !important; }
 
     .drawer-content {
         flex: 1;
@@ -196,24 +251,32 @@
 <div class="min-h-screen bg-[#0a0e1a] text-[#e8ecf4] font-['Inter'] flex flex-col">
     <!-- 1. Sticky Header -->
     <header class="sticky-header">
-        <div class="max-w-[1600px] mx-auto px-6 flex items-center justify-between">
+        <div class="px-10 flex items-center justify-between">
             <!-- Left: Back & Breadcrumb -->
             <div class="flex items-center gap-4">
-                <a href="{{ url_for('dashboard.set_details', set_id=sentence.set_id) }}" class="p-2 rounded-xl bg-white/5 text-[#8892a8] hover:text-white transition-all">
+                {% set mode_map = {'mastery_grammar': 'grammar', 'mastery_vocab': 'vocab', 'mastery_sentence': 'sentence'} %}
+                {% set current_mode = mode_map.get(sentence.sentence_set.set_type, 'sentence') %}
+                <a href="{{ url_for('dashboard.set_details', set_id=sentence.set_id, mode=current_mode) }}" class="p-2 rounded-xl bg-white/5 text-[#8892a8] hover:text-white transition-all">
                     <i data-lucide="arrow-left" class="w-5 h-5"></i>
                 </a>
                 <div class="hidden sm:block">
-                    <span class="text-[10px] font-black uppercase tracking-widest text-[#5a6478] block">STUDIO VIEW</span>
+                    {% if sentence.sentence_set.set_type == 'mastery_grammar' %}
+                        <span class="text-[10px] font-black uppercase tracking-widest text-rose-500 block">NGỮ PHÁP CHUYÊN SÂU</span>
+                    {% elif sentence.sentence_set.set_type == 'mastery_vocab' %}
+                        <span class="text-[10px] font-black uppercase tracking-widest text-teal-400 block">TỪ VỰNG TRỌNG TÂM</span>
+                    {% else %}
+                        <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400 block">MẪU CÂU PHÂN TÍCH</span>
+                    {% endif %}
                     <h2 class="text-xs font-bold truncate max-w-[150px]">{{ sentence.sentence_set.title }}</h2>
                 </div>
             </div>
 
             <!-- Middle: Quick Controls -->
             <div class="flex items-center gap-2 bg-black/40 p-1 rounded-2xl border border-white/5">
-                <button onclick="toggleQuickAdd(true)" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase text-[#8892a8] hover:text-[#a78bfa] hover:bg-[#6c5ce7]/10 transition-all flex items-center gap-2">
+                <button onclick="openEditor('add')" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase text-[#8892a8] hover:text-[#a78bfa] hover:bg-[#6c5ce7]/10 transition-all flex items-center gap-2">
                     <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nhập câu
                 </button>
-                <button onclick="openEditModal(sentenceId)" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase text-[#8892a8] hover:text-[#a78bfa] hover:bg-[#6c5ce7]/10 transition-all flex items-center gap-2">
+                <button onclick="openEditor('edit', sentenceId)" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase text-[#8892a8] hover:text-[#a78bfa] hover:bg-[#6c5ce7]/10 transition-all flex items-center gap-2">
                     <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Sửa câu
                 </button>
                 <div class="w-px h-4 bg-white/10 mx-1"></div>
@@ -229,11 +292,12 @@
             <!-- Right: Pagination -->
             <div class="flex items-center gap-2">
                 <div class="flex bg-black/40 p-1 rounded-xl border border-white/5">
-                    <a href="{{ url_for('practice.sentence_practice', sentence_id=prev_id) if prev_id else '#' }}" 
+                    {% set nav_mode = mode_map.get(sentence.sentence_set.set_type, 'sentence') %}
+                    <a href="{{ url_for('practice.sentence_practice', sentence_id=prev_id, mode=nav_mode) if prev_id else '#' }}" 
                        class="w-9 h-9 flex items-center justify-center rounded-lg transition-all {% if not prev_id %}opacity-20 cursor-not-allowed{% else %}text-[#8892a8] hover:bg-white/10 hover:text-white{% endif %}">
                         <i data-lucide="chevron-left" class="w-4 h-4"></i>
                     </a>
-                    <a href="{{ url_for('practice.sentence_practice', sentence_id=next_id) if next_id else '#' }}" 
+                    <a href="{{ url_for('practice.sentence_practice', sentence_id=next_id, mode=nav_mode) if next_id else '#' }}" 
                        class="w-9 h-9 flex items-center justify-center rounded-lg transition-all {% if not next_id %}opacity-20 cursor-not-allowed{% else %}text-[#8892a8] hover:bg-white/10 hover:text-white{% endif %}">
                         <i data-lucide="chevron-right" class="w-4 h-4"></i>
                     </a>
@@ -243,9 +307,10 @@
     </header>
 
     <!-- Main Workspace -->
-    <main class="flex-1 max-w-[1600px] mx-auto w-full px-6 py-8 space-y-8">
-        <!-- 2. Main Spotlight Card -->
-        <div id="sentence-container-hero" class="sentence-spotlight shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl relative group">
+    <main class="mastery-container">
+        <!-- 1. Left Spotlight -->
+        <section id="sentence-container-hero" class="sentence-spotlight shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-xl relative group">
+            <div class="spotlight-watermark">句</div>
             <div class="absolute -top-32 -right-32 w-80 h-80 bg-[#6c5ce7]/10 blur-[120px] rounded-full pointer-events-none transition-all group-hover:bg-[#6c5ce7]/20"></div>
             
             <!-- Spotlight Header: Stats & Actions -->
@@ -281,22 +346,58 @@
 
             <div class="relative">
                 <div class="jp-text flex flex-wrap items-end justify-start gap-x-6 gap-y-10 mb-8 sentence-container">
+                    {% set track_type = sentence.sentence_set.set_type %}
                     {% set tokens = analysis.color_mapped_tokens or analysis.get('linguistic_analysis', {}).get('color_mapped_tokens', []) %}
-                    {% for token in tokens %}
-                    <div class="flex flex-col items-center group/token {% if token.is_blank %}is-blank-true{% endif %}">
-                        <div class="token-display p-3 rounded-2xl transition-all duration-300 color-group-{{ token.color_group }}">
-                            <ruby class="font-black tracking-wider">
-                                {{ token.source_word }}
-                                {% if token.reading and token.reading != token.source_word %}
-                                <rt class="mb-2 opacity-70 serif text-sm tracking-normal">{{ token.reading }}</rt>
+                    
+                    {% if tokens %}
+                        {% for token in tokens %}
+                        <div class="flex flex-col items-center group/token {% if token.is_blank %}is-blank-true{% endif %}">
+                            <div class="token-display p-3 rounded-2xl transition-all duration-300 color-group-{{ token.color_group }}">
+                                <ruby class="font-black tracking-wider">
+                                    {{ token.source_word }}
+                                    {% if token.reading and token.reading != token.source_word %}
+                                    <rt class="mb-2 opacity-70 serif text-sm tracking-normal">{{ token.reading }}</rt>
+                                    {% endif %}
+                                </ruby>
+                            </div>
+                            <div class="vi-text mt-4 text-[10px] font-black px-3 py-1 bg-white/5 rounded-lg border border-white/5 opacity-60 color-group-{{ token.color_group }} translation-text uppercase tracking-widest">
+                                {{ token.target_word if token.target_word else '-' }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="w-full">
+                            {% if track_type == 'mastery_grammar' and analysis.pattern %}
+                                <div class="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-4 flex items-center gap-2">
+                                    <i data-lucide="layers" class="w-3 h-3"></i> Mẫu cấu trúc chuyên sâu
+                                </div>
+                                <h1 class="text-6xl md:text-7xl font-black text-white leading-tight tracking-tight mb-4">
+                                    {{ analysis.pattern }}
+                                </h1>
+                            {% elif track_type == 'mastery_vocab' and analysis.word %}
+                                <div class="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-2 flex items-center gap-2">
+                                    <i data-lucide="book" class="w-3 h-3"></i> Từ vựng trọng tâm
+                                </div>
+                                <div class="flex items-baseline gap-6 mb-4">
+                                    <h1 class="text-6xl md:text-8xl font-black text-white leading-tight tracking-tight">
+                                        {{ analysis.word }}
+                                    </h1>
+                                    <span class="text-2xl text-white/40 italic font-medium serif tracking-wide">
+                                        {{ analysis.reading }}
+                                    </span>
+                                </div>
+                            {% else %}
+                                <h1 class="text-5xl md:text-6xl font-black text-white leading-tight tracking-tight mb-4">
+                                    {{ sentence.original_text }}
+                                </h1>
+                                {% if sentence.detailed_analysis and sentence.detailed_analysis.romaji %}
+                                <div class="text-xl text-white/40 italic font-medium serif tracking-wide">
+                                    {{ sentence.detailed_analysis.romaji }}
+                                </div>
                                 {% endif %}
-                            </ruby>
+                            {% endif %}
                         </div>
-                        <div class="vi-text mt-4 text-[10px] font-black px-3 py-1 bg-white/5 rounded-lg border border-white/5 opacity-60 color-group-{{ token.color_group }} translation-text uppercase tracking-widest">
-                            {{ token.target_word if token.target_word else '-' }}
-                        </div>
-                    </div>
-                    {% endfor %}
+                    {% endif %}
                 </div>
                 
                 <div class="flex flex-col md:flex-row items-end justify-between pt-8 border-t border-white/5 gap-8">
@@ -326,11 +427,141 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <!-- 3. Masonry Grid (Pinterest Area) -->
-        <div class="masonry-grid">
+        <!-- 2. Right Analysis Panel (Scrollable Masonry) -->
+        <section class="masonry-column-scroll scroll-utility">
+            <div class="masonry-grid">
+            {% set track_type = sentence.sentence_set.set_type %}
+            
+            <!-- MASTER CARD: Grammar Track -->
+            {% if track_type == 'mastery_grammar' and analysis.pattern %}
+            <div class="masonry-item border border-rose-500/20 bg-rose-500/[0.02]">
+                <div class="flex items-center gap-3 text-rose-400 mb-8">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                    <span class="text-[11px] font-black uppercase tracking-widest text-[#e8ecf4]">Chi tiết cấu trúc</span>
+                </div>
+                
+                <div class="space-y-8">
+                    <div>
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-1.5 opacity-50">Ý nghĩa chính</span>
+                        <p class="text-lg font-bold text-white">{{ analysis.meaning }}</p>
+                    </div>
 
+                    {% if analysis.formation %}
+                    <div>
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-3 opacity-50">Cấu trúc chia (Formation)</span>
+                        <div class="p-4 bg-black/40 border border-white/5 rounded-2xl font-mono text-[11px] text-rose-200/80 leading-relaxed whitespace-pre-wrap">{{ analysis.formation }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if analysis.signal_words %}
+                    <div>
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-1.5 opacity-50">Dấu hiệu nhận biết</span>
+                        <p class="text-sm text-[#8892a8] italic font-medium">"{{ analysis.signal_words }}"</p>
+                    </div>
+                    {% endif %}
+
+                    {% if analysis.nuance or analysis.points_to_note %}
+                    <div class="p-6 rounded-[28px] bg-rose-500/10 border border-rose-500/10">
+                        <span class="text-rose-400 text-[10px] font-black uppercase tracking-widest block mb-2">Lưu ý & Sắc thái</span>
+                        <div class="text-xs text-[#e8ecf4] leading-relaxed font-medium space-y-4">
+                            {% if analysis.nuance %}<p>{{ analysis.nuance }}</p>{% endif %}
+                            {% if analysis.points_to_note %}<p class="p-3 bg-black/20 rounded-xl border border-white/5 border-l-4 border-l-rose-500 text-rose-200/70 italic">* {{ analysis.points_to_note }}</p>{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="mt-8 pt-8 border-t border-white/5 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 rounded bg-rose-500/20 text-rose-400 text-[10px] font-black border border-rose-500/30 tracking-widest">{{ analysis.jlpt_level or 'JLPT' }}</span>
+                    </div>
+                    <span class="text-[9px] font-black text-[#5a6478] uppercase">AuraFlow Mastery</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- MASTER CARD: Vocabulary Track -->
+            {% if track_type == 'mastery_vocab' and analysis.word %}
+            <div class="masonry-item border border-teal-500/20 bg-teal-500/[0.02]">
+                <div class="flex items-center gap-3 text-teal-400 mb-8">
+                    <i data-lucide="book" class="w-5 h-5"></i>
+                    <span class="text-[11px] font-black uppercase tracking-widest text-[#e8ecf4]">Giải phẫu từ vựng</span>
+                </div>
+                
+                <div class="space-y-8">
+                    <div>
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-1.5 opacity-50">Nghĩa tiếng Việt</span>
+                        <p class="text-xl font-bold text-white">{{ analysis.meaning }}</p>
+                    </div>
+
+                    {% if analysis.kanji_breakdown %}
+                    <div>
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-3 opacity-50">Chiết tự Hán tự</span>
+                        <div class="p-4 bg-black/40 border border-white/5 rounded-2xl text-[11px] text-[#e8ecf4] leading-relaxed whitespace-pre-wrap">{{ analysis.kanji_breakdown }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if analysis.mnemonic %}
+                    <div class="p-6 rounded-[28px] bg-teal-500/10 border border-teal-500/10">
+                        <span class="text-teal-400 text-[10px] font-black uppercase tracking-widest block mb-2">Mẹo ghi nhớ</span>
+                        <p class="text-xs text-[#e8ecf4] leading-relaxed font-medium italic">"{{ analysis.mnemonic }}"</p>
+                    </div>
+                    {% endif %}
+
+                    {% if analysis.collocations %}
+                    <div>
+                        <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-2 opacity-50">Collocations</span>
+                        <div class="flex flex-wrap gap-2">
+                            {% for coll in (analysis.collocations.split('\n') if analysis.collocations and '\n' in analysis.collocations else [analysis.collocations] if analysis.collocations else []) %}
+                            <span class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[11px] text-teal-100/60 transition-all hover:bg-teal-500/10">{{ coll }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="mt-8 pt-8 border-t border-white/5 flex items-center justify-between">
+                    <span class="px-2 py-1 rounded bg-teal-500/20 text-teal-400 text-[10px] font-black border border-teal-500/30 tracking-widest">{{ analysis.jlpt_level or 'JLPT' }}</span>
+                    <span class="text-[9px] font-black text-[#5a6478] uppercase">Vocab Mastery</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Standard Grammar Card (Legacy/Fallback) -->
+            {% if sentence.grammars %}
+            {% for grammar in sentence.grammars %}
+            <div class="masonry-item expandable-card border border-indigo-500/20">
+                <div class="flex items-center gap-3 text-indigo-400 mb-6">
+                    <i data-lucide="layers" class="w-4 h-4"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-[#e8ecf4]">Ngữ pháp liên quan</span>
+                </div>
+                <div class="p-4 rounded-2xl mb-6 bg-indigo-500/10 border border-indigo-500/10">
+                    <h5 class="text-indigo-400 mb-2 font-black text-sm uppercase tracking-tight">{{ grammar.pattern }}</h5>
+                    <p class="mb-0 text-[#e8ecf4] text-xs leading-relaxed font-medium">{{ grammar.meaning }}</p>
+                </div>
+                <div class="card-content">
+                    <div class="mb-5 space-y-4">
+                        {% if grammar.nuance %}
+                        <div>
+                            <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-2">Cách dùng / Sắc thái:</span>
+                            <p class="text-xs text-[#8892a8] leading-relaxed italic">{{ grammar.nuance }}</p>
+                        </div>
+                        {% endif %}
+                        {% if grammar.formation %}
+                        <div>
+                            <span class="text-[#5a6478] text-[9px] font-black uppercase tracking-widest block mb-2">Cấu trúc:</span>
+                            <div class="px-3 py-2 bg-white/5 rounded-lg border border-white/5 text-[11px] text-white/80 font-mono">
+                                {{ grammar.formation }}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
 
             <!-- Grammar Card (Expandable) -->
             <!-- Grammar Anatomy Card (Expandable) -->
@@ -456,6 +687,64 @@
             </div>
             {% endif %}
 
+            <!-- DB-based Vocabulary Card -->
+            {% if sentence.vocabularies %}
+            <div class="masonry-item expandable-card border border-teal-500/20">
+                <div class="flex items-center gap-3 text-teal-400 mb-6">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-[#e8ecf4]">Từ vựng trọng tâm (Mastery)</span>
+                </div>
+                <div class="card-content">
+                    <div class="space-y-3">
+                        {% for vocab in sentence.vocabularies %}
+                        <div class="group/vocab bg-white/5 hover:bg-white/[0.08] p-4 rounded-2xl border border-white/5 transition-all">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-baseline gap-3">
+                                    <span class="text-base font-bold text-white">{{ vocab.word }}</span>
+                                    <span class="text-[10px] text-white/40 italic">{{ vocab.reading }}</span>
+                                </div>
+                                <span class="px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-400 text-[9px] font-black uppercase">{{ vocab.jlpt_level }}</span>
+                            </div>
+                            <p class="text-[11px] text-teal-200/70 font-medium mb-3">{{ vocab.meaning }}</p>
+                            
+                            {% if vocab.kanji_breakdown or vocab.mnemonic %}
+                            <div class="pt-3 border-t border-white/5 space-y-2">
+                                {% if vocab.kanji_breakdown %}
+                                <div class="flex gap-2">
+                                    <span class="text-[8px] font-black text-white/20 uppercase">Hán tự:</span>
+                                    <span class="text-[10px] text-white/50 leading-tight">{{ vocab.kanji_breakdown }}</span>
+                                </div>
+                                {% endif %}
+                                {% if vocab.mnemonic %}
+                                <div class="flex gap-2">
+                                    <span class="text-[8px] font-black text-white/20 uppercase">Mẹo:</span>
+                                    <span class="text-[10px] text-white/50 italic leading-tight">{{ vocab.mnemonic }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- DB-based Analysis Notes Card -->
+            {% if sentence.analysis_note %}
+            <div class="masonry-item expandable-card border border-amber-500/20">
+                <div class="flex items-center gap-3 text-amber-400 mb-6">
+                    <i data-lucide="info" class="w-4 h-4"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-[#e8ecf4]">Phân tích bổ sung</span>
+                </div>
+                <div class="card-content">
+                    <p class="text-xs text-amber-100/70 leading-relaxed font-medium">
+                        {{ sentence.analysis_note }}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Culture Card (Expandable) -->
             {% set culture = analysis.get('cultural_note') or analysis.get('cognitive_assets', {}).get('cultural_note') %}
             {% if culture %}
@@ -478,7 +767,8 @@
                 </div>
             </div>
             {% endif %}
-        </div>
+            </div> <!-- /masonry-grid -->
+        </section> <!-- /right-col -->
     </main>
 </div>
     </div>
@@ -488,7 +778,7 @@
 <div id="quick-add-modal" class="hidden fixed inset-0 z-[2000] items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
     <div class="relative w-full max-w-lg bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl p-10 flex flex-col">
         <div class="flex items-center justify-between mb-8">
-            <h3 class="text-2xl font-bold">Thêm mẫu câu nhanh</h3>
+            <h3 class="text-2xl font-bold">Thêm mẫu câu nhanh (Legacy)</h3>
             <button onclick="toggleQuickAdd(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
                 <i data-lucide="x" class="w-6 h-6"></i>
             </button>
@@ -516,78 +806,8 @@
     </div>
 </div>
 
-<!-- Modal: Edit Sentence (Shadow Editor) -->
-<div id="edit-modal" class="hidden fixed inset-0 z-[3000] items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-    <div class="relative w-full max-w-5xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
-        <!-- Modal Header & Tabs -->
-        <div class="p-8 border-b border-white/5 bg-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-                <h3 class="text-xl font-bold">Chỉnh sửa mẫu câu <span class="text-[#6c5ce7]">AuraFlow</span></h3>
-                <p class="text-[10px] uppercase tracking-widest text-[#5a6478] font-bold mt-1">Shadow Editor v2.0</p>
-            </div>
-            
-            <div class="flex items-center bg-black/40 p-1 rounded-2xl border border-white/5">
-                <button onclick="switchEditTab('form')" id="tab-btn-form" class="px-6 py-2 rounded-xl text-xs font-bold transition-all bg-[#6c5ce7] text-white">BIỂU MẪU</button>
-                <button onclick="switchEditTab('json')" id="tab-btn-json" class="px-6 py-2 rounded-xl text-xs font-bold transition-all text-[#8892a8] hover:text-white">JSON (NÂNG CAO)</button>
-            </div>
-
-            <button onclick="toggleEditModal(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-        </div>
-
-        <!-- Modal Content (Scrollable) -->
-        <div class="flex-1 overflow-y-auto p-10 space-y-10" id="edit-content-form">
-            <!-- Section: Core Sentence -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="space-y-3">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Câu gốc (Original)</label>
-                    <input type="text" id="edit-form-original" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:outline-none focus:border-[#6c5ce7]/50 transition-all font-medium">
-                </div>
-                <div class="space-y-3">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Bản dịch (Translation)</label>
-                    <input type="text" id="edit-form-translation" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:outline-none focus:border-[#6c5ce7]/50 transition-all font-medium">
-                </div>
-            </div>
-
-            <!-- Section: Token Manager -->
-            <div class="space-y-6">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Phân tích chi tiết (Tokens)</label>
-                    <button onclick="addTokenRow()" class="text-[10px] font-bold text-[#6c5ce7] hover:text-[#a78bfa] transition-all flex items-center gap-2 uppercase tracking-widest">
-                        <i data-lucide="plus" class="w-3 h-3"></i>
-                        Thêm từ vựng
-                    </button>
-                </div>
-                
-                <div id="token-rows-container" class="space-y-3">
-                    <!-- Dynamic Rows Go Here -->
-                </div>
-            </div>
-
-            <!-- Section: Pragmatics -->
-            <div class="space-y-3 p-6 rounded-3xl bg-white/[0.02] border border-white/5">
-                <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478] mb-2 inline-block">Sắc thái ngữ pháp (Pragmatics)</label>
-                <textarea id="edit-form-nuance" rows="3" class="w-full bg-transparent border-none p-0 focus:ring-0 text-sm text-[#8892a8] leading-relaxed resize-none" placeholder="Nhập lưu ý về cách dùng, sắc thái..."></textarea>
-            </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-10 hidden" id="edit-content-json">
-            <div class="bg-[#0a0e1a] rounded-3xl p-6 border border-white/5 h-full">
-                <textarea id="edit-json-input" class="w-full h-[400px] bg-transparent text-[#a78bfa] text-xs font-mono leading-relaxed focus:outline-none resize-none"></textarea>
-            </div>
-        </div>
-
-        <!-- Modal Footer -->
-        <div class="p-8 border-t border-white/5 bg-white/5 flex justify-end gap-4">
-            <button onclick="toggleEditModal(false)" class="px-8 py-3 rounded-2xl font-bold text-[#8892a8] hover:bg-white/5 transition-all">Hủy bỏ</button>
-            <button id="btn-save-edit" class="px-10 py-3 bg-[#6c5ce7] text-white rounded-2xl font-bold hover:shadow-[0_0_30px_rgba(108,92,231,0.3)] transition-all flex items-center gap-2">
-                <i data-lucide="check" class="w-5 h-5"></i>
-                Lưu thay đổi
-            </button>
-        </div>
-    </div>
-</div>
+<!-- Includes -->
+{% include "includes/shadow_editor.html" %}
 
 <!-- Modal: Shadowing Detailed History -->
 <div id="history-modal" class="hidden fixed inset-0 z-[4000] items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
@@ -633,32 +853,40 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
     // AuraFlow Studio Global Page State
     const sentenceId = {{ sentence.id | tojson }};
+    const setId = {{ (sentence.set_id) | tojson }};
+    const trackMode = {{ (sentence.sentence_set.set_type) | tojson }};
     const originalText = {{ sentence.original_text | tojson }};
-    const analysisData = {{ analysis | tojson }};
+    const analysisData = {{ analysis | tojson | safe }};
     const langCode = {{ (analysis.get('metadata', {}).get('language_code', 'ja-JP')) | tojson }};
 
-    lucide.createIcons();
-    
     let currentEditId = sentenceId;
+    let editorMode = 'edit';
     let currentEditData = JSON.parse(JSON.stringify(analysisData));
     let activeEditTab = 'form';
 
+    // Helper for editor CSRF
+    const getCsrfToken = () => "{{ csrf_token() }}";
+
+    document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+
+        // Drawer Logic
+        const drawer = document.getElementById('playlist-drawer');
+        const toggle = document.getElementById('drawer-toggle');
+        
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                drawer.classList.toggle('is-open');
+                localStorage.setItem('aura-drawer-open', drawer.classList.contains('is-open'));
+            });
+            if (localStorage.getItem('aura-drawer-open') === 'true') {
+                drawer.classList.add('is-open');
+            }
+        }
+
     // ── MODAL TOGGLES ──────────────────────────────────────────
-    window.toggleQuickAdd = function(show) {
-        const modal = document.getElementById('quick-add-modal');
-        if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
-        else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    };
-
-    window.toggleEditModal = function(show) {
-        const modal = document.getElementById('edit-modal');
-        if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
-        else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    };
-
     window.toggleHistoryModal = function(show) {
         const modal = document.getElementById('history-modal');
         if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
@@ -679,7 +907,6 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const res = await fetch(`/api/sentences/${sentenceId}/shadowing-history`);
             const data = await res.json();
-            
             if (data.history && data.history.length > 0) {
                 empty.classList.add('hidden');
                 body.innerHTML = data.history.map(item => `
@@ -704,126 +931,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         lucide.createIcons();
     }
-
-    window.openEditModal = function(id) {
-        currentEditId = id;
-        currentEditData = JSON.parse(JSON.stringify(analysisData));
-        document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
-        syncJsonToForm();
-        switchEditTab('form');
-        toggleEditModal(true);
-    };
-
-    // ── SHADOW EDITOR LOGIC ──────────────────────────────────────
-    window.switchEditTab = function(tab) {
-        activeEditTab = tab;
-        const formBtn = document.getElementById('tab-btn-form');
-        const jsonBtn = document.getElementById('tab-btn-json');
-        const formContent = document.getElementById('edit-content-form');
-        const jsonContent = document.getElementById('edit-content-json');
-
-        if (tab === 'form') {
-            const rawJson = document.getElementById('edit-json-input').value;
-            try {
-                currentEditData = JSON.parse(rawJson);
-                syncJsonToForm();
-                formBtn.classList.add('bg-[#6c5ce7]', 'text-white');
-                formBtn.classList.remove('text-[#8892a8]');
-                jsonBtn.classList.remove('bg-[#6c5ce7]', 'text-white');
-                jsonBtn.classList.add('text-[#8892a8]');
-                formContent.classList.remove('hidden');
-                jsonContent.classList.add('hidden');
-            } catch (e) {
-                alert("Dữ liệu JSON không hợp lệ.");
-                activeEditTab = 'json';
-            }
-        } else {
-            syncFormToJson();
-            jsonBtn.classList.add('bg-[#6c5ce7]', 'text-white');
-            jsonBtn.classList.remove('text-[#8892a8]');
-            formBtn.classList.remove('bg-[#6c5ce7]', 'text-white');
-            formBtn.classList.add('text-[#8892a8]');
-            jsonContent.classList.remove('hidden');
-            formContent.classList.add('hidden');
-        }
-    };
-
-    function syncJsonToForm() {
-        document.getElementById('edit-form-original').value = currentEditData.core_sentence?.original_text || "";
-        document.getElementById('edit-form-translation').value = currentEditData.core_sentence?.translated_text || "";
-        document.getElementById('edit-form-nuance').value = currentEditData.usage_context?.nuance || currentEditData.pragmatics?.nuance || currentEditData.pragmatics || "";
-        
-        const container = document.getElementById('token-rows-container');
-        container.innerHTML = "";
-        (currentEditData.color_mapped_tokens || []).forEach(t => addTokenRow(t));
-        lucide.createIcons();
-    }
-
-    window.addTokenRow = function(data = null) {
-        const container = document.getElementById('token-rows-container');
-        const row = document.createElement('div');
-        row.className = "token-row grid grid-cols-12 gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 items-center group";
-        row.innerHTML = `
-            <div class="col-span-3"><input type="text" placeholder="Hán tự" class="t-source w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.source_word || ''}"></div>
-            <div class="col-span-3"><input type="text" placeholder="Cách đọc" class="t-reading w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.reading || ''}"></div>
-            <div class="col-span-3"><input type="text" placeholder="Nghĩa" class="t-target w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.target_word || ''}"></div>
-            <div class="col-span-2">
-                <select class="t-color w-full bg-black/20 border border-white/5 rounded-lg p-2 text-xs">
-                    <option value="none" ${!data || data.color_group === 'none' ? 'selected' : ''}>Trắng</option>
-                    ${[1,2,3,4,5,6,7].map(n => `<option value="${n}" ${data?.color_group == n ? 'selected' : ''}>Màu ${n}</option>`).join('')}
-                </select>
-            </div>
-            <div class="col-span-1 text-right">
-                <button onclick="this.closest('.token-row').remove()" class="p-2 text-[#5a6478] hover:text-red-500 opacity-0 group-hover:opacity-100"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-            </div>
-        `;
-        container.appendChild(row);
-        lucide.createIcons();
-    };
-
-    function syncFormToJson() {
-        const tokens = [];
-        document.querySelectorAll('.token-row').forEach(row => {
-            tokens.push({
-                source_word: row.querySelector('.t-source').value,
-                reading: row.querySelector('.t-reading').value,
-                target_word: row.querySelector('.t-target').value,
-                color_group: row.querySelector('.t-color').value
-            });
-        });
-
-        currentEditData = {
-            ...currentEditData,
-            core_sentence: {
-                original_text: document.getElementById('edit-form-original').value,
-                translated_text: document.getElementById('edit-form-translation').value
-            },
-            color_mapped_tokens: tokens,
-            usage_context: { nuance: document.getElementById('edit-form-nuance').value }
-        };
-        document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
-    }
-
-    document.getElementById('btn-save-edit').addEventListener('click', async () => {
-        if (activeEditTab === 'form') syncFormToJson();
-        else {
-            try { currentEditData = JSON.parse(document.getElementById('edit-json-input').value); }
-            catch (e) { return alert("JSON không hợp lệ."); }
-        }
-
-        try {
-            const response = await fetch(`/api/sentences/${currentEditId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-                body: JSON.stringify({
-                    original_text: currentEditData.core_sentence?.original_text,
-                    translated_text: currentEditData.core_sentence?.translated_text,
-                    detailed_analysis: currentEditData
-                })
-            });
-            if ((await response.json()).success) location.reload();
-        } catch (e) { alert("Lỗi khi lưu."); }
-    });
 
     // ── CORE TOOLS ─────────────────────────────────────────────
     const toggleCloze = document.getElementById('toggle-cloze');
@@ -930,15 +1037,19 @@ function getCsrfToken() { return document.querySelector('input[name="csrf_token"
 
 <!-- Playlist Drawer (Ngăn kéo bên phải) -->
 <div id="playlist-drawer" class="playlist-drawer">
-    <div class="drawer-handle">
+    <div class="drawer-handle" id="drawer-toggle">
         <i data-lucide="list-video" class="w-5 h-5"></i>
-        <span class="vertical-text">PLAYLIST</span>
+        <span class="vertical-text">MASTER LIST</span>
     </div>
     <div class="drawer-content">
-        <h6 class="text-[10px] font-black uppercase text-[#5a6478] mb-4 tracking-widest">Danh sách câu ({{ set_sentences|length }})</h6>
-        <div class="space-y-1">
+        <div class="p-6 border-b border-white/5 bg-white/5">
+            <h6 class="text-[10px] font-black uppercase text-[#6c5ce7] tracking-widest">BỘ THẺ PHÂN TÍCH</h6>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1 space-y-1">
+            <h6 class="text-[10px] font-black uppercase text-[#5a6478] mb-4 tracking-widest">Danh sách câu ({{ set_sentences|length }})</h6>
             {% for s in set_sentences %}
-            <a href="{{ url_for('practice.sentence_practice', sentence_id=s.id) }}" 
+            {% set s_mode = mode_map.get(s.sentence_set.set_type, 'sentence') %}
+            <a href="{{ url_for('practice.sentence_practice', sentence_id=s.id, mode=s_mode) }}" 
                class="flex items-center gap-3 p-3 rounded-xl border border-transparent hover:bg-white/5 transition-all {% if s.id == sentence.id %}active-p-item{% endif %}">
                 <div class="w-1 h-1 rounded-full {% if s.id == sentence.id %}bg-[#6c5ce7]{% else %}bg-white/20{% endif %}"></div>
                 <p class="text-xs font-bold {% if s.id == sentence.id %}text-[#e8ecf4]{% else %}text-[#8892a8]{% endif %} truncate">{{ s.original_text }}</p>

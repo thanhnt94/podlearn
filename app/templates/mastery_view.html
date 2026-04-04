@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if sentence.sentence_set.set_type == 'mastery_grammar' %}Phân tích Ngữ pháp
+    {% elif sentence.sentence_set.set_type == 'mastery_vocab' %}Tra cứu Từ vựng
+    {% elif sentence.sentence_set.set_type == 'mastery_sentence' %}Phân tích Mẫu câu
+    {% else %}Phân tích Chuyên sâu
+    {% endif %} — AuraFlow
+{% endblock %}
+
+{% block content %}
+<div class="mastery-view-container" style="max-width: 1200px; margin: 2rem auto; padding: 0 2rem;">
+    <!-- Section 1: Hero Sentence -->
+    <div class="sentence-hero-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; padding: 4rem; text-align: center; backdrop-filter: blur(20px); margin-bottom: 3rem; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+        <h1 id="main-japanese-text" style="font-size: 3.5rem; font-weight: 800; color: white; margin-bottom: 1rem; letter-spacing: -1px;">
+            {{ sentence.original_text }}
+        </h1>
+        
+        <div class="reading-row" style="font-size: 1.2rem; color: var(--text-muted); font-style: italic; margin-bottom: 2rem;">
+            {% if sentence.detailed_analysis and sentence.detailed_analysis.romaji %}
+                {{ sentence.detailed_analysis.romaji }}
+            {% endif %}
+        </div>
+
+        <div class="translation-box" style="display: inline-block; padding: 1rem 2rem; background: var(--accent); border-radius: 12px; color: white; font-weight: 600; font-size: 1.2rem;">
+            {{ sentence.translated_text }}
+        </div>
+        
+        {% if sentence.analysis_note %}
+        <div class="analysis-note" style="margin-top: 2rem; color: var(--text-muted); font-size: 0.95rem; max-width: 800px; margin-left: auto; margin-right: auto; line-height: 1.6;">
+            <span style="color: var(--accent); font-weight: 700;">Ghi chú:</span> {{ sentence.analysis_note }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 2: Deep Dive Grid -->
+    <div class="analysis-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem;">
+        
+        <!-- Column 1: Grammar -->
+        <div class="grammar-column">
+            <h2 style="font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                Ngữ pháp trong câu
+            </h2>
+            
+            <div class="grammar-list" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                {% for grammar in sentence.grammars %}
+                <div class="grammar-card" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 1.5rem; transition: transform 0.3s;">
+                    <div style="font-size: 1.4rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.5rem;">{{ grammar.pattern }}</div>
+                    <div style="font-size: 0.9rem; font-weight: 600; color: white; margin-bottom: 1rem;">{{ grammar.meaning }}</div>
+                    
+                    <div class="grammar-detail-item" style="margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Cấu trúc:</span>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">{{ grammar.formation }}</div>
+                    </div>
+                    
+                    <div class="grammar-detail-item">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Sắc thái:</span>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">{{ grammar.nuance }}</div>
+                    </div>
+                </div>
+                {% else %}
+                <div style="color: var(--text-muted); font-style: italic;">Chưa có dữ liệu ngữ pháp liên kết.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Column 2: Vocabulary -->
+        <div class="vocab-column">
+            <h2 style="font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: #2ecc71; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                Từ vựng trọng tâm
+            </h2>
+
+            <div class="vocab-list" style="display: flex; flex-direction: column; gap: 1rem;">
+                {% for vocab in sentence.vocabularies %}
+                <div class="vocab-item" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden;">
+                    <div class="vocab-header" style="padding: 1.2rem; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 1.3rem; font-weight: 700; color: white;">{{ vocab.word }}</div>
+                            <div style="font-size: 0.9rem; color: var(--text-muted);">{{ vocab.reading }}</div>
+                            <div style="width: 1px; height: 15px; background: rgba(255,255,255,0.1);"></div>
+                            <div style="font-weight: 600; color: #2ecc71;">{{ vocab.meaning }}</div>
+                        </div>
+                        <button class="toggle-vocab-btn" data-target="vocab-{{ vocab.id }}" style="background: rgba(46, 204, 113, 0.1); border: 1px solid rgba(46, 204, 113, 0.3); color: #2ecc71; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                            Xem Kanji & Mẹo nhớ
+                        </button>
+                    </div>
+                    
+                    <div id="vocab-{{ vocab.id }}" class="vocab-insight-content" style="display: none; padding: 0 1.2rem 1.2rem; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.1);">
+                        <div style="padding-top: 1rem;">
+                            <div style="margin-bottom: 1rem;">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 4px;">Phân tích Hán tự</span>
+                                <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ vocab.kanji_breakdown or "Chưa có dữ liệu." }}</div>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 4px;">Mẹo ghi nhớ</span>
+                                <div style="color: var(--text-secondary); font-size: 0.9rem; font-style: italic;">{{ vocab.mnemonic or "Chưa có dữ liệu." }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div style="color: var(--text-muted); font-style: italic;">Chưa có từ vựng liên kết.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .grammar-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255,255,255,0.05) !important;
+        border-color: var(--accent) !important;
+    }
+    .toggle-vocab-btn:hover {
+        background: #2ecc71 !important;
+        color: white !important;
+    }
+    .vocab-insight-content.active {
+        display: block !important;
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<script>
+    document.querySelectorAll('.toggle-vocab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const targetContent = document.getElementById(targetId);
+            
+            // Toggle active class
+            if (targetContent.classList.contains('active')) {
+                targetContent.classList.remove('active');
+                this.textContent = 'Xem Kanji & Mẹo nhớ';
+            } else {
+                targetContent.classList.add('active');
+                this.textContent = 'Thu gọn';
+            }
+        });
+    });
+</script>
+{% endblock %}

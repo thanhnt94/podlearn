@@ -4,6 +4,7 @@
 {% block content %}
 <div class="min-h-screen bg-[#0a0e1a] text-[#e8ecf4] font-['Inter'] p-8 md:p-16">
     <div class="max-w-6xl mx-auto">
+        {% set mode_map = {'mastery_grammar': 'grammar', 'mastery_vocab': 'vocab', 'mastery_sentence': 'sentence'} %}
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
             <div class="flex items-center gap-6">
@@ -11,18 +12,23 @@
                     <i data-lucide="arrow-left" class="w-6 h-6 group-hover:-translate-x-1 transition-transform"></i>
                 </a>
                 <div>
-                    <h1 class="text-3xl font-bold tracking-tight">{{ s_set.title }}</h1>
+                    <div class="flex items-center gap-3 mb-2">
+                        <h1 class="text-3xl font-bold tracking-tight">{{ s_set.title }}</h1>
+                        {% if s_set.set_type == 'mastery_grammar' %}
+                            <span class="px-3 py-1 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[10px] font-black uppercase tracking-widest">NGỮ PHÁP</span>
+                        {% elif s_set.set_type == 'mastery_vocab' %}
+                            <span class="px-3 py-1 rounded-lg bg-teal-500/20 border border-teal-500/30 text-teal-400 text-[10px] font-black uppercase tracking-widest">TỪ VỰNG</span>
+                        {% else %}
+                            <span class="px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-black uppercase tracking-widest">MẪU CÂU</span>
+                        {% endif %}
+                    </div>
                     <p class="text-[#8892a8] mt-1">{{ s_set.description or 'Danh sách mẫu câu trong bộ bài này.' }}</p>
                 </div>
             </div>
             <div class="flex items-center gap-4">
-                <button onclick="toggleQuickAdd(true)" class="btn btn--accent btn--sm flex items-center gap-2">
+                <button onclick="openEditor('add')" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6c5ce7] to-[#8b5cf6] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(108,92,231,0.3)] transition-all flex items-center gap-2">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                    Thêm câu nhanh
-                </button>
-                <button onclick="toggleImportJson(true)" class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-[#8892a8] hover:bg-white/10 hover:text-[#6c5ce7] transition-all flex items-center gap-2">
-                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
-                    Nhập JSON
+                    Nhập câu mới
                 </button>
                 <div class="px-6 py-3 rounded-2xl bg-[#6c5ce7]/10 border border-[#6c5ce7]/20 flex items-center gap-3">
                     <span class="text-sm font-bold text-[#a78bfa] uppercase tracking-widest">Tổng cộng</span>
@@ -56,13 +62,14 @@
                             </td>
                             <td class="px-8 py-6">
                                 <div class="flex items-center justify-end gap-3">
-                                    <a href="{{ url_for('practice.sentence_practice', sentence_id=s.id) }}" class="p-2.5 rounded-xl bg-[#6c5ce7]/10 text-[#a78bfa] hover:bg-[#6c5ce7] hover:text-white transition-all" title="Luyện tập">
+                                    {% set s_mode = mode_map.get(s_set.set_type, 'sentence') %}
+                                    <a href="{{ url_for('practice.sentence_practice', sentence_id=s.id, mode=s_mode) }}" class="p-2.5 rounded-xl bg-[#6c5ce7]/10 text-[#a78bfa] hover:bg-[#6c5ce7] hover:text-white transition-all" title="Luyện tập">
                                         <i data-lucide="play" class="w-4 h-4 fill-current"></i>
                                     </a>
                                     <button onclick='copySentenceJson({{ s.id }}, {{ s.detailed_analysis | tojson | safe }})' class="p-2.5 rounded-xl bg-white/5 text-[#8892a8] hover:bg-white/10 hover:text-white transition-all" title="Xuất JSON">
                                         <i data-lucide="copy" class="w-4 h-4"></i>
                                     </button>
-                                    <button onclick='openEditModal({{ s.id }}, {{ s.detailed_analysis | tojson | safe }})' class="p-2.5 rounded-xl bg-white/5 text-[#8892a8] hover:bg-white/10 hover:text-white transition-all" title="Sửa JSON">
+                                    <button onclick='openEditor("edit", {{ s.id }}, {{ s.detailed_analysis | tojson | safe }})' class="p-2.5 rounded-xl bg-white/5 text-[#8892a8] hover:bg-[#6c5ce7] hover:text-white transition-all" title="Chỉnh sửa chi tiết">
                                         <i data-lucide="edit-3" class="w-4 h-4"></i>
                                     </button>
                                     <button onclick="deleteSentence({{ s.id }})" class="p-2.5 rounded-xl bg-white/5 text-[#8892a8] hover:bg-red-500/20 hover:text-red-500 transition-all" title="Xóa">
@@ -86,50 +93,14 @@
     </div>
 </div>
 
-<!-- Modal: Quick Add Sentence -->
-<div id="quick-add-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-    <div class="relative w-full max-w-lg bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl p-10 flex flex-col">
-        <div class="flex items-center justify-between mb-8">
-            <h3 class="text-2xl font-bold">Thêm mẫu câu nhanh</h3>
-            <button onclick="toggleQuickAdd(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-        </div>
-
-        <form action="{{ url_for('dashboard.add_sentence') }}" method="POST" class="space-y-6">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="set_id" value="{{ s_set.id }}">
-            
-            <div>
-                <label class="block text-xs font-bold uppercase tracking-widest text-[#5a6478] mb-3">Câu gốc</label>
-                <input type="text" name="original_text" required placeholder="VD: 私は日本語を勉強しています" 
-                       class="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-5 focus:outline-none focus:border-[#6c5ce7]/50 transition-all text-[#e8ecf4]">
-            </div>
-            
-            <div>
-                <label class="block text-xs font-bold uppercase tracking-widest text-[#5a6478] mb-3">Nghĩa / Ghi chú</label>
-                <input type="text" name="translated_text" placeholder="VD: Tôi đang học tiếng Nhật" 
-                       class="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-5 focus:outline-none focus:border-[#6c5ce7]/50 transition-all text-[#e8ecf4]">
-            </div>
-
-            <div class="pt-4">
-                <button type="submit" class="w-full bg-gradient-to-r from-[#6c5ce7] to-[#8b5cf6] text-white py-4 rounded-xl font-bold text-lg hover:shadow-[0_0_20px_rgba(108,92,231,0.3)] transition-all flex items-center justify-center gap-3">
-                    <i data-lucide="save" class="w-5 h-5"></i>
-                    Xác nhận thêm câu
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal: Edit Sentence (Shadow Editor) -->
+<!-- Modal: Edit Sentence (Shadow Editor Unified) -->
 <div id="edit-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
     <div class="relative w-full max-w-5xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
         <!-- Modal Header & Tabs -->
         <div class="p-8 border-b border-white/5 bg-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-                <h3 class="text-xl font-bold">Chỉnh sửa mẫu câu <span class="text-[#6c5ce7]">AuraFlow</span></h3>
-                <p class="text-[10px] uppercase tracking-widest text-[#5a6478] font-bold mt-1">Shadow Editor v2.0</p>
+                <h3 class="text-xl font-bold"><span id="editor-action-text">Chỉnh sửa</span> <span id="editor-track-text">Bản ghi</span> <span class="text-[#6c5ce7]">AuraFlow</span></h3>
+                <p class="text-[10px] uppercase tracking-widest text-[#5a6478] font-bold mt-1">Shadow Editor v2.5 (Unified @ Set)</p>
             </div>
             
             <div class="flex items-center bg-black/40 p-1 rounded-2xl border border-white/5">
@@ -143,40 +114,62 @@
         </div>
 
         <!-- Modal Content (Scrollable) -->
-        <div class="flex-1 overflow-y-auto p-10 space-y-10" id="edit-content-form">
-            <!-- Section: Core Sentence -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="space-y-3">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Câu gốc (Original)</label>
-                    <input type="text" id="edit-form-original" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:outline-none focus:border-[#6c5ce7]/50 transition-all font-medium">
-                </div>
-                <div class="space-y-3">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Bản dịch (Translation)</label>
-                    <input type="text" id="edit-form-translation" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:outline-none focus:border-[#6c5ce7]/50 transition-all font-medium">
-                </div>
+        <div class="flex-1 overflow-y-auto p-10 space-y-12" id="edit-content-form">
+            <!-- Grammar Fields -->
+            <div id="fields-grammar" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-rose-400">Ngữ pháp (Pattern)</label><input type="text" id="g-pattern" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all font-bold text-lg"></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-rose-400">Ý nghĩa chính</label><input type="text" id="g-meaning" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all font-medium"></div>
+                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-[#5a6478]">Cấu trúc chia (Formation)</label><textarea id="g-formation" rows="3" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm font-mono"></textarea></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Dấu hiệu nhật biết</label><input type="text" id="g-signals" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Cấp độ JLPT</label><input type="text" id="g-level" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></div>
+                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-rose-400/60">Ví dụ tiêu biểu</label><input type="text" id="g-example" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm italic"></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Sắc thái bổ sung</label><textarea id="g-nuance" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></textarea></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Lưu ý quan trọng</label><textarea id="g-notes" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></textarea></div>
+                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-[#5a6478]">Mẫu tương đương</label><input type="text" id="g-similar" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></div>
             </div>
 
-            <!-- Section: Token Manager -->
-            <div class="space-y-6">
+            <!-- Vocab Fields -->
+            <div id="fields-vocab" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-teal-400">Từ vựng (Word)</label><input type="text" id="v-word" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all font-bold text-lg"></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-teal-400">Cách đọc</label><input type="text" id="v-reading" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all font-medium"></div>
+                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-teal-400">Nghĩa tiếng Việt</label><input type="text" id="v-meaning" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all font-medium"></div>
+                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-[#5a6478]">Chiết tự Kanji</label><textarea id="v-kanji" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></textarea></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Mẹo nhớ (Mnemonic)</label><textarea id="v-mnemonic" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></textarea></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Collocations</label><textarea id="v-collocations" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></textarea></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Cấp độ</label><input type="text" id="v-level" placeholder="N3" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></div>
+            </div>
+
+            <!-- Sentence Fields -->
+            <div id="fields-sentence" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-indigo-400">Câu gốc (Original)</label><input type="text" id="s-original" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-indigo-500/50 transition-all font-medium"></div>
+                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-indigo-400">Bản dịch (Translation)</label><input type="text" id="s-translation" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-indigo-500/50 transition-all font-medium"></div>
+            </div>
+
+            <!-- Token Manager -->
+            <div class="space-y-6 pt-6 border-t border-white/5">
                 <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Phân tích chi tiết (Tokens)</label>
-                    <button onclick="addTokenRow()" class="text-[10px] font-bold text-[#6c5ce7] hover:text-[#a78bfa] transition-all flex items-center gap-2 uppercase tracking-widest">
-                        <i data-lucide="plus" class="w-3 h-3"></i>
-                        Thêm từ vựng
-                    </button>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478] flex items-center gap-2"><i data-lucide="split" class="w-3 h-3"></i> Tokens Manager</label>
+                    <button onclick="addTokenRow()" class="text-[10px] font-bold text-[#6c5ce7] hover:text-[#a78bfa] transition-all flex items-center gap-2 uppercase tracking-widest"><i data-lucide="plus" class="w-3 h-3"></i> Thêm từ vựng</button>
                 </div>
-                
-                <div id="token-rows-container" class="space-y-3">
-                    <!-- Dynamic Rows Go Here -->
-                </div>
-            </div>
-
-            <!-- Section: Pragmatics -->
-            <div class="space-y-3 p-6 rounded-3xl bg-white/[0.02] border border-white/5">
-                <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478] mb-2 inline-block">Sắc thái ngữ pháp (Pragmatics)</label>
-                <textarea id="edit-form-nuance" rows="3" class="w-full bg-transparent border-none p-0 focus:ring-0 text-sm text-[#8892a8] leading-relaxed resize-none" placeholder="Nhập lưu ý về cách dùng, sắc thái..."></textarea>
+                <div id="token-rows-container" class="space-y-3"></div>
             </div>
         </div>
+
+        <div class="flex-1 overflow-y-auto p-10 hidden" id="edit-content-json">
+            <div class="bg-[#0a0e1a] rounded-3xl p-6 border border-white/5 h-full">
+                <textarea id="edit-json-input" class="w-full h-[400px] bg-transparent text-[#a78bfa] text-xs font-mono leading-relaxed focus:outline-none resize-none"></textarea>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-8 border-t border-white/5 bg-white/5 flex justify-end gap-4">
+            <button onclick="toggleEditModal(false)" class="px-8 py-3 rounded-2xl font-bold text-[#8892a8] hover:bg-white/5 transition-all">Hủy bỏ</button>
+            <button id="btn-save-edit" class="px-10 py-3 bg-[#6c5ce7] text-white rounded-2xl font-bold hover:shadow-[0_0_30px_rgba(108,92,231,0.3)] transition-all flex items-center gap-2">
+                <i data-lucide="check" class="w-5 h-5"></i> Lưu thay đổi
+            </button>
+        </div>
+    </div>
+</div>
 
         <div class="flex-1 overflow-y-auto p-10 hidden" id="edit-content-json">
             <div class="bg-[#0a0e1a] rounded-3xl p-6 border border-white/5 h-full">
@@ -206,7 +199,17 @@
         </div>
         <div class="space-y-6">
             <p class="text-sm text-[#8892a8]">Dán cấu trúc JSON đã phân tích đầy đủ của AuraFlow vào đây. Dữ liệu sẽ được lưu vào bộ bài này.</p>
-            <textarea id="import-json-textarea" rows="10" 
+            
+            <div class="p-4 rounded-xl bg-black/40 border border-white/5 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-black tracking-widest text-[#5a6478] uppercase">Mẫu JSON chuẩn (Guide)</span>
+                    <button onclick="copyImportGuide()" class="text-[10px] font-bold text-[#6c5ce7] hover:underline uppercase tracking-widest">Copy mẫu</button>
+                </div>
+                <pre class="max-h-40 overflow-y-auto text-[10px] text-[#a78bfa] font-mono leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5" id="import-guide-box"></pre>
+            </div>
+
+            <textarea id="import-json-textarea" rows="8" 
+                      placeholder="Dán mã JSON của bạn tại đây..."
                       style="font-family: 'JetBrains Mono', monospace;"
                       class="w-full bg-[#0a0e1a] border border-white/10 rounded-xl p-6 text-sm text-[#a78bfa] focus:outline-none focus:border-[#6c5ce7]/50 transition-all leading-relaxed resize-none"></textarea>
             
@@ -249,36 +252,60 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     lucide.createIcons();
+
+    // ── SHADOW EDITOR LOGIC ──────────────────────────────────────
+    const trackMode = "{{ s_set.set_type }}";
+    const setId = {{ s_set.id | tojson }};
     let currentEditId = null;
+    let editorMode = 'add'; // 'add' or 'edit'
     let currentEditData = null;
     let activeEditTab = 'form';
 
-    // ── MODAL TOGGLES ──────────────────────────────────────────
     window.toggleEditModal = function(show) {
         const modal = document.getElementById('edit-modal');
         if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
         else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
     };
 
-    window.toggleQuickAdd = function(show) {
-        const modal = document.getElementById('quick-add-modal');
-        if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
-        else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    window.openEditor = function(mode, id = null, analysis = null) {
+        editorMode = mode;
+        currentEditId = id;
+
+        document.getElementById('editor-action-text').innerText = mode === 'add' ? 'Thêm mới' : 'Chỉnh sửa';
+        const trackTitleMap = {
+            'mastery_grammar': 'Ngữ pháp',
+            'mastery_vocab': 'Từ vựng',
+            'mastery_sentence': 'Mẫu câu'
+        };
+        document.getElementById('editor-track-text').innerText = trackTitleMap[trackMode] || 'Bản ghi';
+
+        // Toggle field groups visibility
+        document.getElementById('fields-grammar').classList.toggle('hidden', trackMode !== 'mastery_grammar');
+        document.getElementById('fields-vocab').classList.toggle('hidden', trackMode !== 'mastery_vocab');
+        document.getElementById('fields-sentence').classList.toggle('hidden', !['mastery_sentence', 'sentence'].includes(trackMode));
+
+        if (mode === 'add') {
+            currentEditData = {
+                core_sentence: { original_text: "", translated_text: "" },
+                color_mapped_tokens: [],
+                usage_context: { nuance: "" }
+            };
+            // Add track-specific placeholders
+            if (trackMode === 'mastery_grammar') {
+                Object.assign(currentEditData, { pattern: "", meaning: "", formation: "", signal_words: "", canonical_example: "", nuance: "", points_to_note: "", similar_patterns: "", jlpt_level: "" });
+            } else if (trackMode === 'mastery_vocab') {
+                Object.assign(currentEditData, { word: "", reading: "", meaning: "", kanji_breakdown: "", mnemonic: "", collocations: "", jlpt_level: "" });
+            }
+        } else {
+            currentEditData = analysis;
+        }
+
+        document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
+        syncJsonToForm();
+        switchEditTab('form');
+        toggleEditModal(true);
     };
 
-    window.toggleImportJson = function(show) {
-        const modal = document.getElementById('import-json-modal');
-        if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
-        else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    };
-
-    window.toggleExportModal = function(show) {
-        const modal = document.getElementById('export-json-modal');
-        if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
-        else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    };
-
-    // ── SHADOW EDITOR LOGIC ──────────────────────────────────────
     window.switchEditTab = function(tab) {
         activeEditTab = tab;
         const formBtn = document.getElementById('tab-btn-form');
@@ -298,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formContent.classList.remove('hidden');
                 jsonContent.classList.add('hidden');
             } catch (e) {
-                alert("Dữ liệu JSON không hợp lệ, không thể chuyển sang Biểu mẫu.");
+                alert("Dữ liệu JSON không hợp lệ.");
                 activeEditTab = 'json';
             }
         } else {
@@ -312,25 +339,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    window.openEditModal = function(id, analysis) {
-        currentEditId = id;
-        currentEditData = analysis;
-        document.getElementById('edit-json-input').value = JSON.stringify(analysis, null, 2);
-        syncJsonToForm();
-        switchEditTab('form');
-        toggleEditModal(true);
-    };
-
     function syncJsonToForm() {
-        document.getElementById('edit-form-original').value = currentEditData.core_sentence?.original_text || "";
-        document.getElementById('edit-form-translation').value = currentEditData.core_sentence?.translated_text || "";
-        document.getElementById('edit-form-nuance').value = currentEditData.pragmatics?.nuance || "";
-        
+        const core = currentEditData.core_sentence || {};
+        document.getElementById('s-original').value = core.original_text || "";
+        document.getElementById('s-translation').value = core.translated_text || "";
+
+        if (trackMode === 'mastery_grammar') {
+            document.getElementById('g-pattern').value = currentEditData.pattern || "";
+            document.getElementById('g-meaning').value = currentEditData.meaning || "";
+            document.getElementById('g-formation').value = currentEditData.formation || "";
+            document.getElementById('g-signals').value = currentEditData.signal_words || "";
+            document.getElementById('g-example').value = currentEditData.canonical_example || "";
+            document.getElementById('g-nuance').value = currentEditData.nuance || "";
+            document.getElementById('g-notes').value = currentEditData.points_to_note || "";
+            document.getElementById('g-similar').value = currentEditData.similar_patterns || "";
+            document.getElementById('g-level').value = currentEditData.jlpt_level || "";
+        } else if (trackMode === 'mastery_vocab') {
+            document.getElementById('v-word').value = currentEditData.word || "";
+            document.getElementById('v-reading').value = currentEditData.reading || "";
+            document.getElementById('v-meaning').value = currentEditData.meaning || "";
+            document.getElementById('v-kanji').value = currentEditData.kanji_breakdown || "";
+            document.getElementById('v-mnemonic').value = currentEditData.mnemonic || "";
+            document.getElementById('v-collocations').value = currentEditData.collocations || "";
+            document.getElementById('v-level').value = currentEditData.jlpt_level || "";
+        }
+
         const container = document.getElementById('token-rows-container');
         container.innerHTML = "";
-        
-        const tokens = currentEditData.color_mapped_tokens || [];
-        tokens.forEach((t) => { addTokenRow(t); });
+        (currentEditData.color_mapped_tokens || []).forEach(t => addTokenRow(t));
         lucide.createIcons();
     }
 
@@ -338,31 +374,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const container = document.getElementById('token-rows-container');
         const row = document.createElement('div');
         row.className = "token-row grid grid-cols-12 gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 items-center group";
-        
         row.innerHTML = `
-            <div class="col-span-3">
-                <input type="text" placeholder="Chữ Hán" class="t-source w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data ? (data.source_word || '') : ''}">
-            </div>
-            <div class="col-span-3">
-                <input type="text" placeholder="Furigana" class="t-reading w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data ? (data.reading || '') : ''}">
-            </div>
-            <div class="col-span-3">
-                <input type="text" placeholder="Giải nghĩa" class="t-target w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data ? (data.target_word || '') : ''}">
-            </div>
+            <div class="col-span-3"><input type="text" placeholder="Hán tự" class="t-source w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.source_word || ''}"></div>
+            <div class="col-span-3"><input type="text" placeholder="Cách đọc" class="t-reading w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.reading || ''}"></div>
+            <div class="col-span-3"><input type="text" placeholder="Nghĩa" class="t-target w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.target_word || ''}"></div>
             <div class="col-span-2">
                 <select class="t-color w-full bg-black/20 border border-white/5 rounded-lg p-2 text-xs">
-                    <option value="none" ${!data || data.color_group === 'none' ? 'selected' : ''}>Không màu</option>
-                    <option value="1" ${data && data.color_group == '1' ? 'selected' : ''}>Màu 1</option>
-                    <option value="2" ${data && data.color_group == '2' ? 'selected' : ''}>Màu 2</option>
-                    <option value="3" ${data && data.color_group == '3' ? 'selected' : ''}>Màu 3</option>
-                    <option value="4" ${data && data.color_group == '4' ? 'selected' : ''}>Màu 4</option>
-                    <option value="5" ${data && data.color_group == '5' ? 'selected' : ''}>Màu 5</option>
+                    <option value="none" ${!data || data.color_group === 'none' ? 'selected' : ''}>Trắng</option>
+                    ${[1,2,3,4,5,6,7].map(n => `<option value="${n}" ${data?.color_group == n ? 'selected' : ''}>Màu ${n}</option>`).join('')}
                 </select>
             </div>
             <div class="col-span-1 text-right">
-                <button onclick="this.closest('.token-row').remove()" class="p-2 text-[#5a6478] hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
+                <button onclick="this.closest('.token-row').remove()" class="p-2 text-[#5a6478] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
             </div>
         `;
         container.appendChild(row);
@@ -380,18 +403,32 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
-        currentEditData = {
-            ...currentEditData,
-            core_sentence: {
-                original_text: document.getElementById('edit-form-original').value,
-                translated_text: document.getElementById('edit-form-translation').value
-            },
-            color_mapped_tokens: tokens,
-            pragmatics: {
-                ...currentEditData.pragmatics,
-                nuance: document.getElementById('edit-form-nuance').value
-            }
-        };
+        const newData = { ...currentEditData, color_mapped_tokens: tokens };
+        if (trackMode === 'mastery_grammar') {
+            newData.pattern = document.getElementById('g-pattern').value;
+            newData.meaning = document.getElementById('g-meaning').value;
+            newData.formation = document.getElementById('g-formation').value;
+            newData.signal_words = document.getElementById('g-signals').value;
+            newData.canonical_example = document.getElementById('g-example').value;
+            newData.nuance = document.getElementById('g-nuance').value;
+            newData.points_to_note = document.getElementById('g-notes').value;
+            newData.similar_patterns = document.getElementById('g-similar').value;
+            newData.jlpt_level = document.getElementById('g-level').value;
+        } else if (trackMode === 'mastery_vocab') {
+            newData.word = document.getElementById('v-word').value;
+            newData.reading = document.getElementById('v-reading').value;
+            newData.meaning = document.getElementById('v-meaning').value;
+            newData.kanji_breakdown = document.getElementById('v-kanji').value;
+            newData.mnemonic = document.getElementById('v-mnemonic').value;
+            newData.collocations = document.getElementById('v-collocations').value;
+            newData.jlpt_level = document.getElementById('v-level').value;
+        } else {
+            newData.core_sentence = {
+                original_text: document.getElementById('s-original').value,
+                translated_text: document.getElementById('s-translation').value
+            };
+        }
+        currentEditData = newData;
         document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
     }
 
@@ -399,21 +436,26 @@ document.addEventListener('DOMContentLoaded', function() {
         if (activeEditTab === 'form') syncFormToJson();
         else {
             try { currentEditData = JSON.parse(document.getElementById('edit-json-input').value); }
-            catch (e) { return alert("Dữ liệu JSON không hợp lệ."); }
+            catch (e) { return alert("JSON không hợp lệ."); }
         }
 
+        const url = editorMode === 'add' ? '/api/sentences' : `/api/sentences/${currentEditId}`;
+        const method = editorMode === 'add' ? 'POST' : 'PATCH';
+
         try {
-            const response = await fetch(`/api/sentences/${currentEditId}`, {
-                method: 'PATCH',
+            const payload = { detailed_analysis: currentEditData, set_id: setId };
+            if (editorMode === 'edit') {
+                payload.original_text = currentEditData.core_sentence?.original_text || currentEditData.pattern || currentEditData.word;
+                payload.translated_text = currentEditData.core_sentence?.translated_text || currentEditData.meaning;
+            }
+
+            const response = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': "{{ csrf_token() }}" },
-                body: JSON.stringify({
-                    original_text: currentEditData.core_sentence?.original_text,
-                    translated_text: currentEditData.core_sentence?.translated_text,
-                    detailed_analysis: currentEditData
-                })
+                body: JSON.stringify(payload)
             });
             if ((await response.json()).success) location.reload();
-        } catch (error) { alert("Lỗi khi cập nhật mẫu câu."); }
+        } catch (error) { alert("Lỗi khi lưu dữ liệu."); }
     });
 
     // ── OTHER TOOLS ───────────────────────────────────────────
