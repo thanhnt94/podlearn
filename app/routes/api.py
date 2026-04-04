@@ -33,7 +33,7 @@ from ..services.subtitle_service import (
 from ..services.youtube_service import extract_video_id
 from ..services.shadowing_service import evaluate_pronunciation
 from ..services.lesson_service import update_study_progress_and_streak
-from ..services.audio_service import generate_bilingual_audio
+from ..services.audio_service import generate_bilingual_audio, generate_text_audio
 from ..services.sentence_service import import_sentence_from_raw_json
 
 api_bp = Blueprint('api', __name__)
@@ -525,6 +525,24 @@ def get_sentence_audio(sentence_id):
         return jsonify({'success': True, 'audio_url': generated_url, 'cached': False})
     except Exception as e:
         print(f"[API ERROR] TTS Generation failed for sentence {sentence_id}: {str(e)}")
+        return jsonify({'error': str(e), 'success': False}), 500
+
+@api_bp.route('/tts', methods=['POST'])
+@login_required
+def tts_anonymous():
+    """Generic TTS endpoint for arbitrary text snippets (e.g. grammar examples)."""
+    try:
+        data = request.get_json() or {}
+        text = data.get('text', '').strip()
+        lang = data.get('lang', 'ja')
+
+        if not text:
+            return jsonify({'success': False, 'error': 'text is required'}), 400
+
+        audio_url = generate_text_audio(text, lang=lang)
+        return jsonify({'success': True, 'audio_url': audio_url})
+    except Exception as e:
+        print(f"[API ERROR] Anonymous TTS failed: {str(e)}")
         return jsonify({'error': str(e), 'success': False}), 500
 
 @api_bp.route('/sentences/<int:sentence_id>/shadowing-stats', methods=['GET'])

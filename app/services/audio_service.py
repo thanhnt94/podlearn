@@ -89,3 +89,33 @@ def generate_bilingual_audio(sentence_id, original_text, translated_text, config
         combined.export(output_path, format="mp3")
 
     return f"/static/audio/sentences/{output_filename}"
+
+def generate_text_audio(text, lang='ja', config_json=None):
+    """
+    Generates a high-quality MP3 for a single piece of text.
+    Uses MD5 hash of (text + voice) for caching to avoid duplicates.
+    """
+    import hashlib
+    if config_json is None: config_json = {}
+
+    engine_name = config_json.get('tts_engine', 'edge-tts')
+    voice = config_json.get('tts_voice', 'ja-JP-NanamiNeural') if lang == 'ja' else config_json.get('tts_voice_target', 'vi-VN-HoaiMyNeural')
+    
+    # MD5 hash for filename
+    text_hash = hashlib.md5((text + voice).encode('utf-8')).hexdigest()
+    output_dir = os.path.join(current_app.static_folder, 'audio', 'tts_cache')
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
+    output_filename = f"tts_{text_hash}.mp3"
+    output_path = os.path.join(output_dir, output_filename)
+
+    # Return cached if exists
+    if os.path.exists(output_path):
+        return f"/static/audio/tts_cache/{output_filename}"
+
+    # Generate
+    engine = TTSFactory.get_engine(engine_name)
+    engine.generate_audio(text, voice, output_path)
+
+    return f"/static/audio/tts_cache/{output_filename}"
