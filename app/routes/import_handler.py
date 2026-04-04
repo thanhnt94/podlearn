@@ -96,11 +96,11 @@ def import_grammar(data):
         grammar.nuance = item.get('nuance', grammar.nuance)
         grammar.jlpt_level = item.get('jlpt_level', grammar.jlpt_level)
         
-        # New Deep Analysis fields
-        grammar.signal_words = item.get('signal_words', grammar.signal_words)
-        grammar.canonical_example = item.get('canonical_example', grammar.canonical_example)
-        grammar.points_to_note = item.get('points_to_note', grammar.points_to_note)
-        grammar.similar_patterns = item.get('similar_patterns', grammar.similar_patterns)
+        # New Deep Analysis fields (JSON)
+        grammar.signal_words = item.get('signal_words', []) # List of {"word": "...", "meaning": "..."}
+        grammar.examples = item.get('examples', [])        # List of {"japanese": "...", "vietnamese": "..."}
+        grammar.points_to_note = item.get('points_to_note', [])    # List of Strings
+        grammar.similar_patterns = item.get('similar_patterns', []) # List of Objects
         grammar.tags = item.get('tags', grammar.tags)
         
         count += 1

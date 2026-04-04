@@ -11,12 +11,12 @@ class Grammar(db.Model):
     formation = db.Column(db.String(500))
     meaning = db.Column(db.String(500))
     
-    # New JLPT-focused fields
-    signal_words = db.Column(db.Text)      # Các phó từ/từ hô ứng nhận biết
-    canonical_example = db.Column(db.Text) # Một ví dụ đinh (kinh điển nhất)
+    # New JLPT-focused fields (JSON Refactor)
+    signal_words = db.Column(db.JSON)      # Stores [{"word": "...", "meaning": "..."}]
+    examples = db.Column(db.JSON)          # Stores [{"japanese": "...", "vietnamese": "..."}]
     nuance = db.Column(db.Text)            # Sắc thái ý nghĩa
-    points_to_note = db.Column(db.Text)    # Các lưu ý ngoại lệ
-    similar_patterns = db.Column(db.Text)  # Phân biệt với ngữ pháp khác
+    points_to_note = db.Column(db.JSON)    # Refactored: List of strings ["Note 1", "Note 2"]
+    similar_patterns = db.Column(db.JSON)  # Refactored: List of objects [{"pattern": "...", "difference": "..."}]
     
     jlpt_level = db.Column(db.String(10))
     tags = db.Column(db.String(255))       # Phân loại (chuỗi cách nhau bằng dấu phẩy)

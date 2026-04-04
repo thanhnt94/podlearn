@@ -45,22 +45,95 @@
             
             <div class="grammar-list" style="display: flex; flex-direction: column; gap: 1.5rem;">
                 {% for grammar in sentence.grammars %}
-                <div class="grammar-card" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 1.5rem; transition: transform 0.3s;">
-                    <div style="font-size: 1.4rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.5rem;">{{ grammar.pattern }}</div>
-                    <div style="font-size: 0.9rem; font-weight: 600; color: white; margin-bottom: 1rem;">{{ grammar.meaning }}</div>
-                    
-                    <div class="grammar-detail-item" style="margin-bottom: 0.5rem;">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Cấu trúc:</span>
-                        <div style="font-size: 0.9rem; color: var(--text-secondary);">{{ grammar.formation }}</div>
+                <div class="grammar-card">
+                    <div class="grammar-header">
+                        <div class="grammar-pattern">{{ grammar.pattern }}</div>
+                        <div class="grammar-meaning">{{ grammar.meaning }}</div>
                     </div>
-                    
-                    <div class="grammar-detail-item">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Sắc thái:</span>
-                        <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">{{ grammar.nuance }}</div>
+
+                    <div class="grammar-detail-section">
+                        <span class="detail-label">Cấu trúc kết hợp:</span>
+                        <div id="formation-container-{{ grammar.id }}" class="smart-formation-container">
+                            <div class="fallback-formation">{{ grammar.formation }}</div>
+                        </div>
                     </div>
+
+                    <div class="analysis-meta-grid">
+                        {% if grammar.nuance %}
+                        <div class="meta-card nuance-card">
+                            <span class="meta-label">🎭 Sắc thái:</span>
+                            <div class="meta-content">{{ grammar.nuance }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if grammar.points_to_note %}
+                        <div class="meta-card note-card">
+                            <span class="meta-label">⚠️ Lưu ý:</span>
+                            <ul class="meta-list">
+                                {% if grammar.points_to_note is string %}
+                                    <li>{{ grammar.points_to_note }}</li>
+                                {% else %}
+                                    {% for note in grammar.points_to_note %}
+                                        <li>{{ note }}</li>
+                                    {% endfor %}
+                                {% endif %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if grammar.examples %}
+                    <div class="grammar-detail-section" style="margin-top: 2rem;">
+                        <span class="detail-label">Ví dụ ứng dụng:</span>
+                        <div class="examples-stack">
+                            {% for ex in grammar.examples %}
+                            <div class="example-item">
+                                <div class="example-text">
+                                    <p class="ex-jp">{{ ex.japanese | safe }}</p>
+                                    <p class="ex-vn">{{ ex.vietnamese | safe }}</p>
+                                </div>
+                                {% if ex.vocabulary %}
+                                <button class="vocab-toggle-btn" onclick="toggleExampleVocab(this)">
+                                    💡 Xem từ vựng <i class="fas fa-chevron-down"></i>
+                                </button>
+                                <div class="example-vocab-container">
+                                    <div class="vocab-grid">
+                                        {% for v in ex.vocabulary %}
+                                        <div class="vocab-card-mini">
+                                            <div class="v-main">
+                                                <span class="v-word">{{ v.word }}</span>
+                                                <span class="v-hv">{{ v.han_viet | upper if v.han_viet else '' }}</span>
+                                            </div>
+                                            <div class="v-sub">
+                                                <span class="v-reading">{{ v.reading }}</span>
+                                                <span class="v-meaning">{{ v.meaning }}</span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if grammar.similar_patterns %}
+                    <div class="grammar-detail-section" style="margin-top: 2rem;">
+                        <span class="detail-label">🔄 Phân biệt & So sánh:</span>
+                        <div class="similar-patterns-grid">
+                            {% for sim in grammar.similar_patterns %}
+                            <div class="sim-card">
+                                <div class="sim-title">{{ sim.pattern }}</div>
+                                <div class="sim-diff">{{ sim.difference }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div style="color: var(--text-muted); font-style: italic;">Chưa có dữ liệu ngữ pháp liên kết.</div>
+                <script>document.addEventListener('DOMContentLoaded', () => renderSmartFormation({{ grammar.formation | tojson | safe }}, 'formation-container-{{ grammar.id }}'));</script>
                 {% endfor %}
             </div>
         </div>
@@ -109,40 +182,95 @@
 </div>
 
 <style>
-    .grammar-card:hover {
-        transform: translateY(-5px);
-        background: rgba(255,255,255,0.05) !important;
-        border-color: var(--accent) !important;
-    }
-    .toggle-vocab-btn:hover {
-        background: #2ecc71 !important;
-        color: white !important;
-    }
-    .vocab-insight-content.active {
-        display: block !important;
-        animation: slideDown 0.3s ease-out;
-    }
-    
-    @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+    .grammar-point { font-weight: 800; color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.4); }
+    .grammar-card { background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 2rem; margin-bottom: 2rem; transition: all 0.3s ease; backdrop-filter: blur(40px); }
+    .grammar-card:hover { transform: translateY(-5px); border-color: #a78bfa; background: rgba(15, 23, 42, 0.6); }
+    .grammar-pattern { font-size: 1.8rem; font-weight: 900; color: #a78bfa; margin-bottom: 0.5rem; }
+    .grammar-meaning { font-size: 1rem; color: white; font-weight: 600; opacity: 0.9; }
+    .detail-label { display: block; font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 0.8rem; }
+
+    .formula-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .formula-column { display: flex; flex-direction: column; gap: 4px; padding: 4px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+    .formula-item { font-size: 0.85rem; font-weight: 700; color: #e8ecf4; }
+    .formula-plus { color: #5a6478; font-weight: 900; }
+    .formula-highlight { padding: 4px 8px; background: rgba(167, 139, 250, 0.1); border-radius: 6px; color: #a78bfa; font-weight: 800; font-size: 0.85rem; }
+
+    .analysis-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .meta-card { padding: 1.2rem; border-radius: 16px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
+    .nuance-card { border-left: 4px solid #3b82f6; }
+    .note-card { border-left: 4px solid #f43f5e; }
+    .meta-list { list-style: none; padding: 0; margin: 0; }
+    .meta-list li::before { content: "• "; color: #f43f5e; font-weight: 900; }
+
+    .example-item { padding: 1rem; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid rgba(255,255,255,0.04); margin-bottom: 10px; }
+    .ex-jp { font-size: 1rem; font-weight: 700; color: #e8ecf4; }
+    .vocab-toggle-btn { margin-top: 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #8892a8; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 10px; font-weight: 800; }
+    .example-vocab-container { max-height: 0; overflow: hidden; transition: all 0.3s ease; }
+    .example-vocab-container.active { max-height: 500px; padding: 1rem 0; }
+    .vocab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .vocab-card-mini { padding: 10px; background: rgba(255,255,255,0.03); border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+    .v-word { font-size: 1.1rem; font-weight: 800; color: white; }
+    .v-hv { font-size: 0.65rem; font-weight: 900; color: #a78bfa; margin-left: 5px; }
+    .v-reading { font-size: 0.75rem; color: rgba(255,255,255,0.3); display: block; }
+    .v-meaning { font-size: 0.8rem; color: rgba(255,255,255,0.6); }
+
+    .sim-card { padding: 1rem; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.1); border-radius: 12px; }
+    .sim-title { font-size: 0.9rem; font-weight: 800; color: #60a5fa; }
 </style>
 
 <script>
+    window.toggleExampleVocab = function(btn) {
+        const container = btn.nextElementSibling;
+        const icon = btn.querySelector('i');
+        container.classList.toggle('active');
+        if (container.classList.contains('active')) icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+        else icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+    }
+
+    window.renderSmartFormation = function(rawText, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container || !rawText) return;
+        container.innerHTML = "";
+        rawText.split('\n').filter(l => l.trim()).forEach(line => {
+            const row = document.createElement('div');
+            row.className = "formula-row";
+            const regex = /\(([^)]+)\)|\+|[^(+]+/g;
+            let match;
+            while ((match = regex.exec(line)) !== null) {
+                const part = match[0].trim();
+                if (!part) continue;
+                if (part.startsWith('(')) {
+                    const group = document.createElement('div');
+                    group.className = "formula-column";
+                    match[1].split('|').forEach(i => {
+                        const s = document.createElement('span');
+                        s.className = "formula-item";
+                        s.innerText = i.trim();
+                        group.appendChild(s);
+                    });
+                    row.appendChild(group);
+                } else if (part === '+') {
+                    const p = document.createElement('span');
+                    p.className = "formula-plus";
+                    p.innerText = "+";
+                    row.appendChild(p);
+                } else {
+                    const s = document.createElement('span');
+                    s.className = "formula-highlight";
+                    s.innerText = part;
+                    row.appendChild(s);
+                }
+            }
+            container.appendChild(row);
+        });
+    }
+
     document.querySelectorAll('.toggle-vocab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const targetId = this.getAttribute('data-target');
+            if (!targetId) return;
             const targetContent = document.getElementById(targetId);
-            
-            // Toggle active class
-            if (targetContent.classList.contains('active')) {
-                targetContent.classList.remove('active');
-                this.textContent = 'Xem Kanji & Mẹo nhớ';
-            } else {
-                targetContent.classList.add('active');
-                this.textContent = 'Thu gọn';
-            }
+            targetContent.style.display = targetContent.style.display === 'none' ? 'block' : 'none';
         });
     });
 </script>

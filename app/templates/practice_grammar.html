@@ -105,15 +105,39 @@
         white-space: nowrap;
     }
 
-    /* Tier-2 Sidebar Formula */
+    /* Tier-2 Sidebar Formula - Vibrant & Prominent */
     .sidebar-formula-container {
         position: relative;
         z-index: 2;
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 24px;
+        border-radius: 20px;
         padding: 1.5rem;
-        margin: 2rem 0;
+        margin-bottom: 2rem;
+        width: 100%;
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.2);
+    }
+    .vibrant-formula-line {
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        color: #e8ecf4;
+        line-height: 1.6;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        margin-bottom: 8px;
+        border-left: 4px solid #f43f5e;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .vibrant-formula-line:last-child { margin-bottom: 0; }
+    .vibrant-formula-line .marker {
+        color: #f43f5e;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        opacity: 0.8;
     }
 
     .grammar-meaning-sub {
@@ -215,29 +239,48 @@
         transform: translateY(-2px);
     }
 
-    /* Column-specific Bento styles */
-    .bento-col-left { display: flex; flex-direction: column; gap: 20px; }
-
-    /* Bento Components */
-    .formation-card { 
-        background: rgba(244, 63, 94, 0.03); 
-        border-radius: 16px;
-        grid-column: 1 / -1; /* Span full width on first row */
-    }
-    .formation-card .formula-container {
+    /* Smart Formula Parser Styles */
+    .formula-area {
         display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
-        align-items: center;
+        flex-direction: column;
+        gap: 1rem;
+        width: 100%;
     }
-    .formula-line {
+    .formula-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+    .formula-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 0.75rem 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border-left: 3px solid #f43f5e;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .formula-item {
         font-family: 'JetBrains Mono', monospace;
-        font-size: 1rem;
-        color: #fda4af;
-        padding: 0.5rem 1rem;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(244, 63, 94, 0.1);
-        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        color: white;
+        white-space: nowrap;
+    }
+    .formula-plus {
+        font-size: 1.25rem;
+        font-weight: 300;
+        color: rgba(255, 255, 255, 0.2);
+        margin: 0 5px;
+    }
+    .formula-highlight {
+        font-size: 1.5rem;
+        font-weight: 900;
+        color: #f43f5e;
+        text-shadow: 0 0 30px rgba(244, 63, 94, 0.4);
     }
 
     .signal-card {
@@ -252,8 +295,90 @@
         text-align: center;
         background: radial-gradient(circle at top right, rgba(20, 184, 166, 0.05), transparent 60%);
     }
-    .example-jp { font-size: 24px; font-weight: 800; color: white; margin-bottom: 1rem; line-height: 1.4; }
-    .example-vn { font-size: 15px; color: rgba(255,255,255,0.4); font-style: italic; }
+    .example-jp { font-size: 24px; font-weight: 800; color: white; margin-bottom: 0.5rem; line-height: 1.4; }
+    .example-jp b { color: #f43f5e; text-shadow: 0 0 15px rgba(244, 63, 94, 0.3); }
+    .example-vn { font-size: 15px; color: rgba(255,255,255,0.4); font-style: italic; margin-bottom: 1.5rem; }
+    .example-vn b { color: #fb7185; }
+
+    /* Nested Vocab Tags */
+    .example-vocab-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+    .vocab-tag-mini {
+        padding: 4px 10px;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+    .vocab-tag-mini:hover {
+        background: rgba(255,255,255,0.06);
+        border-color: rgba(244, 63, 94, 0.3);
+    }
+    .vtm-word { font-size: 11px; font-weight: 800; color: #e8ecf4; }
+    .vtm-reading { font-size: 9px; color: rgba(255,255,255,0.3); }
+    .vtm-meaning { font-size: 9px; font-weight: 600; color: #fb7185; }
+
+    /* Interactive In-Sentence Tooltips */
+    .vocab-tooltip-trigger {
+        position: relative;
+        cursor: help;
+        border-bottom: 2px dashed rgba(244, 63, 94, 0.4);
+        transition: all 0.2s;
+        border-radius: 4px;
+        padding: 0 2px;
+    }
+    .vocab-tooltip-trigger:hover {
+        background: rgba(244, 63, 94, 0.1);
+        border-bottom-color: #f43f5e;
+    }
+    .vocab-tooltip-popup {
+        position: absolute;
+        bottom: 120%;
+        left: 50%;
+        transform: translateX(-50%) translateY(10px);
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 8px 12px;
+        width: max-content;
+        max-width: 200px;
+        z-index: 2000;
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        text-align: center;
+    }
+    .vocab-tooltip-trigger:hover .vocab-tooltip-popup {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+    }
+    .vtp-reading {
+        display: block;
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.4);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+    .vtp-meaning {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #fb7185;
+    }
 
     .nuance-card { background: rgba(255, 255, 255, 0.02); }
     
@@ -550,35 +675,40 @@
                 </button>
             </div>
 
-            <!-- Tier 1: Pattern Header -->
-            <div class="flex flex-col items-center">
-                <div class="flex items-center gap-2 mb-8">
-                    <span class="px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-black border border-rose-500/20 tracking-widest uppercase">
-                        {{ analysis.jlpt_level or 'N2' }}
-                    </span>
-                    <span class="px-3 py-1 rounded-full bg-white/5 text-white/40 text-[10px] font-black border border-white/10 tracking-widest uppercase">
-                        PHÁN ĐOÁN
-                    </span>
-                </div>
-                <h1 id="hero-headline" class="grammar-headline">{{ analysis.pattern }}</h1>
-            </div>
-
-            <!-- Tier 2: Mini-Formula Sidebar -->
+            <!-- Tier 1: Prominent Formation Sidebar (TOP) -->
             <div class="sidebar-formula-container">
-                <span class="section-label mb-4 opacity-50">Cấu trúc kết hợp</span>
-                <div class="flex flex-col gap-2">
+                <div class="text-[10px] font-black uppercase text-rose-500/50 tracking-[4px] mb-4 text-center">Cấu trúc kết hợp</div>
+                <div class="flex flex-col">
                     {% for line in analysis.formation.split('\n') %}
                         {% if line.strip() %}
-                        <div class="text-[14px] font-mono text-rose-200/80">{{ line.strip() }}</div>
+                        <div class="vibrant-formula-line">
+                            <span class="marker">●</span>
+                            {{ line.strip() }}
+                        </div>
                         {% endif %}
                     {% endfor %}
                 </div>
+            </div>
+
+            <!-- Tier 2: Pattern Header & Badges (CENTERED) -->
+            <div class="flex flex-col items-center justify-center py-6">
+                <div class="flex items-center justify-center gap-3 mb-6">
+                    <span class="px-4 py-1.5 rounded-full bg-rose-500/10 text-rose-500 text-[11px] font-black border border-rose-500/20 tracking-widest uppercase">
+                        {{ analysis.jlpt_level or 'N2' }}
+                    </span>
+                    <span class="px-4 py-1.5 rounded-full bg-white/5 text-white/40 text-[11px] font-black border border-white/10 tracking-widest uppercase">
+                        PHÁN ĐOÁN
+                    </span>
+                </div>
+                <h1 id="hero-headline" class="grammar-headline text-center w-full">{{ analysis.pattern }}</h1>
             </div>
 
             <!-- Tier 3: Meaning Anchor -->
             <div class="grammar-meaning-sub">
                 <div class="text-[10px] font-black uppercase text-white/20 tracking-[4px] mb-4">Ý nghĩa cốt lõi</div>
                 <p id="hero-subline">"{{ analysis.meaning }}"</p>
+                <!-- Vocabulary Cloud for Examples -->
+                <div id="example-vocab-cloud" class="example-vocab-list hidden"></div>
             </div>
             
             <!-- Context Switcher (Back to Grammar) -->
@@ -609,44 +739,31 @@
             <div class="details-content scroll-utility">
                 <!-- Upper Bento: Primary Context -->
                 <div class="bento-grid-container">
-                    <!-- Row 1: Full-width Formation -->
-                    <div class="bento-card formation-card">
-                        <span class="section-label">
-                            <i data-lucide="code" class="w-3 h-3"></i> Cấu trúc kết hợp
-                        </span>
-                        <div class="formula-container">
-                            {% for line in analysis.formation.split('\n') %}
-                                {% if line.strip() %}
-                                <div class="formula-line">{{ line.strip() }}</div>
-                                {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <!-- Row 2, Col 1: Signals -->
+                    <!-- Row 1, Col 1: Signals (Array Tags) -->
                     {% if analysis.signal_words %}
                     <div class="bento-card signal-card">
                         <span class="section-label text-teal-400">
-                            🔍 Dấu hiệu
+                            🔍 Dấu hiệu nhận biết
                         </span>
-                        <p class="text-sm text-white/90 font-medium italic leading-relaxed">
-                            {{ analysis.signal_words }}
-                        </p>
+                        <div class="flex flex-wrap gap-2 mt-4">
+                            {% for sig in analysis.signal_words %}
+                            <div class="group relative px-3 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500 hover:text-black transition-all cursor-help flex flex-col">
+                                <span class="text-xs font-black text-teal-400 group-hover:text-black">{{ sig.word }}</span>
+                                <span class="text-[9px] opacity-40 group-hover:opacity-100 group-hover:text-black">{{ sig.meaning }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                     {% endif %}
-
-                    <!-- Row 2, Col 2: The "Hero" Example (Larger) -->
-                    {% if analysis.canonical_example %}
-                    <div class="bento-card example-card">
-                        <span class="section-label mb-6">
-                            <i data-lucide="star" class="w-3 h-3"></i> Ví dụ tiêu biểu
+                    
+                    <!-- Row 1, Col 2: Nuance -->
+                    {% if analysis.nuance %}
+                    <div class="bento-card nuance-card">
+                        <span class="section-label text-white/40">
+                             🎭 Sắc thái biểu đạt
                         </span>
-                        <div class="flex flex-col items-center">
-                            {% set ex_parts = analysis.canonical_example.split('\n') %}
-                            <span class="example-jp">{{ ex_parts[0] }}</span>
-                            {% if ex_parts|length > 1 %}
-                            <span class="example-vn">{{ ex_parts[1] }}</span>
-                            {% endif %}
+                        <div class="text-xs leading-relaxed text-white/60">
+                            {{ analysis.nuance }}
                         </div>
                     </div>
                     {% endif %}
@@ -654,33 +771,37 @@
 
                 <!-- Lower Bento: Deep Analysis -->
                 <div class="bento-grid-full">
-                    {% if analysis.nuance %}
-                    <div class="bento-card nuance-card">
-                        <span class="section-label text-white/40">
-                             🎭 Sắc thái biểu đạt
-                        </span>
-                        <div class="text-sm leading-relaxed text-white/80">
-                            {{ analysis.nuance }}
-                        </div>
-                    </div>
-                    {% endif %}
 
                     {% if analysis.points_to_note %}
                     <div class="bento-card alert-card">
                         <span class="section-label text-red-400 mb-4">
-                            ⚠️ Lưu ý quan trọng
+                            <i data-lucide="alert-triangle" class="w-3 h-3 inline-block"></i> Lưu ý quan trọng
                         </span>
-                        <p class="text-sm leading-relaxed italic">
-                            {{ analysis.points_to_note }}
-                        </p>
+                        <ul class="space-y-3 list-none p-0">
+                            {% for note in analysis.points_to_note %}
+                            <li class="text-sm leading-relaxed italic flex gap-3 text-red-100/60">
+                                <span class="text-red-500/40 font-black">{{ loop.index }}.</span>
+                                <span>{{ note }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
                     </div>
                     {% endif %}
 
                     {% if analysis.similar_patterns %}
                     <div class="bento-card vs-card">
                         <span class="vs-title">🔄 Phân biệt & So sánh</span>
-                        <div class="text-sm leading-relaxed text-blue-100/70">
-                            {{ analysis.similar_patterns }}
+                        <div class="flex flex-col gap-4 mt-4">
+                            {% if analysis.similar_patterns is string %}
+                                <div class="text-xs leading-relaxed text-blue-100/70">{{ analysis.similar_patterns }}</div>
+                            {% else %}
+                                {% for sim in analysis.similar_patterns %}
+                                <div class="vs-comparison-item p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 hover:border-blue-500/30 transition-all">
+                                    <div class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{{ sim.pattern }}</div>
+                                    <div class="text-xs leading-relaxed text-blue-100/70">{{ sim.difference }}</div>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
                         </div>
                     </div>
                     {% endif %}
@@ -721,8 +842,8 @@
                     <div onclick='openExampleImmersive({{ loop.index0 }})' 
                          class="footer-example-item group">
                         <div class="w-1.5 h-1.5 rounded-full bg-rose-500/40 group-hover:bg-rose-500 transition-colors"></div>
-                        <span class="footer-ex-jp truncate">{{ ex.text }}</span>
-                        <span class="footer-ex-vn truncate">{{ ex.translation }}</span>
+                        <span class="footer-ex-jp truncate">{{ ex.japanese | safe }}</span>
+                        <span class="footer-ex-vn truncate">{{ ex.vietnamese | safe }}</span>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -764,10 +885,21 @@
             <h6 class="text-[10px] font-black uppercase text-[#5a6478] mb-4 tracking-widest">Ví dụ ứng dụng</h6>
             {% if analysis.examples %}
                 {% for ex in analysis.examples %}
-                <div onclick='swapSpotlight({{ ex.text | tojson | safe }}, {{ ex.translation | tojson | safe }})' 
+                <div onclick='swapSpotlight({{ ex.japanese | tojson | safe }}, {{ ex.vietnamese | tojson | safe }}, {{ (ex.vocabulary or []) | tojson | safe }})' 
                      class="group p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-rose-500/30 hover:bg-rose-500/5 transition-all cursor-pointer">
-                    <p class="text-sm font-bold text-[#e8ecf4] leading-relaxed mb-2">{{ ex.text }}</p>
-                    <p class="text-[10px] text-[#8892a8] italic line-clamp-2">{{ ex.translation }}</p>
+                    <p class="text-sm font-bold text-[#e8ecf4] leading-relaxed mb-2">{{ ex.japanese | safe }}</p>
+                    <p class="text-[10px] text-[#8892a8] italic mb-3">{{ ex.vietnamese | safe }}</p>
+                    
+                    {% if ex.vocabulary %}
+                    <div class="flex flex-wrap gap-1.5">
+                        {% for v in ex.vocabulary %}
+                        <div class="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-[8px] flex gap-1.5 items-center">
+                            <span class="font-bold text-white/70">{{ v.word }}</span>
+                            <span class="text-rose-400/60">{{ v.meaning }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
                 {% endfor %}
             {% else %}
@@ -857,19 +989,66 @@
         document.getElementById('drawer-pane-examples').classList.toggle('hidden', tab !== 'examples');
     };
 
-    window.swapSpotlight = function(text, translation) {
+    window.swapSpotlight = function(text, translation, vocabList = null) {
         const headline = document.getElementById('hero-headline');
         const subline = document.getElementById('hero-subline');
         const backBtn = document.getElementById('btn-back-to-grammar');
         
-        // Add fade out animation if possible, but keep it simple with text swap
-        headline.innerText = text;
-        subline.innerText = translation ? `"${translation}"` : "";
+        // Enrich text with tooltips if vocabulary is provided
+        const enrichedText = enrichTextWithVocab(text, vocabList || []);
+        
+        // Text Swap with innerHTML support for <b> and tooltips
+        headline.innerHTML = enrichedText;
+        subline.innerHTML = translation ? `"${translation}"` : "";
+
+        // Handle nested vocabulary Cloud if it's passed (Word Bank below)
+        const vocabContainer = document.getElementById('example-vocab-cloud');
+        if (vocabContainer) {
+            vocabContainer.innerHTML = "";
+            if (vocabList && vocabList.length > 0) {
+                vocabList.forEach(v => {
+                    const tag = document.createElement('div');
+                    tag.className = "vocab-tag-mini opacity-30"; // Make them secondary
+                    tag.innerHTML = `
+                        <span class="vtm-word">${v.word}</span>
+                        <span class="vtm-reading">${v.reading || ''}</span>
+                        <span class="vtm-meaning">${v.meaning}</span>
+                    `;
+                    vocabContainer.appendChild(tag);
+                });
+                vocabContainer.classList.remove('hidden');
+            } else {
+                vocabContainer.classList.add('hidden');
+            }
+        }
         backBtn.classList.remove('hidden');
         
         // Reset headline size if it's too long
         if (text.length > 20) headline.style.fontSize = '2.5rem';
         else headline.style.fontSize = '4.5rem';
+    };
+
+    window.enrichTextWithVocab = function(text, vocabulary) {
+        if (!vocabulary || vocabulary.length === 0) return text;
+        let enriched = text;
+        // Sort by length descending to avoid partial matching of longer words
+        [...vocabulary].sort((a,b) => b.word.length - a.word.length).forEach(v => {
+            if (!v.word || !enriched.includes(v.word)) return;
+            
+            // Create tooltip HTML
+            const tooltipHtml = `<span class="vocab-tooltip-trigger">${v.word}<span class="vocab-tooltip-popup"><span class="vtp-reading">${v.reading || ''}</span><span class="vtp-meaning">${v.meaning}</span></span></span>`;
+            
+            // Regex to replace words not already inside a tooltip span or other tag's attributes
+            // Using a split-map-join strategy to avoid modifying existing HTML tags
+            let parts = enriched.split(/(<[^>]+>)/g);
+            enriched = parts.map(p => {
+                if (p.startsWith('<')) return p;
+                // Replace word with tooltip, but avoid double wrapping
+                const regex = new RegExp(v.word, 'g');
+                return p.replace(regex, tooltipHtml);
+            }).join('');
+        });
+        return enriched;
     };
 
     window.resetSpotlight = function() {
@@ -915,10 +1094,29 @@
         vnText.style.opacity = 0;
         
         setTimeout(() => {
-            jpText.innerText = ex.text;
-            vnText.innerText = ex.translation || "";
+            const enrichedJp = enrichTextWithVocab(ex.japanese, ex.vocabulary || []);
+            jpText.innerHTML = enrichedJp;
+            vnText.innerHTML = ex.vietnamese || "";
             jpText.style.opacity = 1;
             vnText.style.opacity = 0.5;
+
+            // Render vocabulary tags in Immersive modal (Word Bank below)
+            const immVocabCon = document.getElementById('immersive-vocab-list');
+            if (immVocabCon) {
+                immVocabCon.innerHTML = "";
+                if (ex.vocabulary && ex.vocabulary.length > 0) {
+                    ex.vocabulary.forEach(v => {
+                        const tag = document.createElement('div');
+                        tag.className = "vocab-tag-mini opacity-30"; // Make them secondary
+                        tag.innerHTML = `
+                            <span class="vtm-word">${v.word}</span>
+                            <span class="vtm-reading">${v.reading || ''}</span>
+                            <span class="vtm-meaning">${v.meaning}</span>
+                        `;
+                        immVocabCon.appendChild(tag);
+                    });
+                }
+            }
             counter.innerText = `Ví dụ ${currentImmersiveIndex + 1} / ${allExamples.length}`;
             
             btnPrev.disabled = currentImmersiveIndex === 0;
@@ -929,7 +1127,7 @@
     }
 
     window.playImmersiveAudio = async function() {
-        const jpText = allExamples[currentImmersiveIndex].text;
+        const jpText = allExamples[currentImmersiveIndex].japanese;
         const btn = document.getElementById('btn-immersive-audio');
         const audioPlayer = document.getElementById('sentence-audio-player');
         
@@ -986,7 +1184,7 @@
 
         immRecognition.onresult = async (e) => {
             const spokenText = e.results[0][0].transcript;
-            const targetText = allExamples[currentImmersiveIndex].text;
+            const targetText = allExamples[currentImmersiveIndex].japanese;
             const status = document.getElementById('immersive-shadow-status');
             const overlay = document.getElementById('immersive-score-overlay');
             
@@ -1023,6 +1221,61 @@
         };
     }
 
+    /* Smart Formula Parser Logic */
+    window.renderFormation = function(rawText, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container || !rawText) return;
+        container.innerHTML = "";
+
+        const lines = rawText.split('\n').filter(l => l.trim().length > 0);
+        
+        lines.forEach(line => {
+            const row = document.createElement('div');
+            row.className = "formula-row";
+
+            // Regex breakdown: 
+            // 1. \(([^)]+)\)  -> Matches ( ... )
+            // 2. \+            -> Matches plus sign
+            // 3. [^(+]+        -> Matches anything else (text highlights)
+            const regex = /\(([^)]+)\)|\+|[^(+]+/g;
+            let match;
+
+            while ((match = regex.exec(line)) !== null) {
+                const part = match[0].trim();
+                if (!part) continue;
+
+                if (part.startsWith('(') && part.endsWith(')')) {
+                    // It's a Group: ( V | N )
+                    const inner = match[1];
+                    const items = inner.split('|').map(i => i.trim());
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = "formula-group";
+                    items.forEach(item => {
+                        const itemSpan = document.createElement('span');
+                        itemSpan.className = "formula-item";
+                        itemSpan.innerText = item;
+                        groupDiv.appendChild(itemSpan);
+                    });
+                    row.appendChild(groupDiv);
+                } else if (part === '+') {
+                    // It's a Plus
+                    const plusSpan = document.createElement('span');
+                    plusSpan.className = "formula-plus";
+                    plusSpan.innerText = "+";
+                    row.appendChild(plusSpan);
+                } else {
+                    // It's a highlighted grammar part
+                    const textSpan = document.createElement('span');
+                    textSpan.className = "formula-highlight";
+                    textSpan.innerText = part;
+                    row.appendChild(textSpan);
+                }
+            }
+            container.appendChild(row);
+        });
+        lucide.createIcons();
+    };
+
     // Helper for editor CSRF
     function getCsrfToken() { return "{{ csrf_token() }}"; }
 </script>
@@ -1034,6 +1287,9 @@
         <div id="immersive-counter" class="immersive-counter"></div>
         <div id="immersive-jp-text" class="immersive-jp transition-all duration-300"></div>
         <div id="immersive-vn-text" class="immersive-vn transition-all duration-300"></div>
+        
+        <!-- Vocabulary List for Immersive Mode -->
+        <div id="immersive-vocab-list" class="example-vocab-list mb-12"></div>
         
         <div class="immersive-controls">
             <button id="btn-immersive-prev" onclick="navigateExample(-1)" class="btn-immersive-nav">
