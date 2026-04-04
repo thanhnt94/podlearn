@@ -1,0 +1,45 @@
+<!-- Modal: Import JSON -->
+<div id="import-json-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-6 bg-[#060910]/95 backdrop-blur-2xl animate-in fade-in duration-300">
+    <div class="relative w-full max-w-2xl bg-[#0d1117] border border-white/10 rounded-[40px] shadow-2xl p-10 flex flex-col">
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center"><i data-lucide="import" class="w-5 h-5"></i></div>
+                <h3 class="text-2xl font-black text-white uppercase tracking-tight">NHẬP DỮ LIỆU JSON</h3>
+            </div>
+            <button onclick="toggleImportJson(false)" class="p-2 text-[#5a6478] hover:text-white transition-all"><i data-lucide="x" class="w-8 h-8"></i></button>
+        </div>
+        <div class="space-y-6">
+            <p class="text-[10px] font-bold text-[#5a6478] uppercase tracking-[0.2em] mb-2 leading-relaxed">Dán cấu trúc JSON bóc tách của AuraFlow Studio vào đây. Dữ liệu sẽ được tự động phân loại và lưu trữ.</p>
+            <textarea id="import-json-textarea" rows="10" 
+                      placeholder="Dán cấu trúc JSON tại đây..."
+                      class="w-full bg-black/40 border border-white/5 rounded-[32px] p-8 text-sm text-indigo-300 font-mono focus:outline-none focus:border-indigo-500/50 transition-all leading-relaxed resize-none shadow-inner" spellcheck="false"></textarea>
+            
+            <div class="flex justify-end gap-3 mt-4">
+                <button onclick="toggleImportJson(false)" class="px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest text-[#5a6478] hover:text-white transition-all">HỦY BỎ</button>
+                <button id="btn-submit-import-json" class="px-10 py-3 bg-indigo-600 text-white rounded-[20px] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-indigo-500 hover:shadow-[0_0_30px_rgba(79,70,229,0.3)] transition-all">XÁC NHẬN NHẬP</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Export JSON -->
+<div id="export-json-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-6 bg-[#060910]/95 backdrop-blur-2xl animate-in fade-in duration-300">
+    <div class="relative w-full max-w-2xl bg-[#0d1117] border border-white/10 rounded-[40px] shadow-2xl p-10 flex flex-col">
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center"><i data-lucide="share-2" class="w-5 h-5"></i></div>
+                <h3 class="text-2xl font-black text-white uppercase tracking-tight">XUẤT DỮ LIỆU JSON</h3>
+            </div>
+            <button onclick="toggleExportModal(false)" class="p-2 text-[#5a6478] hover:text-white transition-all"><i data-lucide="x" class="w-8 h-8"></i></button>
+        </div>
+        <div class="space-y-6">
+            <p class="text-[10px] font-bold text-[#5a6478] uppercase tracking-[0.2em] mb-2 leading-relaxed">Đây là cấu trúc dữ liệu thô của bản ghi này. Bạn có thể sao chép để di chuyển sang bộ bài khác.</p>
+            <textarea id="export-json-textarea" rows="12" readonly
+                      class="w-full bg-black/40 border border-white/5 rounded-[32px] p-8 text-xs text-indigo-300 font-mono leading-relaxed resize-none selection:bg-indigo-500/50 shadow-inner"></textarea>
+            
+            <button id="btn-copy-export" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 hover:border-indigo-500/50 transition-all flex items-center justify-center gap-4 shadow-xl">
+                <i data-lucide="clipboard" class="w-5 h-5"></i> SAO CHÉP VÀO BỘ NHỚ TẠM
+            </button>
+        </div>
+    </div>
+</div>

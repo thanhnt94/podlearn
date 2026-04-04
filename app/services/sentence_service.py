@@ -56,12 +56,13 @@ def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=
         return {'success': False, 'error': error_msg}
 
     # Create Sentence object
+    if not data: data = {}
     new_sentence = Sentence(
         user_id=user_id,
         set_id=set_id,
         original_text=original_text,
         translated_text=translated_text,
-        detailed_analysis=data,  # Store the full JSON
+        detailed_analysis=data,  # Store the full JSON (never an empty string)
         source_video_id=source_video_id
     )
 

@@ -8,7 +8,7 @@ class Grammar(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     pattern = db.Column(db.String(255), nullable=False, index=True)
-    formation = db.Column(db.String(500))
+    formation = db.Column(db.JSON)
     meaning = db.Column(db.String(500))
     
     # New JLPT-focused fields (JSON Refactor)

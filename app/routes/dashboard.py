@@ -126,8 +126,15 @@ def set_details(set_id, mode=None):
     if mode != expected_mode:
         return redirect(url_for('dashboard.set_details', set_id=set_id, mode=expected_mode))
 
-    sentences = s_set.sentences.order_by(Sentence.created_at.desc()).all()
-    return render_template('set_details.html', s_set=s_set, sentences=sentences)
+    page = request.args.get('page', 1, type=int)
+    pagination = s_set.sentences.order_by(Sentence.created_at.asc()).paginate(page=page, per_page=24)
+    sentences = pagination.items
+    
+    # Fix 500 Error: Calculate absolute first ID in controller to prevent UndefinedError in Jinja
+    first_sentence = s_set.sentences.order_by(Sentence.created_at.asc()).first()
+    first_id = first_sentence.id if first_sentence else None
+    
+    return render_template('set_details.html', s_set=s_set, sentences=sentences, pagination=pagination, first_id=first_id)
 
 
 

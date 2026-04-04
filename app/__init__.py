@@ -24,6 +24,10 @@ def create_app(config_name: str | None = None) -> Flask:
     csrf.init_app(app)
     login_manager.init_app(app)
 
+    # ── Register Jinja Filters ─────────────────────────────────
+    from .utils.jinja_filters import parse_bbcode
+    app.jinja_env.filters['bbcode'] = parse_bbcode
+
     
     # Removed celery_init_app(app)
 

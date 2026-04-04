@@ -1,504 +1,290 @@
 {% extends "base.html" %}
-{% block title %}{{ s_set.title }} — AuraFlow{% endblock %}
+{% block title %}{{ s_set.title }} — AuraFlow Studio{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-[#0a0e1a] text-[#e8ecf4] font-['Inter'] p-8 md:p-16">
-    <div class="max-w-6xl mx-auto">
-        {% set mode_map = {'mastery_grammar': 'grammar', 'mastery_vocab': 'vocab', 'mastery_sentence': 'sentence'} %}
-        <!-- Header -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
+<!-- Main Container (Ecosystem Dark Theme) -->
+<div class="min-h-screen bg-[#060910] text-[#e8ecf4] font-['Inter',-apple-system,sans-serif] selection:bg-indigo-500/30">
+    
+    <!-- Top Ecosystem Header -->
+    <header class="sticky top-0 z-[40] w-full bg-[#060910]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
             <div class="flex items-center gap-6">
-                <a href="{{ url_for('dashboard.index') }}" class="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 text-[#8892a8] hover:text-[#6c5ce7] hover:bg-white/10 transition-all group">
-                    <i data-lucide="arrow-left" class="w-6 h-6 group-hover:-translate-x-1 transition-transform"></i>
+                <a href="{{ url_for('dashboard.index') }}" class="p-2 rounded-xl bg-white/5 border border-white/10 text-[#8892a8] hover:text-white hover:bg-white/10 transition-all">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                 </a>
-                <div>
-                    <div class="flex items-center gap-3 mb-2">
-                        <h1 class="text-3xl font-bold tracking-tight">{{ s_set.title }}</h1>
+                <div class="h-6 w-px bg-white/10"></div>
+                <div class="flex flex-col">
+                    {% set type_name = {'mastery_grammar':'GRAMMAR', 'mastery_vocab':'VOCAB', 'mastery_sentence':'SENTENCE'}.get(s_set.set_type, 'STUDIO') %}
+                    <h1 class="text-xl font-black text-white italic tracking-tighter uppercase leading-none">Aura {{ type_name }}</h1>
+                    <span class="text-[9px] font-bold uppercase tracking-[0.2em] text-[#5a6478] mt-1 tracking-widest">Studio Environment</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                {% if first_id %}
+                {% set s_mode = {'mastery_grammar': 'grammar', 'mastery_vocab': 'vocab', 'mastery_sentence': 'sentence'}.get(s_set.set_type, 'sentence') %}
+                <a href="{{ url_for('practice.sentence_practice', sentence_id=first_id, mode=s_mode) }}" 
+                   class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs transition-all shadow-[0_0_20px_rgba(79,70,229,0.2)] hover:scale-[1.02] active:scale-[0.98]">
+                    <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                    BẮT ĐẦU HỌC
+                </a>
+                {% endif %}
+                <button onclick="openEditor('add')" class="p-2.5 rounded-xl bg-white/5 border border-white/10 text-[#a78bfa] hover:text-white hover:bg-indigo-600 transition-all">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+        <!-- Set Hero Info -->
+        <div class="relative p-8 md:p-10 rounded-[32px] bg-gradient-to-br from-[#111827] to-[#060910] border border-white/5 overflow-hidden shadow-2xl">
+            <div class="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                <i data-lucide="library" class="w-48 h-48 text-indigo-500"></i>
+            </div>
+            
+            <div class="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-8">
+                <div class="space-y-4">
+                    <div class="flex flex-col gap-1">
                         {% if s_set.set_type == 'mastery_grammar' %}
-                            <span class="px-3 py-1 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[10px] font-black uppercase tracking-widest">NGỮ PHÁP</span>
+                            <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-rose-500">Hệ thống quản lý ngữ pháp</span>
                         {% elif s_set.set_type == 'mastery_vocab' %}
-                            <span class="px-3 py-1 rounded-lg bg-teal-500/20 border border-teal-500/30 text-teal-400 text-[10px] font-black uppercase tracking-widest">TỪ VỰNG</span>
+                            <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-400">Ngân hàng từ vựng chuyên sâu</span>
                         {% else %}
-                            <span class="px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 text-[10px] font-black uppercase tracking-widest">MẪU CÂU</span>
+                            <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400">Kho mẫu câu giao tiếp</span>
                         {% endif %}
+                        <div class="flex items-center gap-4 group/title mt-1">
+                            <h2 class="text-4xl md:text-5xl font-black tracking-tight text-white leading-tight cursor-default">{{ s_set.title }}</h2>
+                            <button onclick="toggleSetMetaModal(true)" class="p-2 rounded-xl bg-white/5 border border-white/5 text-[#5a6478] hover:text-indigo-400 hover:bg-white/10 transition-all opacity-0 group-hover/title:opacity-100" title="Chỉnh sửa thông tin bộ bài">
+                                <i data-lucide="edit-3" class="w-5 h-5"></i>
+                            </button>
+                        </div>
                     </div>
-                    <p class="text-[#8892a8] mt-1">{{ s_set.description or 'Danh sách mẫu câu trong bộ bài này.' }}</p>
+                    
+                    <div class="flex items-center gap-4">
+                        <div class="px-3 py-1 rounded-xl bg-white/5 border border-white/5 flex items-center gap-2">
+                            <i data-lucide="tag" class="w-3 h-3 text-[#5a6478]"></i>
+                            <span class="text-[9px] font-bold text-[#8892a8] uppercase">#{{ s_set.id }}</span>
+                        </div>
+                        <p class="text-sm text-[#8892a8] max-w-xl leading-relaxed italic border-l border-indigo-500/30 pl-4">{{ s_set.description or 'Danh sách mẫu dữ liệu trong bộ bài này.' }}</p>
+                    </div>
                 </div>
-            </div>
-            <div class="flex items-center gap-4">
-                <button onclick="openEditor('add')" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-[#6c5ce7] to-[#8b5cf6] text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(108,92,231,0.3)] transition-all flex items-center gap-2">
-                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                    Nhập câu mới
-                </button>
-                <div class="px-6 py-3 rounded-2xl bg-[#6c5ce7]/10 border border-[#6c5ce7]/20 flex items-center gap-3">
-                    <span class="text-sm font-bold text-[#a78bfa] uppercase tracking-widest">Tổng cộng</span>
-                    <span class="text-2xl font-black text-[#e8ecf4]">{{ sentences|length }}</span>
+                
+                <div class="flex items-center gap-6 bg-black/30 p-6 rounded-[24px] border border-white/5 backdrop-blur-md">
+                    <div class="flex flex-col items-center">
+                        <span class="text-4xl font-black text-white leading-none mb-1">{{ pagination.total }}</span>
+                        {% set label_map = {
+                            'mastery_grammar': 'MẪU NGỮ PHÁP',
+                            'mastery_vocab': 'TỪ VỰNG',
+                            'mastery_sentence': 'MẪU CÂU'
+                        } %}
+                        <span class="text-[9px] font-black uppercase tracking-widest text-[#5a6478]">{{ label_map.get(s_set.set_type, 'MẪU CÂU') }}</span>
+                    </div>
+                    <div class="w-px h-10 bg-white/10"></div>
+                    <button onclick="toggleImportJson(true)" class="flex flex-col items-center group">
+                        <div class="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 group-hover:bg-indigo-600 transition-all text-[#8892a8] group-hover:text-white">
+                            <i data-lucide="import" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-[8px] font-bold uppercase tracking-widest text-[#5a6478] mt-2 group-hover:text-indigo-400 transition-colors">Import</span>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Sentence List -->
-        <div class="bg-[#111827]/50 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl backdrop-blur-xl">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-white/5 text-[#5a6478] text-xs font-bold uppercase tracking-widest">
-                        <th class="px-8 py-5">Câu gốc / Bản dịch</th>
-                        <th class="px-8 py-5">Ngày tạo</th>
-                        <th class="px-8 py-5 text-right">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-white/5">
-                    {% if sentences %}
-                        {% for s in sentences %}
-                        <tr class="group hover:bg-white/[0.02] transition-colors" id="sentence-row-{{ s.id }}">
-                            <td class="px-8 py-6">
-                                <div class="flex flex-col gap-1">
-                                    <span class="text-lg font-semibold text-[#e8ecf4] group-hover:text-[#6c5ce7] transition-colors">{{ s.original_text }}</span>
-                                    <span class="text-sm text-[#8892a8]">{{ s.translated_text or '-' }}</span>
-                                </div>
-                            </td>
-                            <td class="px-8 py-6">
-                                <span class="text-xs text-[#5a6478] font-medium">{{ s.created_at.strftime('%d/%m/%Y') }}</span>
-                            </td>
-                            <td class="px-8 py-6">
-                                <div class="flex items-center justify-end gap-3">
-                                    {% set s_mode = mode_map.get(s_set.set_type, 'sentence') %}
-                                    <a href="{{ url_for('practice.sentence_practice', sentence_id=s.id, mode=s_mode) }}" class="p-2.5 rounded-xl bg-[#6c5ce7]/10 text-[#a78bfa] hover:bg-[#6c5ce7] hover:text-white transition-all" title="Luyện tập">
-                                        <i data-lucide="play" class="w-4 h-4 fill-current"></i>
-                                    </a>
-                                    <button onclick='copySentenceJson({{ s.id }}, {{ s.detailed_analysis | tojson | safe }})' class="p-2.5 rounded-xl bg-white/5 text-[#8892a8] hover:bg-white/10 hover:text-white transition-all" title="Xuất JSON">
-                                        <i data-lucide="copy" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick='openEditor("edit", {{ s.id }}, {{ s.detailed_analysis | tojson | safe }})' class="p-2.5 rounded-xl bg-white/5 text-[#8892a8] hover:bg-[#6c5ce7] hover:text-white transition-all" title="Chỉnh sửa chi tiết">
-                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="deleteSentence({{ s.id }})" class="p-2.5 rounded-xl bg-white/5 text-[#8892a8] hover:bg-red-500/20 hover:text-red-500 transition-all" title="Xóa">
-                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
+        <!-- Grid View -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% if sentences %}
+                {% set offset = (pagination.page - 1) * pagination.per_page %}
+                {% for s in sentences %}
+                <!-- Sentence Card -->
+                <div class="group relative p-6 rounded-[24px] bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] hover:border-indigo-500/20 transition-all duration-300 shadow-xl flex flex-col justify-between min-h-[180px]" id="sentence-row-{{ s.id }}">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-black text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 rounded-lg">#{{ offset + loop.index }}</span>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <button onclick='openEditor("edit", {{ s.id }}, {{ s.detailed_analysis | tojson | safe }})' class="p-2 text-[#8892a8] hover:text-white transition-all"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                <button onclick="deleteSentence({{ s.id }})" class="p-2 text-[#5a6478] hover:text-red-400 transition-all"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <h3 class="text-xl font-bold text-white group-hover:text-indigo-400 transition-colors leading-tight">{{ s.original_text }}</h3>
+                            <p class="text-sm text-[#8892a8] line-clamp-2 leading-relaxed">{{ s.translated_text or '-' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex items-center justify-between border-t border-white/5 pt-4">
+                        <span class="text-[9px] font-medium text-[#5a6478] uppercase tracking-wider">{{ s.created_at.strftime('%d.%m.%Y') }}</span>
+                        <div class="flex items-center gap-2">
+                             <button onclick='copySentenceJson({{ s.id }}, {{ s.detailed_analysis | tojson | safe }})' class="p-2 text-[#5a6478] hover:text-white transition-colors" title="Export JSON">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                            </button>
+                            {% set s_mode = {'mastery_grammar': 'grammar', 'mastery_vocab': 'vocab', 'mastery_sentence': 'sentence'}.get(s_set.set_type, 'sentence') %}
+                            <a href="{{ url_for('practice.sentence_practice', sentence_id=s.id, mode=s_mode) }}" 
+                               class="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/5 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white hover:bg-indigo-600 transition-all group/play">
+                                LUYỆN TẬP <i data-lucide="arrow-right" class="w-3 h-3 group-hover/play:translate-x-0.5 transition-transform"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-span-full py-32 flex flex-col items-center text-center space-y-6">
+                    <div class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center text-[#5a6478]">
+                        <i data-lucide="package-open" class="w-10 h-10"></i>
+                    </div>
+                    <div class="space-y-2">
+                        <p class="text-xl font-bold text-white uppercase">Bộ bài đang trống</p>
+                        <p class="text-xs text-[#5a6478]">Hãy thêm bản ghi đầu tiên để bắt đầu luyện tập.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Pagination Component -->
+        {% if pagination.total > 0 %}
+        <nav class="flex items-center justify-center pt-8 pb-12">
+            <div class="flex items-center gap-1.5 bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
+                {% if pagination.has_prev %}
+                <a href="{{ url_for('dashboard.set_details', set_id=s_set.id, mode={'mastery_grammar':'grammar','mastery_vocab':'vocab','mastery_sentence':'sentence'}.get(s_set.set_type, 'sentence'), page=pagination.prev_num) }}" 
+                   class="w-8 h-8 flex items-center justify-center rounded-xl bg-black/20 text-[#8892a8] hover:text-white hover:bg-indigo-600 transition-all font-bold text-xs"><i data-lucide="chevron-left" class="w-4 h-4"></i></a>
+                {% endif %}
+
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == pagination.page %}
+                            <span class="w-8 h-8 flex items-center justify-center rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/20">{{ page_num }}</span>
+                        {% else %}
+                            <a href="{{ url_for('dashboard.set_details', set_id=s_set.id, mode={'mastery_grammar':'grammar','mastery_vocab':'vocab','mastery_sentence':'sentence'}.get(s_set.set_type, 'sentence'), page=page_num) }}" 
+                               class="w-8 h-8 flex items-center justify-center rounded-xl bg-black/20 text-[#8892a8] hover:text-white hover:bg-white/10 transition-all font-bold text-xs">{{ page_num }}</a>
+                        {% endif %}
                     {% else %}
-                        <tr>
-                            <td colspan="3" class="px-8 py-20 text-center text-[#5a6478]">
-                                <p class="text-lg italic">Bộ bài này chưa có mẫu câu nào.</p>
-                                <a href="{{ url_for('dashboard.import_page') }}" class="inline-block mt-4 text-[#6c5ce7] hover:underline font-bold">Thêm câu ngay →</a>
-                            </td>
-                        </tr>
+                        <span class="px-1 text-[#5a6478]">...</span>
                     {% endif %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <a href="{{ url_for('dashboard.set_details', set_id=s_set.id, mode={'mastery_grammar':'grammar','mastery_vocab':'vocab','mastery_sentence':'sentence'}.get(s_set.set_type, 'sentence'), page=pagination.next_num) }}" 
+                   class="w-8 h-8 flex items-center justify-center rounded-xl bg-black/20 text-[#8892a8] hover:text-white hover:bg-indigo-600 transition-all font-bold text-xs"><i data-lucide="chevron-right" class="w-4 h-4"></i></a>
+                {% endif %}
+            </div>
+        </nav>
+        {% endif %}
+    </main>
 </div>
 
-<!-- Modal: Edit Sentence (Shadow Editor Unified) -->
-<div id="edit-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-    <div class="relative w-full max-w-5xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
-        <!-- Modal Header & Tabs -->
-        <div class="p-8 border-b border-white/5 bg-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
+<!-- Modal: Edit Set Metadata (Title/Slogan) -->
+<div id="set-meta-modal" class="hidden fixed inset-0 z-[4000] items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+    <div class="relative w-full max-w-xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+        <div class="p-8 border-b border-white/5 bg-white/5 flex items-center justify-between">
             <div>
-                <h3 class="text-xl font-bold"><span id="editor-action-text">Chỉnh sửa</span> <span id="editor-track-text">Bản ghi</span> <span class="text-[#6c5ce7]">AuraFlow</span></h3>
-                <p class="text-[10px] uppercase tracking-widest text-[#5a6478] font-bold mt-1">Shadow Editor v2.5 (Unified @ Set)</p>
+                <h3 class="text-xl font-bold">Chỉnh sửa <span class="text-[#6c5ce7]">Thông tin bộ bài</span></h3>
+                <p class="text-[10px] uppercase tracking-widest text-[#5a6478] font-bold mt-1">General Metadata</p>
             </div>
-            
-            <div class="flex items-center bg-black/40 p-1 rounded-2xl border border-white/5">
-                <button onclick="switchEditTab('form')" id="tab-btn-form" class="px-6 py-2 rounded-xl text-xs font-bold transition-all bg-[#6c5ce7] text-white">BIỂU MẪU</button>
-                <button onclick="switchEditTab('json')" id="tab-btn-json" class="px-6 py-2 rounded-xl text-xs font-bold transition-all text-[#8892a8] hover:text-white">JSON (NÂNG CAO)</button>
-            </div>
-
-            <button onclick="toggleEditModal(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
+            <button onclick="toggleSetMetaModal(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
                 <i data-lucide="x" class="w-6 h-6"></i>
             </button>
         </div>
 
-        <!-- Modal Content (Scrollable) -->
-        <div class="flex-1 overflow-y-auto p-10 space-y-12" id="edit-content-form">
-            <!-- Grammar Fields -->
-            <div id="fields-grammar" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-rose-400">Ngữ pháp (Pattern)</label><input type="text" id="g-pattern" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all font-bold text-lg"></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-rose-400">Ý nghĩa chính</label><input type="text" id="g-meaning" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all font-medium"></div>
-                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-[#5a6478]">Cấu trúc chia (Formation)</label><textarea id="g-formation" rows="3" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm font-mono"></textarea></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Dấu hiệu nhật biết</label><input type="text" id="g-signals" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Cấp độ JLPT</label><input type="text" id="g-level" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></div>
-                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-rose-400/60">Ví dụ tiêu biểu</label><input type="text" id="g-example" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm italic"></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Sắc thái bổ sung</label><textarea id="g-nuance" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></textarea></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Lưu ý quan trọng</label><textarea id="g-notes" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></textarea></div>
-                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-[#5a6478]">Mẫu tương đương</label><input type="text" id="g-similar" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-rose-500/50 transition-all text-sm"></div>
+        <div class="p-8 space-y-8">
+            <div class="space-y-4">
+                <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Tên bộ bài</label>
+                <input type="text" id="set-meta-title" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-[#6c5ce7] transition-all font-bold text-lg" value="{{ s_set.title }}">
             </div>
-
-            <!-- Vocab Fields -->
-            <div id="fields-vocab" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-teal-400">Từ vựng (Word)</label><input type="text" id="v-word" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all font-bold text-lg"></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-teal-400">Cách đọc</label><input type="text" id="v-reading" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all font-medium"></div>
-                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-teal-400">Nghĩa tiếng Việt</label><input type="text" id="v-meaning" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all font-medium"></div>
-                <div class="space-y-4 md:col-span-2"><label class="text-[10px] font-black uppercase text-[#5a6478]">Chiết tự Kanji</label><textarea id="v-kanji" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></textarea></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Mẹo nhớ (Mnemonic)</label><textarea id="v-mnemonic" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></textarea></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Collocations</label><textarea id="v-collocations" rows="2" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></textarea></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-[#5a6478]">Cấp độ</label><input type="text" id="v-level" placeholder="N3" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-teal-500/50 transition-all text-sm"></div>
-            </div>
-
-            <!-- Sentence Fields -->
-            <div id="fields-sentence" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-indigo-400">Câu gốc (Original)</label><input type="text" id="s-original" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-indigo-500/50 transition-all font-medium"></div>
-                <div class="space-y-4"><label class="text-[10px] font-black uppercase text-indigo-400">Bản dịch (Translation)</label><input type="text" id="s-translation" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-indigo-500/50 transition-all font-medium"></div>
-            </div>
-
-            <!-- Token Manager -->
-            <div class="space-y-6 pt-6 border-t border-white/5">
-                <div class="flex items-center justify-between">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478] flex items-center gap-2"><i data-lucide="split" class="w-3 h-3"></i> Tokens Manager</label>
-                    <button onclick="addTokenRow()" class="text-[10px] font-bold text-[#6c5ce7] hover:text-[#a78bfa] transition-all flex items-center gap-2 uppercase tracking-widest"><i data-lucide="plus" class="w-3 h-3"></i> Thêm từ vựng</button>
-                </div>
-                <div id="token-rows-container" class="space-y-3"></div>
+            <div class="space-y-4">
+                <label class="text-[10px] font-black uppercase tracking-widest text-[#5a6478]">Mô tả (Slogan)</label>
+                <textarea id="set-meta-description" rows="3" class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 focus:border-[#6c5ce7] transition-all text-sm italic">{{ s_set.description or '' }}</textarea>
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-10 hidden" id="edit-content-json">
-            <div class="bg-[#0a0e1a] rounded-3xl p-6 border border-white/5 h-full">
-                <textarea id="edit-json-input" class="w-full h-[400px] bg-transparent text-[#a78bfa] text-xs font-mono leading-relaxed focus:outline-none resize-none"></textarea>
-            </div>
-        </div>
-
-        <!-- Modal Footer -->
         <div class="p-8 border-t border-white/5 bg-white/5 flex justify-end gap-4">
-            <button onclick="toggleEditModal(false)" class="px-8 py-3 rounded-2xl font-bold text-[#8892a8] hover:bg-white/5 transition-all">Hủy bỏ</button>
-            <button id="btn-save-edit" class="px-10 py-3 bg-[#6c5ce7] text-white rounded-2xl font-bold hover:shadow-[0_0_30px_rgba(108,92,231,0.3)] transition-all flex items-center gap-2">
-                <i data-lucide="check" class="w-5 h-5"></i> Lưu thay đổi
+            <button onclick="toggleSetMetaModal(false)" class="px-8 py-3 rounded-2xl font-bold text-[#8892a8] hover:bg-white/5 transition-all text-xs">Hủy bỏ</button>
+            <button onclick="saveSetMeta()" class="px-10 py-3 bg-[#6c5ce7] text-white rounded-2xl font-bold hover:shadow-[0_0_30px_rgba(108,92,231,0.3)] transition-all flex items-center gap-2 text-xs">
+                <i data-lucide="check" class="w-4 h-4"></i>
+                LƯU THÔNG TIN
             </button>
         </div>
     </div>
 </div>
 
-        <div class="flex-1 overflow-y-auto p-10 hidden" id="edit-content-json">
-            <div class="bg-[#0a0e1a] rounded-3xl p-6 border border-white/5 h-full">
-                <textarea id="edit-json-input" class="w-full h-[400px] bg-transparent text-[#a78bfa] text-xs font-mono leading-relaxed focus:outline-none resize-none"></textarea>
-            </div>
-        </div>
+<!-- Modal Container (Shadow Editor) -->
+{% include 'includes/shadow_editor.html' %}
 
-        <!-- Modal Footer -->
-        <div class="p-8 border-t border-white/5 bg-white/5 flex justify-end gap-4">
-            <button onclick="toggleEditModal(false)" class="px-8 py-3 rounded-2xl font-bold text-[#8892a8] hover:bg-white/5 transition-all">Hủy bỏ</button>
-            <button id="btn-save-edit" class="px-10 py-3 bg-[#6c5ce7] text-white rounded-2xl font-bold hover:shadow-[0_0_30px_rgba(108,92,231,0.3)] transition-all flex items-center gap-2">
-                <i data-lucide="check" class="w-5 h-5"></i>
-                Lưu thay đổi
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Import JSON -->
-<div id="import-json-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-    <div class="relative w-full max-w-2xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl p-8 flex flex-col">
-        <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-bold text-[#e8ecf4]">Nhập mẫu câu từ JSON</h3>
-            <button onclick="toggleImportJson(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-        </div>
-        <div class="space-y-6">
-            <p class="text-sm text-[#8892a8]">Dán cấu trúc JSON đã phân tích đầy đủ của AuraFlow vào đây. Dữ liệu sẽ được lưu vào bộ bài này.</p>
-            
-            <div class="p-4 rounded-xl bg-black/40 border border-white/5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-black tracking-widest text-[#5a6478] uppercase">Mẫu JSON chuẩn (Guide)</span>
-                    <button onclick="copyImportGuide()" class="text-[10px] font-bold text-[#6c5ce7] hover:underline uppercase tracking-widest">Copy mẫu</button>
-                </div>
-                <pre class="max-h-40 overflow-y-auto text-[10px] text-[#a78bfa] font-mono leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5" id="import-guide-box"></pre>
-            </div>
-
-            <textarea id="import-json-textarea" rows="8" 
-                      placeholder="Dán mã JSON của bạn tại đây..."
-                      style="font-family: 'JetBrains Mono', monospace;"
-                      class="w-full bg-[#0a0e1a] border border-white/10 rounded-xl p-6 text-sm text-[#a78bfa] focus:outline-none focus:border-[#6c5ce7]/50 transition-all leading-relaxed resize-none"></textarea>
-            
-            <div class="flex justify-end gap-3">
-                <button onclick="toggleImportJson(false)" class="px-6 py-3 rounded-xl font-bold text-[#8892a8] hover:bg-white/5">Hủy</button>
-                <button id="btn-submit-import-json" class="px-8 py-3 bg-[#6c5ce7] text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center gap-2">
-                    <i data-lucide="check" class="w-4 h-4"></i>
-                    Xác nhận nhập
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Export JSON -->
-<div id="export-json-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-    <div class="relative w-full max-w-2xl bg-[#111827] border border-white/10 rounded-[32px] shadow-2xl p-8 flex flex-col">
-        <div class="flex items-center justify-between mb-6">
-            <h3 class="text-xl font-bold text-[#6c5ce7]">Xuất dữ liệu JSON</h3>
-            <button onclick="toggleExportModal(false)" class="p-2 text-[#8892a8] hover:bg-white/5 rounded-full transition-all">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-        </div>
-        <div class="space-y-6">
-            <p class="text-sm text-[#8892a8]">Đây là cấu trúc dữ liệu đầy đủ của mẫu câu này. Bạn có thể sao chép để chia sẻ hoặc nhập vào bộ bài khác.</p>
-            <textarea id="export-json-textarea" rows="10" readonly
-                      style="font-family: 'JetBrains Mono', monospace;"
-                      class="w-full bg-[#0a0e1a] border border-white/10 rounded-xl p-6 text-sm text-[#a78bfa] leading-relaxed resize-none"></textarea>
-            
-            <div class="flex justify-end gap-3">
-                <button id="btn-copy-export" class="w-full py-4 bg-white/5 border border-white/10 text-white rounded-xl font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-3">
-                    <i data-lucide="clipboard" class="w-5 h-5"></i>
-                    Sao chép vào bộ nhớ tạm
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Modal: Import/Export -->
+{% include 'includes/import_export_modals.html' %}
 
 <script>
+// FIX: Promote critical variables to GLOBAL scope to avoid ReferenceErrors in Shadow Editor
+const setId = {{ s_set.id | tojson }};
+const trackMode = "{{ s_set.set_type }}";
+let currentEditId = null;
+let editorMode = 'add';
+let currentEditData = null;
+let activeEditTab = 'form';
+
 document.addEventListener('DOMContentLoaded', function() {
     lucide.createIcons();
-
-    // ── SHADOW EDITOR LOGIC ──────────────────────────────────────
-    const trackMode = "{{ s_set.set_type }}";
-    const setId = {{ s_set.id | tojson }};
-    let currentEditId = null;
-    let editorMode = 'add'; // 'add' or 'edit'
-    let currentEditData = null;
-    let activeEditTab = 'form';
-
-    window.toggleEditModal = function(show) {
-        const modal = document.getElementById('edit-modal');
-        if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
-        else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
-    };
-
-    window.openEditor = function(mode, id = null, analysis = null) {
-        editorMode = mode;
-        currentEditId = id;
-
-        document.getElementById('editor-action-text').innerText = mode === 'add' ? 'Thêm mới' : 'Chỉnh sửa';
-        const trackTitleMap = {
-            'mastery_grammar': 'Ngữ pháp',
-            'mastery_vocab': 'Từ vựng',
-            'mastery_sentence': 'Mẫu câu'
-        };
-        document.getElementById('editor-track-text').innerText = trackTitleMap[trackMode] || 'Bản ghi';
-
-        // Toggle field groups visibility
-        document.getElementById('fields-grammar').classList.toggle('hidden', trackMode !== 'mastery_grammar');
-        document.getElementById('fields-vocab').classList.toggle('hidden', trackMode !== 'mastery_vocab');
-        document.getElementById('fields-sentence').classList.toggle('hidden', !['mastery_sentence', 'sentence'].includes(trackMode));
-
-        if (mode === 'add') {
-            currentEditData = {
-                core_sentence: { original_text: "", translated_text: "" },
-                color_mapped_tokens: [],
-                usage_context: { nuance: "" }
-            };
-            // Add track-specific placeholders
-            if (trackMode === 'mastery_grammar') {
-                Object.assign(currentEditData, { pattern: "", meaning: "", formation: "", signal_words: "", canonical_example: "", nuance: "", points_to_note: "", similar_patterns: "", jlpt_level: "" });
-            } else if (trackMode === 'mastery_vocab') {
-                Object.assign(currentEditData, { word: "", reading: "", meaning: "", kanji_breakdown: "", mnemonic: "", collocations: "", jlpt_level: "" });
-            }
-        } else {
-            currentEditData = analysis;
-        }
-
-        document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
-        syncJsonToForm();
-        switchEditTab('form');
-        toggleEditModal(true);
-    };
-
-    window.switchEditTab = function(tab) {
-        activeEditTab = tab;
-        const formBtn = document.getElementById('tab-btn-form');
-        const jsonBtn = document.getElementById('tab-btn-json');
-        const formContent = document.getElementById('edit-content-form');
-        const jsonContent = document.getElementById('edit-content-json');
-
-        if (tab === 'form') {
-            const rawJson = document.getElementById('edit-json-input').value;
-            try {
-                currentEditData = JSON.parse(rawJson);
-                syncJsonToForm();
-                formBtn.classList.add('bg-[#6c5ce7]', 'text-white');
-                formBtn.classList.remove('text-[#8892a8]');
-                jsonBtn.classList.remove('bg-[#6c5ce7]', 'text-white');
-                jsonBtn.classList.add('text-[#8892a8]');
-                formContent.classList.remove('hidden');
-                jsonContent.classList.add('hidden');
-            } catch (e) {
-                alert("Dữ liệu JSON không hợp lệ.");
-                activeEditTab = 'json';
-            }
-        } else {
-            syncFormToJson();
-            jsonBtn.classList.add('bg-[#6c5ce7]', 'text-white');
-            jsonBtn.classList.remove('text-[#8892a8]');
-            formBtn.classList.remove('bg-[#6c5ce7]', 'text-white');
-            formBtn.classList.add('text-[#8892a8]');
-            jsonContent.classList.remove('hidden');
-            formContent.classList.add('hidden');
-        }
-    };
-
-    function syncJsonToForm() {
-        const core = currentEditData.core_sentence || {};
-        document.getElementById('s-original').value = core.original_text || "";
-        document.getElementById('s-translation').value = core.translated_text || "";
-
-        if (trackMode === 'mastery_grammar') {
-            document.getElementById('g-pattern').value = currentEditData.pattern || "";
-            document.getElementById('g-meaning').value = currentEditData.meaning || "";
-            document.getElementById('g-formation').value = currentEditData.formation || "";
-            document.getElementById('g-signals').value = currentEditData.signal_words || "";
-            document.getElementById('g-example').value = currentEditData.canonical_example || "";
-            document.getElementById('g-nuance').value = currentEditData.nuance || "";
-            document.getElementById('g-notes').value = currentEditData.points_to_note || "";
-            document.getElementById('g-similar').value = currentEditData.similar_patterns || "";
-            document.getElementById('g-level').value = currentEditData.jlpt_level || "";
-        } else if (trackMode === 'mastery_vocab') {
-            document.getElementById('v-word').value = currentEditData.word || "";
-            document.getElementById('v-reading').value = currentEditData.reading || "";
-            document.getElementById('v-meaning').value = currentEditData.meaning || "";
-            document.getElementById('v-kanji').value = currentEditData.kanji_breakdown || "";
-            document.getElementById('v-mnemonic').value = currentEditData.mnemonic || "";
-            document.getElementById('v-collocations').value = currentEditData.collocations || "";
-            document.getElementById('v-level').value = currentEditData.jlpt_level || "";
-        }
-
-        const container = document.getElementById('token-rows-container');
-        container.innerHTML = "";
-        (currentEditData.color_mapped_tokens || []).forEach(t => addTokenRow(t));
-        lucide.createIcons();
-    }
-
-    window.addTokenRow = function(data = null) {
-        const container = document.getElementById('token-rows-container');
-        const row = document.createElement('div');
-        row.className = "token-row grid grid-cols-12 gap-3 p-4 rounded-2xl bg-white/5 border border-white/5 items-center group";
-        row.innerHTML = `
-            <div class="col-span-3"><input type="text" placeholder="Hán tự" class="t-source w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.source_word || ''}"></div>
-            <div class="col-span-3"><input type="text" placeholder="Cách đọc" class="t-reading w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.reading || ''}"></div>
-            <div class="col-span-3"><input type="text" placeholder="Nghĩa" class="t-target w-full bg-black/20 border border-white/5 rounded-lg p-2 text-sm" value="${data?.target_word || ''}"></div>
-            <div class="col-span-2">
-                <select class="t-color w-full bg-black/20 border border-white/5 rounded-lg p-2 text-xs">
-                    <option value="none" ${!data || data.color_group === 'none' ? 'selected' : ''}>Trắng</option>
-                    ${[1,2,3,4,5,6,7].map(n => `<option value="${n}" ${data?.color_group == n ? 'selected' : ''}>Màu ${n}</option>`).join('')}
-                </select>
-            </div>
-            <div class="col-span-1 text-right">
-                <button onclick="this.closest('.token-row').remove()" class="p-2 text-[#5a6478] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-            </div>
-        `;
-        container.appendChild(row);
-        lucide.createIcons();
-    };
-
-    function syncFormToJson() {
-        const tokens = [];
-        document.querySelectorAll('.token-row').forEach(row => {
-            tokens.push({
-                source_word: row.querySelector('.t-source').value,
-                reading: row.querySelector('.t-reading').value,
-                target_word: row.querySelector('.t-target').value,
-                color_group: row.querySelector('.t-color').value
-            });
-        });
-
-        const newData = { ...currentEditData, color_mapped_tokens: tokens };
-        if (trackMode === 'mastery_grammar') {
-            newData.pattern = document.getElementById('g-pattern').value;
-            newData.meaning = document.getElementById('g-meaning').value;
-            newData.formation = document.getElementById('g-formation').value;
-            newData.signal_words = document.getElementById('g-signals').value;
-            newData.canonical_example = document.getElementById('g-example').value;
-            newData.nuance = document.getElementById('g-nuance').value;
-            newData.points_to_note = document.getElementById('g-notes').value;
-            newData.similar_patterns = document.getElementById('g-similar').value;
-            newData.jlpt_level = document.getElementById('g-level').value;
-        } else if (trackMode === 'mastery_vocab') {
-            newData.word = document.getElementById('v-word').value;
-            newData.reading = document.getElementById('v-reading').value;
-            newData.meaning = document.getElementById('v-meaning').value;
-            newData.kanji_breakdown = document.getElementById('v-kanji').value;
-            newData.mnemonic = document.getElementById('v-mnemonic').value;
-            newData.collocations = document.getElementById('v-collocations').value;
-            newData.jlpt_level = document.getElementById('v-level').value;
-        } else {
-            newData.core_sentence = {
-                original_text: document.getElementById('s-original').value,
-                translated_text: document.getElementById('s-translation').value
-            };
-        }
-        currentEditData = newData;
-        document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
-    }
-
-    document.getElementById('btn-save-edit').addEventListener('click', async () => {
-        if (activeEditTab === 'form') syncFormToJson();
-        else {
-            try { currentEditData = JSON.parse(document.getElementById('edit-json-input').value); }
-            catch (e) { return alert("JSON không hợp lệ."); }
-        }
-
-        const url = editorMode === 'add' ? '/api/sentences' : `/api/sentences/${currentEditId}`;
-        const method = editorMode === 'add' ? 'POST' : 'PATCH';
-
-        try {
-            const payload = { detailed_analysis: currentEditData, set_id: setId };
-            if (editorMode === 'edit') {
-                payload.original_text = currentEditData.core_sentence?.original_text || currentEditData.pattern || currentEditData.word;
-                payload.translated_text = currentEditData.core_sentence?.translated_text || currentEditData.meaning;
-            }
-
-            const response = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': "{{ csrf_token() }}" },
-                body: JSON.stringify(payload)
-            });
-            if ((await response.json()).success) location.reload();
-        } catch (error) { alert("Lỗi khi lưu dữ liệu."); }
-    });
-
-    // ── OTHER TOOLS ───────────────────────────────────────────
-    window.copySentenceJson = function(id, analysis) {
-        document.getElementById('export-json-textarea').value = JSON.stringify(analysis, null, 2);
-        toggleExportModal(true);
-    };
-
-    document.getElementById('btn-copy-export').addEventListener('click', () => {
-        const textarea = document.getElementById('export-json-textarea');
-        textarea.select();
-        document.execCommand('copy');
-        const btn = document.getElementById('btn-copy-export');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i data-lucide="check" class="w-5 h-5 text-green-500"></i> Đã sao chép!';
-        setTimeout(() => { btn.innerHTML = originalText; lucide.createIcons(); }, 2000);
-    });
-
-    document.getElementById('btn-submit-import-json').addEventListener('click', async () => {
-        const rawJson = document.getElementById('import-json-textarea').value.trim();
-        if (!rawJson) return alert("Vui lòng dán nội dung JSON.");
-        try {
-            const response = await fetch('/api/sentences/import-json', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': "{{ csrf_token() }}" },
-                body: JSON.stringify({ json_data: rawJson, set_id: "{{ s_set.id }}" })
-            });
-            const result = await response.json();
-            if (result.success) location.reload();
-            else alert("Lỗi khi nhập JSON: " + (result.error || "Không xác định"));
-        } catch (error) { alert("Lỗi kết nối server."); }
-    });
-
-    window.deleteSentence = async function(id) {
-        if (!confirm("Bạn có chắc chắn muốn xóa mẫu câu này?")) return;
-        try {
-            const response = await fetch(`/api/sentences/${id}`, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-Token': "{{ csrf_token() }}" }
-            });
-            if ((await response.json()).success) document.getElementById(`sentence-row-${id}`).remove();
-        } catch (error) { alert("Lỗi khi xóa mẫu câu."); }
-    };
 });
+
+// Custom logic for set_details.html
+window.copySentenceJson = function(id, analysis) {
+    const textarea = document.getElementById('export-json-textarea');
+    if(!textarea) return;
+    textarea.value = JSON.stringify(analysis, null, 2);
+    toggleExportModal(true);
+};
+
+window.toggleSetMetaModal = function(show) {
+    const modal = document.getElementById('set-meta-modal');
+    if (show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+    else { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+};
+
+window.saveSetMeta = async function() {
+    const title = document.getElementById('set-meta-title').value.trim();
+    const description = document.getElementById('set-meta-description').value.strip ? document.getElementById('set-meta-description').value.strip() : document.getElementById('set-meta-description').value.trim();
+
+    if (!title) return alert("Tên bộ bài không được để trống.");
+
+    try {
+        const res = await fetch(`/api/sets/${setId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': "{{ csrf_token() }}" },
+            body: JSON.stringify({ title, description })
+        });
+        const data = await res.json();
+        if (data.success) location.reload();
+        else alert("Lỗi: " + data.error);
+    } catch (e) { alert("Lỗi khi kết nối API."); }
+};
+
+window.deleteSentence = async function(id) {
+    if (!confirm("Xác nhận xóa bản ghi này?")) return;
+    try {
+        const res = await fetch(`/api/sentences/${id}`, { 
+            method: 'DELETE', 
+            headers: { 'X-CSRF-Token': "{{ csrf_token() }}" } 
+        });
+        if ((await res.json()).success) location.reload();
+    } catch (e) { alert("Lỗi khi xóa."); }
+};
+
+// Override save redirect to support pagination
+const originalOnSaveSuccess = window.onSaveSuccess || function() { location.reload(); };
+window.onSaveSuccess = function(data) {
+    if (editorMode === 'add' && data.sentence_id) {
+        // Redirect to new page or current page
+        location.reload();
+    } else {
+        location.reload();
+    }
+};
 </script>
+
+<style>
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.2); }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+</style>
 {% endblock %}

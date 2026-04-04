@@ -658,7 +658,13 @@ def create_sentence_api():
     """Create a new sentence record via JSON, supporting specialized tracks."""
     data = request.json or {}
     set_id = data.get('set_id')
-    detailed_analysis = data.get('detailed_analysis', {})
+    detailed_analysis = data.get('detailed_analysis') or {}
+    if not isinstance(detailed_analysis, dict) and isinstance(detailed_analysis, str):
+        try: detailed_analysis = json.loads(detailed_analysis)
+        except: detailed_analysis = {}
+    elif not isinstance(detailed_analysis, dict):
+        detailed_analysis = {}
+
     source_video_id = data.get('source_video_id')
 
     if not set_id:
@@ -723,8 +729,11 @@ def update_sentence(sentence_id):
     if 'translated_text' in data:
         sentence.translated_text = data['translated_text']
     if 'detailed_analysis' in data:
-        # Expecting a full dictionary here
-        sentence.detailed_analysis = data['detailed_analysis']
+        # Expecting a full dictionary here, ensure it's not an empty string
+        analysis = data['detailed_analysis']
+        if not analysis or analysis == "":
+             analysis = {}
+        sentence.detailed_analysis = analysis
 
     db.session.commit()
     return jsonify({'success': True})
