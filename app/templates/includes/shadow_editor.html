@@ -604,7 +604,26 @@
         } catch (e) { alert("Lỗi khi lưu."); }
     });
 
-    window.openEditor = function(mode, id = null, analysisPayload = null) {
+    window.openEditor = function(arg1, arg2 = null, arg3 = null) {
+        let mode, id, analysisPayload;
+        
+        if (typeof arg1 === 'string') {
+            // Original 'add' mode: openEditor('add')
+            mode = arg1;
+            id = arg2;
+            analysisPayload = arg3;
+        } else {
+            // New 'edit' mode: openEditor(this, 'edit', id)
+            mode = arg2;
+            id = arg3;
+            try {
+                analysisPayload = JSON.parse(arg1.getAttribute('data-analysis') || '{}');
+            } catch (e) {
+                console.error("JSON Parse Error in openEditor:", e);
+                analysisPayload = {};
+            }
+        }
+
         editorMode = mode;
         currentEditId = id;
 
@@ -637,7 +656,7 @@
                 });
             }
         } else {
-            currentEditData = JSON.parse(JSON.stringify(analysisPayload || analysisData));
+            currentEditData = JSON.parse(JSON.stringify(analysisPayload || {}));
         }
 
         document.getElementById('edit-json-input').value = JSON.stringify(currentEditData, null, 2);
