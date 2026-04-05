@@ -11,10 +11,20 @@ with app.app_context():
     import os
     
     # 1. Create database directory if it doesn't exist
-    db_path = "c:\\Code\\Ecosystem\\Storage\\database"
-    if not os.path.exists(db_path):
-        os.makedirs(db_path)
-        print(f"Created directory: {db_path}")
+    # Extract path from SQLALCHEMY_DATABASE_URI (e.g., sqlite:///path/to/db.db)
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        db_path_str = db_uri.replace('sqlite:///', '')
+        db_dir = os.path.dirname(db_path_str)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+            print(f"Created database directory: {db_dir}")
+
+    # 1.5 Create media directory if it doesn't exist
+    media_folder = app.config.get('MEDIA_FOLDER')
+    if media_folder and not os.path.exists(media_folder):
+        os.makedirs(media_folder)
+        print(f"Created media directory: {media_folder}")
 
     # 2. Create tables
     db.create_all()

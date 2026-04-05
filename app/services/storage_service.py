@@ -23,13 +23,13 @@ class StorageProvider(ABC):
 
 class LocalStorageProvider(StorageProvider):
     """
-    Storage Provider using the local filesystem (static folder).
+    Storage Provider using the local filesystem (custom media folder).
     """
-    def __init__(self, static_folder):
-        self.static_folder = static_folder
+    def __init__(self, base_folder):
+        self.base_folder = base_folder
 
     def _get_abs_path(self, filename, folder=None):
-        base_path = self.static_folder
+        base_path = self.base_folder
         if folder:
             base_path = os.path.join(base_path, folder)
         return os.path.join(base_path, filename)
@@ -54,7 +54,9 @@ class LocalStorageProvider(StorageProvider):
         if folder:
             # Ensure folder is forward-slash for URLs
             path = f"{folder.replace(os.sep, '/')}/{filename}"
-        return url_for('static', filename=path)
+        
+        # Point to the custom /media/ route
+        return url_for('serve_media', filename=path)
 
     def delete(self, filename, folder=None):
         abs_path = self._get_abs_path(filename, folder)

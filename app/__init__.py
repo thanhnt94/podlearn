@@ -34,6 +34,7 @@ def create_app(config_name: str | None = None) -> Flask:
     # ── Initialize Storage Provider ────────────────────────────
     from .services.storage_service import LocalStorageProvider, S3StorageProvider
     from . import extensions
+    from flask import send_from_directory
     
     if app.config.get('STORAGE_TYPE') == 's3':
         extensions.storage = S3StorageProvider(
@@ -43,7 +44,14 @@ def create_app(config_name: str | None = None) -> Flask:
             region=app.config.get('S3_REGION')
         )
     else:
-        extensions.storage = LocalStorageProvider(static_folder=app.static_folder)
+        # Use MEDIA_FOLDER from configuration
+        media_folder = app.config.get('MEDIA_FOLDER')
+        extensions.storage = LocalStorageProvider(base_folder=media_folder)
+        
+        # Add dynamic route to serve media if it's NOT in static
+        @app.route('/media/<path:filename>')
+        def serve_media(filename):
+            return send_from_directory(media_folder, filename)
 
     # ── Register blueprints ────────────────────────────────────
     from .routes.auth import auth_bp
