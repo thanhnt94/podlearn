@@ -13,6 +13,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    central_auth_id = db.Column(db.String(36), unique=True, index=True, nullable=True) # UUID from CentralAuth
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Gamification
