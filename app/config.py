@@ -41,6 +41,8 @@ class Config:
 
     # Ecosystem SSO Settings
     CENTRAL_AUTH_SERVER_ADDRESS = os.environ.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://localhost:5000')
+    CENTRAL_AUTH_CLIENT_ID = os.environ.get('CENTRAL_AUTH_CLIENT_ID', 'podlearn-v1')
+    CENTRAL_AUTH_CLIENT_SECRET = os.environ.get('CENTRAL_AUTH_CLIENT_SECRET')
 
 
 

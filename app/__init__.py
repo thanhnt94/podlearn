@@ -74,12 +74,72 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(import_bp)
     app.register_blueprint(share_bp)
 
-    # ── ECOSYSTEM HEALTH CHECK ─────────────────────────────────
-    from flask import jsonify
     @app.route('/api/health')
     def api_health():
         """Public endpoint for CentralAuth health checks."""
         return jsonify({"status": "online", "service": "AuraFlow"})
+
+    # ── ECOSYSTEM SYNC API ─────────────────────────────────────
+    @app.route('/api/sso-internal/user-list', methods=['POST'])
+    def internal_user_list():
+        """
+        Standard Internal API for CentralAuth User Synchronization.
+        Protected by Client Secret verification.
+        """
+        from flask import request, jsonify
+        secret_header = request.headers.get('X-Client-Secret')
+        configured_secret = app.config.get('CENTRAL_AUTH_CLIENT_SECRET')
+
+        if not secret_header or secret_header != configured_secret:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        from .models import User
+        users = User.query.all()
+        
+        user_list = []
+        for user in users:
+            user_list.append({
+                "username": user.username,
+                "email": user.email,
+                "full_name": getattr(user, 'full_name', user.username),
+                "central_auth_id": user.central_auth_id
+            })
+            
+        return jsonify({"users": user_list}), 200
+
+    @app.route('/api/sso-internal/link-user', methods=['POST'])
+    def internal_link_user():
+        """Update a user's central_auth_id for ecosystem linking."""
+        from flask import request, jsonify
+        secret_header = request.headers.get('X-Client-Secret')
+        configured_secret = app.config.get('CENTRAL_AUTH_CLIENT_SECRET')
+
+        if not secret_header or secret_header != configured_secret:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        data = request.get_json()
+        email = data.get('email')
+        ca_id = data.get('central_auth_id')
+        username = data.get('username')
+        full_name = data.get('full_name')
+        
+        from .models import User
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"error": f"User {email} not found"}), 404
+        
+        user.central_auth_id = str(ca_id)
+        if username:
+            user.username = username
+        if full_name:
+            user.full_name = full_name
+            
+        db.session.commit()
+        return jsonify({"status": "ok", "message": f"Linked {email} and synced profile to CentralAuth."}), 200
+
+    # Ensure CSRF exemption
+    csrf.exempt(internal_user_list)
+    csrf.exempt(internal_link_user)
 
     # ── User loader for Flask-Login ────────────────────────────
     from .models import User
