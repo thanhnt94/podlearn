@@ -756,18 +756,18 @@ body.dictation-active .dictation-blur-overlay {
 }
 
 .player-left {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     background: #000;
-    max-width: 100%;
 }
 
 .player-right {
-    flex: 1;
-    min-width: 350px;
-    max-width: 500px;
+    flex: 0 0 450px;
+    width: 450px;
     background: var(--bg-secondary);
     border-left: 1px solid var(--border);
     display: flex;
@@ -777,10 +777,11 @@ body.dictation-active .dictation-blur-overlay {
     z-index: 5;
 }
 
-/* On very wide screens, don't cap the right pane just let it take the rest */
+/* On very wide screens, make the right pane slightly wider */
 @media (min-width: 1600px) {
     .player-right {
-        max-width: none;
+        flex: 0 0 500px;
+        width: 500px;
     }
 }
 
