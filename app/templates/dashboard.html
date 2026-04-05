@@ -29,6 +29,66 @@
             </div>
             
             <div style="display:flex; align-items:center; gap:12px;">
+                <!-- Notification Bell -->
+                <div class="notif-wrapper" style="position:relative;">
+                    <button onclick="toggleNotifPanel()" class="notif-bell-btn" id="notifBellBtn" style="position:relative; background:transparent; border:none; cursor:pointer; padding:6px; border-radius:10px; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
+                        <i data-lucide="bell" style="width:20px; height:20px; color:var(--text-secondary);"></i>
+                        {% if pending_shares %}
+                        <span class="notif-badge" id="notifBadge" style="position:absolute; top:2px; right:2px; width:16px; height:16px; background:#ef4444; border-radius:50%; font-size:9px; font-weight:900; color:#fff; display:flex; align-items:center; justify-content:center; border:2px solid var(--bg-secondary);">{{ pending_shares|length }}</span>
+                        {% endif %}
+                    </button>
+
+                    <!-- Notification Dropdown -->
+                    <div id="notifPanel" class="notif-panel" style="display:none; position:absolute; top:calc(100% + 10px); right:0; width:380px; max-height:460px; background:var(--bg-card); border:1px solid rgba(255,255,255,0.08); border-radius:20px; box-shadow:0 20px 60px rgba(0,0,0,0.5); z-index:200; overflow:hidden;">
+                        <div style="padding:18px 20px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between;">
+                            <h4 style="margin:0; font-size:14px; font-weight:800; color:var(--text-primary);">Thông báo</h4>
+                            <span id="notifCount" style="font-size:11px; font-weight:700; color:var(--accent); background:rgba(108,92,231,0.15); padding:2px 10px; border-radius:20px;">{{ pending_shares|length }} mới</span>
+                        </div>
+                        <div id="notifList" style="overflow-y:auto; max-height:380px; padding:8px;">
+                            {% if pending_shares %}
+                                {% for share in pending_shares %}
+                                <div class="notif-item" id="notifItem{{ share.id }}" style="padding:14px 16px; border-radius:14px; margin-bottom:4px; transition:all 0.2s; background:rgba(108,92,231,0.04); border:1px solid rgba(108,92,231,0.08);">
+                                    <div style="display:flex; align-items:flex-start; gap:12px;">
+                                        <div style="width:36px; height:36px; min-width:36px; border-radius:12px; background:linear-gradient(135deg, #6c5ce7, #a29bfe); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; color:#fff;">
+                                            {{ share.sender.username[0].upper() }}
+                                        </div>
+                                        <div style="flex:1; min-width:0;">
+                                            <p style="margin:0 0 4px 0; font-size:13px; font-weight:600; color:var(--text-primary); line-height:1.4;">
+                                                <strong style="color:var(--accent);">{{ share.sender.username }}</strong> đã chia sẻ bài học với bạn
+                                            </p>
+                                            <p style="margin:0 0 10px 0; font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                <i data-lucide="play-circle" style="width:12px; height:12px; display:inline-block; vertical-align:-2px; margin-right:4px;"></i>
+                                                {{ share.video.title }}
+                                            </p>
+                                            <div style="display:flex; gap:8px;">
+                                                <button onclick="respondToShare({{ share.id }}, 'accept')" style="flex:1; padding:7px; border:none; border-radius:10px; background:var(--accent); color:#fff; font-size:11px; font-weight:700; cursor:pointer; transition:all 0.2s; font-family:inherit;">
+                                                    <i data-lucide="check" style="width:12px; height:12px; display:inline-block; vertical-align:-2px; margin-right:3px;"></i> Chấp nhận
+                                                </button>
+                                                <button onclick="respondToShare({{ share.id }}, 'reject')" style="flex:1; padding:7px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; background:transparent; color:var(--text-secondary); font-size:11px; font-weight:700; cursor:pointer; transition:all 0.2s; font-family:inherit;">
+                                                    Từ chối
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div id="notifEmpty" style="padding:40px 20px; text-align:center;">
+                                    <i data-lucide="bell-off" style="width:32px; height:32px; color:var(--text-muted); margin:0 auto 12px; display:block; opacity:0.4;"></i>
+                                    <p style="margin:0; font-size:13px; color:var(--text-muted); font-weight:600;">Không có thông báo mới</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="h-4 w-px bg-white/10 mx-1"></div>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('admin.dashboard') }}" style="display:flex; align-items:center; gap:6px; padding:5px 12px; border-radius:10px; background:rgba(108,92,231,0.1); border:1px solid rgba(108,92,231,0.2); color:#a29bfe; font-size:11px; font-weight:700; text-decoration:none; transition:all 0.2s;" onmouseover="this.style.background='rgba(108,92,231,0.2)';this.style.borderColor='rgba(108,92,231,0.4)'" onmouseout="this.style.background='rgba(108,92,231,0.1)';this.style.borderColor='rgba(108,92,231,0.2)'">
+                    <i data-lucide="shield" style="width:14px;height:14px;"></i>
+                    Admin
+                </a>
+                {% endif %}
                 <a href="{{ url_for('auth.profile') }}" class="flex items-center gap-2 hover:bg-white/5 px-3 py-1.5 rounded-lg transition-all group">
                     <div class="w-7 h-7 rounded-full bg-[#6c5ce7]/20 border border-[#6c5ce7]/30 flex items-center justify-center text-[#a29bfe] text-[10px] font-black group-hover:bg-[#6c5ce7] group-hover:text-white transition-all">
                         {{ current_user.username[0].upper() }}
@@ -930,7 +990,69 @@
         } catch(err) { alert('Request failed.'); }
     }
 
+    // --- Notification Panel ---
+    function toggleNotifPanel() {
+        const panel = document.getElementById('notifPanel');
+        const isHidden = panel.style.display === 'none';
+        panel.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) lucide.createIcons();
+    }
 
+    // Close notification panel on outside click
+    document.addEventListener('click', (e) => {
+        const wrapper = document.querySelector('.notif-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            document.getElementById('notifPanel').style.display = 'none';
+        }
+    });
+
+    async function respondToShare(shareId, action) {
+        try {
+            const res = await fetch(`/api/share/${shareId}/respond`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': "{{ csrf_token() }}"
+                },
+                body: JSON.stringify({ action })
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Animate removal
+                const item = document.getElementById('notifItem' + shareId);
+                if (item) {
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateX(20px)';
+                    setTimeout(() => item.remove(), 300);
+                }
+
+                // Update badge count
+                const remaining = document.querySelectorAll('.notif-item').length - 1;
+                const badge = document.getElementById('notifBadge');
+                const countEl = document.getElementById('notifCount');
+                if (remaining <= 0) {
+                    if (badge) badge.remove();
+                    if (countEl) countEl.textContent = '0 mới';
+                    // Show empty state after animation
+                    setTimeout(() => {
+                        const list = document.getElementById('notifList');
+                        list.innerHTML = '<div style="padding:40px 20px; text-align:center;"><i data-lucide="bell-off" style="width:32px; height:32px; color:var(--text-muted); margin:0 auto 12px; display:block; opacity:0.4;"></i><p style="margin:0; font-size:13px; color:var(--text-muted); font-weight:600;">Không có thông báo mới</p></div>';
+                        lucide.createIcons();
+                    }, 350);
+                } else {
+                    if (badge) badge.textContent = remaining;
+                    if (countEl) countEl.textContent = remaining + ' mới';
+                }
+
+                if (action === 'accept') {
+                    // Reload after a moment so user sees the video in library
+                    setTimeout(() => location.reload(), 800);
+                }
+            } else {
+                alert('Lỗi: ' + data.error);
+            }
+        } catch(err) { alert('Không thể kết nối server.'); }
+    }
 
 </script>
 <style>
@@ -987,6 +1109,30 @@
     @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Notification Bell */
+    .notif-bell-btn:hover {
+        background: rgba(255,255,255,0.06);
+    }
+    .notif-bell-btn:hover i {
+        color: var(--text-primary);
+    }
+    .notif-item {
+        transition: all 0.3s ease;
+    }
+    .notif-item:hover {
+        background: rgba(108,92,231,0.08) !important;
+    }
+    .notif-item button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    @media (max-width: 768px) {
+        .notif-panel {
+            width: 320px !important;
+            right: -60px !important;
+        }
     }
 </style>
 {% endblock %}
