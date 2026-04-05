@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block title %}Tài khoản của tôi — AuraFlow{% endblock %}
+{% block body_class %}profile-page{% endblock %}
+
+{% block content %}
+<div class="profile-page-wrapper">
+    <!-- Header -->
+    <header class="profile-header">
+        <div class="profile-header__inner">
+            <div class="profile-header__left">
+                <a href="{{ url_for('dashboard.index') }}" class="profile-brand">
+                    <div class="profile-brand__icon">
+                        <i data-lucide="zap" style="width:22px;height:22px;color:#fff;"></i>
+                    </div>
+                    <span class="profile-brand__text">Aura<span style="color:#6c5ce7;">Flow</span></span>
+                </a>
+            </div>
+            <div class="profile-header__right">
+                <a href="{{ url_for('dashboard.index') }}" class="profile-back-link">
+                    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i>
+                    Quay lại Thư viện
+                </a>
+                <div class="profile-header__divider"></div>
+                <div class="profile-header__user">
+                    <div class="profile-avatar-sm">{{ user.username[0].upper() }}</div>
+                    <span class="profile-header__username">{{ user.username }}</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="profile-main">
+        <!-- Hero Section -->
+        <div class="profile-hero">
+            <div class="profile-hero__glow profile-hero__glow--purple"></div>
+            <div class="profile-hero__glow profile-hero__glow--rose"></div>
+            
+            <div class="profile-hero__content">
+                <div class="profile-avatar-lg">
+                    <div class="profile-avatar-lg__inner">
+                        <i data-lucide="user" style="width:56px;height:56px;color:#a29bfe;"></i>
+                    </div>
+                </div>
+                <div class="profile-hero__info">
+                    <h1 class="profile-hero__name">{{ user.username }}</h1>
+                    <div class="profile-hero__badges">
+                        <div class="profile-badge profile-badge--neutral">
+                            <i data-lucide="calendar" style="width:14px;height:14px;"></i>
+                            Tham gia từ {{ user.created_at.strftime('%m/%Y') }}
+                        </div>
+                        <div class="profile-badge profile-badge--accent">
+                            <i data-lucide="flame" style="width:14px;height:14px;"></i>
+                            {{ user.current_streak }} Ngày liên tiếp
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-grid">
+            <!-- Sidebar / Settings Groups -->
+            <div class="profile-sidebar">
+                <button class="profile-sidebar__btn profile-sidebar__btn--active" data-tab="account" onclick="switchProfileTab('account', this)">
+                    <div class="profile-sidebar__btn-left">
+                        <div class="profile-sidebar__icon profile-sidebar__icon--accent">
+                            <i data-lucide="settings" style="width:20px;height:20px;"></i>
+                        </div>
+                        <span>Thông tin cá nhân</span>
+                    </div>
+                    <i data-lucide="chevron-right" style="width:16px;height:16px;color:#64748b;"></i>
+                </button>
+                <button class="profile-sidebar__btn" data-tab="notifications" onclick="switchProfileTab('notifications', this)">
+                    <div class="profile-sidebar__btn-left">
+                        <div class="profile-sidebar__icon">
+                            <i data-lucide="bell" style="width:20px;height:20px;"></i>
+                        </div>
+                        <span>Thông báo</span>
+                    </div>
+                    <i data-lucide="chevron-right" style="width:16px;height:16px;color:#64748b;"></i>
+                </button>
+                <button class="profile-sidebar__btn" data-tab="privacy" onclick="switchProfileTab('privacy', this)">
+                    <div class="profile-sidebar__btn-left">
+                        <div class="profile-sidebar__icon profile-sidebar__icon--danger">
+                            <i data-lucide="shield-alert" style="width:20px;height:20px;"></i>
+                        </div>
+                        <span>Quyền riêng tư</span>
+                    </div>
+                    <i data-lucide="chevron-right" style="width:16px;height:16px;color:#64748b;"></i>
+                </button>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="profile-content">
+                <!-- TAB: Account Settings -->
+                <div class="profile-tab-pane profile-tab-pane--active" id="profilePane-account">
+                    <div class="profile-card">
+                        <h2 class="profile-card__title">
+                            Cấu hình tài khoản
+                            <span class="profile-card__badge">Local Auth</span>
+                        </h2>
+
+                        <form method="POST" action="{{ url_for('auth.profile') }}" class="profile-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            <!-- Username (Read only) -->
+                            <div class="profile-field">
+                                <label class="profile-field__label">Tên đăng nhập</label>
+                                <div class="profile-field__input-wrap">
+                                    <i data-lucide="user" class="profile-field__icon"></i>
+                                    <input type="text" value="{{ user.username }}" disabled class="profile-field__input profile-field__input--disabled">
+                                </div>
+                                <p class="profile-field__hint">Tên đăng nhập không thể thay đổi sau khi tạo tài khoản.</p>
+                            </div>
+
+                            <!-- Email -->
+                            <div class="profile-field">
+                                <label class="profile-field__label">Địa chỉ Email</label>
+                                <div class="profile-field__input-wrap">
+                                    <i data-lucide="mail" class="profile-field__icon profile-field__icon--accent"></i>
+                                    <input type="email" name="email" value="{{ user.email }}" required class="profile-field__input">
+                                </div>
+                            </div>
+
+                            <div class="profile-divider"></div>
+
+                            <!-- Password -->
+                            <h3 class="profile-section-title">Đổi mật khẩu</h3>
+                            <div class="profile-field">
+                                <label class="profile-field__label">Mật khẩu mới</label>
+                                <div class="profile-field__input-wrap">
+                                    <i data-lucide="lock" class="profile-field__icon"></i>
+                                    <input type="password" name="new_password" placeholder="Để trống nếu không muốn đổi" class="profile-field__input">
+                                </div>
+                            </div>
+                            <div class="profile-field">
+                                <label class="profile-field__label">Xác nhận mật khẩu</label>
+                                <div class="profile-field__input-wrap">
+                                    <i data-lucide="shield-check" class="profile-field__icon"></i>
+                                    <input type="password" name="confirm_password" placeholder="Nhập lại mật khẩu mới" class="profile-field__input">
+                                </div>
+                            </div>
+
+                            <div class="profile-form__actions">
+                                <button type="submit" class="profile-submit-btn">
+                                    <i data-lucide="save" style="width:18px;height:18px;"></i>
+                                    Lưu thay đổi
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Security tip -->
+                    <div class="profile-tip">
+                        <div class="profile-tip__icon">
+                            <i data-lucide="info" style="width:24px;height:24px;"></i>
+                        </div>
+                        <div>
+                            <h4 class="profile-tip__title">Mẹo bảo mật</h4>
+                            <p class="profile-tip__text">Hãy sử dụng mật khẩu mạnh bao gồm chữ cái, số và ký tự đặc biệt. Đừng chia sẻ tài khoản AuraFlow của bạn với người khác để bảo vệ lộ trình học tập cá nhân.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: Notifications (placeholder) -->
+                <div class="profile-tab-pane" id="profilePane-notifications">
+                    <div class="profile-card">
+                        <h2 class="profile-card__title">Cài đặt thông báo</h2>
+                        <div class="profile-placeholder">
+                            <i data-lucide="bell-off" style="width:48px;height:48px;color:#334155;"></i>
+                            <p>Tính năng thông báo sẽ được cập nhật trong phiên bản tới.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: Privacy (placeholder) -->
+                <div class="profile-tab-pane" id="profilePane-privacy">
+                    <div class="profile-card">
+                        <h2 class="profile-card__title">Quyền riêng tư</h2>
+                        <div class="profile-placeholder">
+                            <i data-lucide="shield" style="width:48px;height:48px;color:#334155;"></i>
+                            <p>Cài đặt quyền riêng tư sẽ được cập nhật trong phiên bản tới.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+    });
+
+    function switchProfileTab(tabName, btnEl) {
+        // Toggle panes
+        document.querySelectorAll('.profile-tab-pane').forEach(p => p.classList.remove('profile-tab-pane--active'));
+        const target = document.getElementById('profilePane-' + tabName);
+        if (target) target.classList.add('profile-tab-pane--active');
+
+        // Toggle sidebar buttons
+        document.querySelectorAll('.profile-sidebar__btn').forEach(b => b.classList.remove('profile-sidebar__btn--active'));
+        if (btnEl) btnEl.classList.add('profile-sidebar__btn--active');
+    }
+</script>
+
+<style>
+    /* ── Profile Page: Isolated Layout ── */
+    .profile-page { overflow: auto !important; }
+
+    .profile-page-wrapper {
+        min-height: 100vh;
+        background: #0a0e1a;
+        color: #e8ecf4;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* Header */
+    .profile-header {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(10, 14, 26, 0.85);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .profile-header__inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 24px;
+        height: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .profile-header__left { display: flex; align-items: center; }
+    .profile-header__right { display: flex; align-items: center; gap: 20px; }
+    .profile-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #fff; font-weight: 700; font-size: 22px; }
+    .profile-brand__icon { width: 38px; height: 38px; background: #6c5ce7; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(108,92,231,0.25); }
+    .profile-brand__text { letter-spacing: -0.5px; }
+    .profile-back-link { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #94a3b8; text-decoration: none; transition: color 0.2s; }
+    .profile-back-link:hover { color: #fff; }
+    .profile-header__divider { width: 1px; height: 24px; background: rgba(255,255,255,0.1); }
+    .profile-header__user { display: flex; align-items: center; gap: 10px; }
+    .profile-header__username { font-size: 14px; font-weight: 700; color: #fff; }
+    .profile-avatar-sm { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #a29bfe); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: #fff; }
+
+    /* Main */
+    .profile-main { max-width: 1024px; margin: 0 auto; padding: 48px 24px 80px; }
+
+    /* Hero */
+    .profile-hero {
+        position: relative;
+        margin-bottom: 48px;
+        padding: 40px;
+        border-radius: 32px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid rgba(255,255,255,0.05);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+        overflow: hidden;
+    }
+    .profile-hero__glow { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; }
+    .profile-hero__glow--purple { width: 250px; height: 250px; top: -80px; right: -60px; background: rgba(108,92,231,0.12); }
+    .profile-hero__glow--rose { width: 200px; height: 200px; bottom: -60px; left: -40px; background: rgba(244,63,94,0.06); }
+    .profile-hero__content { position: relative; display: flex; align-items: center; gap: 32px; }
+    .profile-avatar-lg { width: 120px; height: 120px; min-width: 120px; border-radius: 30px; background: linear-gradient(135deg, #6c5ce7, #a29bfe); padding: 3px; box-shadow: 0 12px 30px rgba(108,92,231,0.25); }
+    .profile-avatar-lg__inner { width: 100%; height: 100%; border-radius: 28px; background: #0f172a; display: flex; align-items: center; justify-content: center; }
+    .profile-hero__info { flex: 1; }
+    .profile-hero__name { font-size: 32px; font-weight: 900; color: #fff; margin: 0 0 10px 0; }
+    .profile-hero__badges { display: flex; flex-wrap: wrap; gap: 10px; }
+    .profile-badge { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .profile-badge--neutral { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); color: #94a3b8; }
+    .profile-badge--accent { background: rgba(108,92,231,0.1); border: 1px solid rgba(108,92,231,0.2); color: #a29bfe; }
+
+    /* Grid */
+    .profile-grid { display: grid; grid-template-columns: 280px 1fr; gap: 32px; }
+    @media (max-width: 900px) {
+        .profile-grid { grid-template-columns: 1fr; }
+        .profile-hero__content { flex-direction: column; text-align: center; }
+        .profile-hero__badges { justify-content: center; }
+    }
+
+    /* Sidebar */
+    .profile-sidebar { display: flex; flex-direction: column; gap: 8px; }
+    .profile-sidebar__btn {
+        width: 100%;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: transparent;
+        border: 1px solid transparent;
+        color: #94a3b8;
+        font-size: 14px;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.2s;
+        text-align: left;
+    }
+    .profile-sidebar__btn:hover { background: rgba(255,255,255,0.04); }
+    .profile-sidebar__btn--active {
+        background: rgba(255,255,255,0.05);
+        border-color: rgba(108,92,231,0.4);
+        color: #e8ecf4;
+    }
+    .profile-sidebar__btn-left { display: flex; align-items: center; gap: 12px; }
+    .profile-sidebar__icon { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; color: #64748b; }
+    .profile-sidebar__icon--accent { background: rgba(108,92,231,0.15); color: #a29bfe; }
+    .profile-sidebar__icon--danger { background: rgba(244,63,94,0.1); color: #fb7185; }
+
+    /* Tab Panes */
+    .profile-tab-pane { display: none; }
+    .profile-tab-pane--active { display: flex; flex-direction: column; gap: 24px; animation: profileFadeIn 0.3s ease; }
+    @keyframes profileFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Card */
+    .profile-card {
+        padding: 40px;
+        border-radius: 28px;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.05);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    }
+    .profile-card__title {
+        font-size: 22px;
+        font-weight: 900;
+        color: #fff;
+        margin: 0 0 32px 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .profile-card__badge {
+        font-size: 9px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 8px;
+        background: rgba(20,184,166,0.15);
+        color: #2dd4bf;
+        border: 1px solid rgba(20,184,166,0.25);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Form */
+    .profile-form { display: flex; flex-direction: column; gap: 28px; }
+    .profile-field { display: flex; flex-direction: column; gap: 8px; }
+    .profile-field__label { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; padding-left: 4px; }
+    .profile-field__input-wrap { position: relative; }
+    .profile-field__icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: #475569; pointer-events: none; }
+    .profile-field__icon--accent { color: #a29bfe; }
+    .profile-field__input {
+        width: 100%;
+        padding: 14px 18px 14px 52px;
+        background: #0f172a;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 16px;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        font-family: inherit;
+        outline: none;
+        transition: all 0.2s;
+    }
+    .profile-field__input:focus { border-color: rgba(108,92,231,0.5); box-shadow: 0 0 0 4px rgba(108,92,231,0.08); }
+    .profile-field__input--disabled { background: rgba(255,255,255,0.03); color: #64748b; cursor: not-allowed; opacity: 0.6; }
+    .profile-field__input::placeholder { color: rgba(255,255,255,0.18); font-weight: 500; }
+    .profile-field__hint { font-size: 10px; color: #475569; font-style: italic; padding-left: 4px; }
+
+    .profile-divider { height: 1px; background: rgba(255,255,255,0.04); }
+    .profile-section-title { font-size: 18px; font-weight: 900; color: #fff; margin: 0; }
+
+    .profile-form__actions { padding-top: 12px; }
+    .profile-submit-btn {
+        width: 100%;
+        padding: 16px;
+        border-radius: 18px;
+        border: none;
+        background: #6c5ce7;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+        font-family: inherit;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        box-shadow: 0 8px 25px rgba(108,92,231,0.25);
+        transition: all 0.25s;
+    }
+    .profile-submit-btn:hover { background: #5b4bc4; transform: translateY(-2px); box-shadow: 0 12px 35px rgba(108,92,231,0.35); }
+    .profile-submit-btn:active { transform: scale(0.97); }
+
+    /* Tip Box */
+    .profile-tip {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 20px 24px;
+        border-radius: 20px;
+        background: rgba(245,158,11,0.04);
+        border: 1px solid rgba(245,158,11,0.1);
+    }
+    .profile-tip__icon { width: 48px; height: 48px; min-width: 48px; border-radius: 14px; background: rgba(245,158,11,0.08); display: flex; align-items: center; justify-content: center; color: #f59e0b; }
+    .profile-tip__title { font-weight: 700; color: #fbbf24; margin-bottom: 4px; font-size: 14px; }
+    .profile-tip__text { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+
+    /* Placeholder */
+    .profile-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 60px 20px;
+        text-align: center;
+        color: #475569;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}

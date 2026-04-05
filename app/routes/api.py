@@ -455,6 +455,7 @@ def import_sentence():
         return jsonify(result), 400
 
     return jsonify(result)
+
 @api_bp.route('/video/import', methods=['POST'])
 @login_required
 def import_video():
@@ -469,9 +470,11 @@ def import_video():
     if not video_id_str:
         return jsonify({'error': 'Invalid YouTube URL'}), 400
 
-    video = Video.query.filter_by(youtube_id=video_id_str).first()
+    # Only match videos owned by this user
+    video = Video.query.filter_by(youtube_id=video_id_str, owner_id=current_user.id).first()
+
     if not video:
-        video = Video(youtube_id=video_id_str, title="Processing...", status='pending')
+        video = Video(youtube_id=video_id_str, title="Processing...", status='pending', owner_id=current_user.id, visibility='private')
         db.session.add(video)
         db.session.commit()
         # Trigger background task
@@ -479,19 +482,46 @@ def import_video():
         from ..utils.background_tasks import run_in_background
         run_in_background(process_video_metadata, video.id)
 
-    # Check if lesson exists
+    # Check if lesson exists, create if not
     existing = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
     if not existing:
         lesson = Lesson(user_id=current_user.id, video_id=video.id)
         db.session.add(lesson)
         db.session.commit()
-    
+
     return jsonify({
-        'success': True, 
-        'video_id': video.id, 
-        'title': video.title, 
+        'success': True,
+        'video_id': video.id,
+        'title': video.title,
         'message': 'Video imported and added to library.'
     })
+
+@api_bp.route('/video/<int:video_id>/publish', methods=['POST'])
+@login_required
+def request_publish(video_id):
+    """Owner submits their video for public review by an admin."""
+    video = Video.query.filter_by(id=video_id, owner_id=current_user.id).first_or_404()
+    video.visibility = 'pending_public'
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Video submitted for admin approval.'})
+
+@api_bp.route('/video/<int:video_id>/join', methods=['POST'])
+@login_required
+def join_public_video(video_id):
+    """User adds a public video to their private library."""
+    video = Video.query.filter_by(id=video_id, visibility='public').first_or_404()
+    
+    # Check if lesson already exists
+    existing = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
+    if existing:
+        return jsonify({'success': False, 'error': 'Video already in your library.'}), 400
+        
+    lesson = Lesson(user_id=current_user.id, video_id=video.id)
+    db.session.add(lesson)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': f"Video '{video.title}' added to your library."})
+
 @api_bp.route('/sentences/<int:sentence_id>/audio', methods=['POST'])
 @login_required
 def get_sentence_audio(sentence_id):
@@ -625,29 +655,44 @@ def create_set():
         }
     })
 
-@api_bp.route('/sets/<int:set_id>', methods=['PATCH'])
+@api_bp.route('/sets/<int:set_id>/join', methods=['POST'])
 @login_required
-def update_set(set_id):
-    """Update title or description of a set."""
-    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
-    data = request.get_json() or {}
+def join_public_set(set_id):
+    """User clones a public sentence set (deck) into their own library."""
+    original_set = SentenceSet.query.filter_by(id=set_id, visibility='public').first_or_404()
     
-    if 'title' in data:
-        s_set.title = data['title'].strip()
-    if 'description' in data:
-        s_set.description = data['description'].strip()
-        
+    # 1. Create a new set for the current user
+    new_set = SentenceSet(
+        user_id=current_user.id,
+        title=f"{original_set.title} (Clone)",
+        description=original_set.description,
+        set_type=original_set.set_type,
+        visibility='private'
+    )
+    db.session.add(new_set)
+    db.session.flush() # Get new_set.id
+    
+    # 2. Clone all sentences
+    original_sentences = original_set.sentences.all()
+    for s in original_sentences:
+        new_sent = Sentence(
+            user_id=current_user.id,
+            set_id=new_set.id,
+            original_text=s.original_text,
+            translated_text=s.translated_text,
+            audio_url=s.audio_url,
+            source_video_id=s.source_video_id,
+            detailed_analysis=s.detailed_analysis,
+            analysis_note=s.analysis_note
+        )
+        db.session.add(new_sent)
+    
     db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/sets/<int:set_id>', methods=['DELETE'])
-@login_required
-def delete_set(set_id):
-    """Delete a set and all its sentences (via cascade)."""
-    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
-    db.session.delete(s_set)
-    db.session.commit()
-    return jsonify({'success': True})
+    return jsonify({
+        'success': True, 
+        'message': f"Bộ bài '{original_set.title}' đã được thêm vào thư viện của bạn.",
+        'new_set_id': new_set.id
+    })
 
 
 # ── SENTENCE MANAGEMENT ────────────────────────────────────────

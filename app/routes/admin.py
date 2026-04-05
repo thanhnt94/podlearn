@@ -242,3 +242,32 @@ def toggle_sso():
     
     return {'success': True, 'message': f'Đã chuyển sang chế độ xác thực: {new_provider}'}
 
+
+@admin_bp.route('/pending-videos')
+@login_required
+@admin_required
+def pending_videos():
+    videos_list = Video.query.filter_by(visibility='pending_public').order_by(Video.created_at.desc()).all()
+    # Need to create 'admin/pending_videos.html' template
+    return render_template('admin/pending_videos.html', videos=videos_list)
+
+@admin_bp.route('/video/<int:video_id>/approve-public', methods=['POST'])
+@login_required
+@admin_required
+def approve_public_video(video_id):
+    video = Video.query.get_or_404(video_id)
+    video.visibility = 'public'
+    db.session.commit()
+    flash(f'Video {video.title} is now public!', 'success')
+    return redirect(url_for('admin.pending_videos'))
+
+@admin_bp.route('/video/<int:video_id>/reject-public', methods=['POST'])
+@login_required
+@admin_required
+def reject_public_video(video_id):
+    video = Video.query.get_or_404(video_id)
+    video.visibility = 'private'
+    db.session.commit()
+    flash(f'Video {video.title} public request rejected.', 'info')
+    return redirect(url_for('admin.pending_videos'))
+

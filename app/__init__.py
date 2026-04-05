@@ -62,6 +62,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes.auth_center import auth_center_bp
     from .routes.practice import practice_bp
     from .routes.import_handler import import_bp
+    from .routes.share_routes import share_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -71,6 +72,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(player_bp, url_prefix='/player')
     app.register_blueprint(practice_bp, url_prefix='/practice')
     app.register_blueprint(import_bp)
+    app.register_blueprint(share_bp)
 
     # ── ECOSYSTEM HEALTH CHECK ─────────────────────────────────
     from flask import jsonify

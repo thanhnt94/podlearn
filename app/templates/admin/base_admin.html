@@ -34,6 +34,10 @@
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path></svg>
                 Data Import Master
             </a>
+            <a href="{{ url_for('admin.pending_videos') }}" class="nav-item {% if request.endpoint == 'admin.pending_videos' %}active{% endif %}" style="display: flex; align-items: center; gap: 12px; padding: 1rem 1.5rem; text-decoration: none; color: var(--text-secondary); border-radius: 12px; transition: all 0.3s; margin-bottom: 8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Pending Approvals
+            </a>
 
         </nav>
         

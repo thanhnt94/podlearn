@@ -8,3 +8,4 @@ from .note import Note          # noqa: F401
 from .shadowing import ShadowingHistory # noqa: F401
 from .setting import AppSetting   # noqa: F401
 from .sentence import Sentence, SentenceSet    # noqa: F401
+from .share import ShareRequest # noqa: F401

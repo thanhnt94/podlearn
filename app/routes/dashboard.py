@@ -90,9 +90,34 @@ def index():
     # 4. Sentence Sets (Decks)
     sets = SentenceSet.query.filter_by(user_id=current_user.id).order_by(SentenceSet.updated_at.desc()).all()
 
+    from ..models.share import ShareRequest
+    pending_shares = ShareRequest.query.filter_by(receiver_id=current_user.id, status='pending').all()
+
+    # 5. Public Community Gallery
+    # Fetch all public videos (including user's own public ones)
+    user_lesson_video_ids = [l.video_id for l in lessons]
+    video_lesson_map = {l.video_id: l.id for l in lessons}
+    public_videos = (
+        Video.query.filter_by(visibility='public')
+        .order_by(Video.created_at.desc())
+        .all()
+    )
+
+    # Fetch all public sentence sets
+    public_sets = (
+        SentenceSet.query.filter_by(visibility='public')
+        .order_by(SentenceSet.created_at.desc())
+        .all()
+    )
+
     return render_template('dashboard.html', 
                            lessons=lessons,
                            sets=sets,
+                           public_videos=public_videos,
+                           public_sets=public_sets,
+                           user_lesson_video_ids=user_lesson_video_ids,
+                           video_lesson_map=video_lesson_map,
+                           pending_shares=pending_shares,
                            current_streak=current_user.current_streak,
                            longest_streak=current_user.longest_streak,
                            total_time_formatted=total_time_formatted,
@@ -153,15 +178,17 @@ def add_lesson():
         flash('Invalid YouTube URL. Please paste a valid link.', 'error')
         return redirect(url_for('dashboard.index'))
 
-    # Check if video already exists in DB
-    video = Video.query.filter_by(youtube_id=video_id_str).first()
+    # Check if THIS USER already has a video with this youtube_id
+    video = Video.query.filter_by(youtube_id=video_id_str, owner_id=current_user.id).first()
 
     if not video:
-        # Create a "pending" entry immediately
+        # Create a new private video for this user
         video = Video(
             youtube_id=video_id_str,
             title="Processing...",
-            status='pending'
+            status='pending',
+            owner_id=current_user.id,
+            visibility='private'
         )
         db.session.add(video)
         db.session.commit()

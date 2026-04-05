@@ -135,3 +135,44 @@ def logout():
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    from ..models.setting import AppSetting
+    auth_provider = AppSetting.get('AUTH_PROVIDER', 'local')
+    
+    if auth_provider == 'central':
+        # Redirect to SSO profile management if Central Auth is active
+        sso_url = current_app.config.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://localhost:5000')
+        # In standardized ecosystem settings, profile/settings is usually at /profile or /settings
+        return redirect(f"{sso_url}/profile")
+
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        # Basic email update
+        if email and email != current_user.email:
+            if User.query.filter_by(email=email).first():
+                flash('Email already registered by another user.', 'error')
+            else:
+                current_user.email = email
+                flash('Email updated successfully.', 'success')
+
+        # Password update flow
+        if new_password:
+            if len(new_password) < 6:
+                flash('Password must be at least 6 characters.', 'error')
+            elif new_password != confirm_password:
+                flash('Passwords do not match.', 'error')
+            else:
+                current_user.set_password(new_password)
+                flash('Password changed successfully.', 'success')
+
+        db.session.commit()
+        return redirect(url_for('auth.profile'))
+
+    return render_template('auth/profile.html', user=current_user)

@@ -53,6 +53,24 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 Options
             </button>
+
+            {% if lesson.video.owner_id == current_user.id %}
+            <button class="btn btn--outline btn--sm" onclick="openShareModal()" style="margin-left: 8px; border-color: rgba(255,255,255,0.2);" title="Share with a user">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                Share
+            </button>
+            {% if lesson.video.visibility == 'private' %}
+            <button class="btn btn--primary btn--sm" onclick="publishVideo({{ lesson.video.id }})" style="margin-left: 8px; background:var(--success);" title="Submit to Public Library">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Publish
+            </button>
+            {% elif lesson.video.visibility == 'pending_public' %}
+            <button class="btn btn--primary btn--sm" disabled style="margin-left: 8px; opacity:0.6; cursor:not-allowed;" title="Pending Admin Review">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Pending Review
+            </button>
+            {% endif %}
+            {% endif %}
         </div>
 
         <!-- YouTube Player Container (Pure 16:9) -->
@@ -593,6 +611,26 @@
     </div>
 </div>
 
+<!-- Share Modal -->
+<div id="shareModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2000; justify-content:center; align-items:center;">
+    <div class="modal-content" style="background:#1e293b; padding:24px; border-radius:18px; width:400px; max-width:90%;">
+        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:15px; margin-bottom:20px;">
+            <h3 style="margin:0; font-size:18px; color:#fff;">Share Video Workspace</h3>
+            <button onclick="closeShareModal()" style="background:none; border:none; color:#94a3b8; cursor:pointer;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:15px;">
+            <p style="color:#94a3b8; font-size:14px; margin:0;">Enter the username of the person you want to collaborate with. They will be able to access this video and all of your subtitles.</p>
+            <div style="position:relative;">
+                <input type="text" id="shareUsername" class="input-base" placeholder="Username" autocomplete="off" oninput="searchUsers(this.value)" style="width:100%; padding:10px; border-radius:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff;">
+                <div id="userSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; background:#0f172a; border:1px solid #3b82f6; border-radius:8px; z-index:100; max-height:150px; overflow-y:auto; margin-top:5px;"></div>
+            </div>
+            <button class="btn btn--primary" onclick="submitShareRequest({{ lesson.video.id }})" style="width:100%; padding:12px; margin-top:10px;">Send Invitation</button>
+        </div>
+    </div>
+</div>
+
 <!-- Transcript Edit Modal -->
 <div id="transcriptEditModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.2); z-index:1000; justify-content:flex-end; align-items:flex-end; padding: 40px; pointer-events: none;">
     <div class="modal-content note-edit-card" style="background:rgba(15, 23, 42, 0.95); padding:24px; border-radius:18px; width:380px; max-width:90%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 20px 60px rgba(0,0,0,0.5); pointer-events: auto;">
@@ -626,6 +664,103 @@
 </div>
 
 <script>
+    function openShareModal() {
+        document.getElementById('shareModal').style.display = 'flex';
+    }
+    function closeShareModal() {
+        document.getElementById('shareModal').style.display = 'none';
+        document.getElementById('shareUsername').value = '';
+        document.getElementById('userSuggestions').style.display = 'none';
+    }
+
+    let searchTimeout;
+    async function searchUsers(query) {
+        clearTimeout(searchTimeout);
+        const slist = document.getElementById('userSuggestions');
+        if(!query) { slist.style.display = 'none'; return; }
+        
+        searchTimeout = setTimeout(async () => {
+            try {
+                const res = await fetch('/api/share/search_users?q=' + encodeURIComponent(query));
+                const data = await res.json();
+                slist.innerHTML = '';
+                if(data.users && data.users.length > 0) {
+                    data.users.forEach(u => {
+                        const div = document.createElement('div');
+                        div.className = 'p-3 hover:bg-[#3b82f6] cursor-pointer text-[#e8ecf4] font-bold text-sm';
+                        div.textContent = u;
+                        div.onclick = () => {
+                            document.getElementById('shareUsername').value = u;
+                            slist.style.display = 'none';
+                        };
+                        slist.appendChild(div);
+                    });
+                    slist.style.display = 'block';
+                } else {
+                    slist.style.display = 'none';
+                }
+            } catch(e) {}
+        }, 300);
+    }
+
+    async function submitShareRequest(videoId) {
+        const username = document.getElementById('shareUsername').value.trim();
+        if (!username) { alert('Please enter a username.'); return; }
+        
+        try {
+            const res = await fetch('/api/share/request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': "{{ csrf_token() }}"
+                },
+                body: JSON.stringify({ video_id: videoId, username: username })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                closeShareModal();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch(err) { alert('Request failed.'); }
+    }
+
+    async function publishVideo(videoId) {
+        if (!confirm('Are you sure you want to submit this workspace for Admin Review?\nIf approved, it will be added to the global discovery page.')) return;
+        try {
+            const res = await fetch(`/api/video/${videoId}/publish`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': "{{ csrf_token() }}"
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("Success: " + data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch(err) { alert('Request failed.'); }
+    }
+    async function publishVideo(videoId) {
+        if (!confirm('Are you sure you want to submit this video and its subtitles to the public library for admin review?')) return;
+        try {
+            const res = await fetch(`/api/video/${videoId}/publish`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch(err) { alert('Request failed.'); }
+    }
+
     function closeModals() {
         document.getElementById('subtitleManagerModal').style.display = 'none';
         document.getElementById('optionsModal').style.display = 'none';

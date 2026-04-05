@@ -14,6 +14,7 @@ class SentenceSet(db.Model):
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text)
     set_type = db.Column(db.String(50), default='mastery_sentence')  # mastery_sentence, mastery_grammar, mastery_vocab
+    visibility = db.Column(db.String(20), default='private') # private, pending_public, public
     
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
