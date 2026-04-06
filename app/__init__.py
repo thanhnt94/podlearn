@@ -109,7 +109,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     @app.route('/api/sso-internal/link-user', methods=['POST'])
     def internal_link_user():
-        """Update a user's central_auth_id for ecosystem linking."""
+        """Update a user's central_auth_id for ecosystem linking. Supports Admin Push-Back."""
         from flask import request, jsonify
         secret_header = request.headers.get('X-Client-Secret')
         configured_secret = app.config.get('CENTRAL_AUTH_CLIENT_SECRET')
@@ -122,20 +122,49 @@ def create_app(config_name: str | None = None) -> Flask:
         ca_id = data.get('central_auth_id')
         username = data.get('username')
         full_name = data.get('full_name')
+        is_admin_sync = data.get('is_admin_sync', False)
         
-        from .models import User
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            return jsonify({"error": f"User {email} not found"}), 404
+        if not ca_id:
+            return jsonify({"error": "Missing central_auth_id"}), 400
+
+        from .models.user import User
+        target_user = None
+
+        # 1. Admin Push-back logic
+        if is_admin_sync:
+            # Target local ID 1
+            target_user = User.query.get(1)
+            if target_user:
+                # Check if already linked to someone else
+                if target_user.central_auth_id and target_user.central_auth_id != ca_id:
+                    return jsonify({"error": "Local ID 1 is already linked to a different CentralAuth account"}), 409
+                
+                # Perform Push-back (Overwrite local admin identity)
+                target_user.username = username or target_user.username
+                target_user.email = email or target_user.email
+                if hasattr(target_user, 'full_name'):
+                    target_user.full_name = full_name or target_user.full_name
+                target_user.central_auth_id = ca_id
+                db.session.commit()
+                return jsonify({"status": "success", "message": f"Admin identity pushed back to local ID 1 ({target_user.username})"}), 200
+
+        # 2. Standard linking logic
+        if not target_user:
+            target_user = User.query.filter_by(email=email).first()
         
-        user.central_auth_id = str(ca_id)
-        if username:
-            user.username = username
-        if full_name:
-            user.full_name = full_name
-            
-        db.session.commit()
-        return jsonify({"status": "ok", "message": f"Linked {email} and synced profile to CentralAuth."}), 200
+        if not target_user and not is_admin_sync:
+            # Try finding by username as fallback
+            target_user = User.query.filter_by(username=username).first()
+
+        if target_user:
+            target_user.central_auth_id = ca_id
+            if username: target_user.username = username
+            if full_name and hasattr(target_user, 'full_name'):
+                target_user.full_name = full_name
+            db.session.commit()
+            return jsonify({"status": "success", "message": f"User {target_user.username} linked to CentralAuth ID {ca_id}"}), 200
+        
+        return jsonify({"error": "User not found for linking"}), 404
 
     @app.route('/api/sso-internal/delete-user', methods=['POST'])
     def internal_delete_user():
