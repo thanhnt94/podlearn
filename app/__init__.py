@@ -1,7 +1,8 @@
 """AuraFlow — Flask Application Factory."""
 
 import os
-from flask import Flask
+import time
+from flask import Flask, jsonify
 from dotenv import load_dotenv
 
 from .config import config_by_name
@@ -135,9 +136,28 @@ def create_app(config_name: str | None = None) -> Flask:
             # Target local ID 1
             target_user = User.query.get(1)
             if target_user:
-                # Check if already linked to someone else
+                # Collision Handling: If email or username is already taken by ANOTHER user
+                if email:
+                    other_with_email = User.query.filter(User.email == email, User.id != 1).first()
+                    if other_with_email:
+                        app.logger.warning(f"Sync Conflict: Email {email} taken by User {other_with_email.id}. Renaming existing user.")
+                        other_with_email.email = f"{email}_old_{int(time.time())}"
+                
+                if username:
+                    other_with_username = User.query.filter(User.username == username, User.id != 1).first()
+                    if other_with_username:
+                        app.logger.warning(f"Sync Conflict: Username {username} taken by User {other_with_username.id}. Renaming existing user.")
+                        other_with_username.username = f"{username}_old_{int(time.time())}"
+                
+                if ca_id:
+                    other_with_ca = User.query.filter(User.central_auth_id == ca_id, User.id != 1).first()
+                    if other_with_ca:
+                        app.logger.warning(f"Sync Conflict: CA ID {ca_id} taken by User {other_with_ca.id}. Detaching existing user.")
+                        other_with_ca.central_auth_id = None
+
                 if target_user.central_auth_id and target_user.central_auth_id != ca_id:
-                    return jsonify({"error": "Local ID 1 is already linked to a different CentralAuth account"}), 409
+                    # Log conflict but proceed for admin takeover if explicitly requested
+                    app.logger.warning(f"Admin takeover: Overwriting central_auth_id {target_user.central_auth_id} with {ca_id} for local ID 1")
                 
                 # Perform Push-back (Overwrite local admin identity)
                 target_user.username = username or target_user.username
@@ -178,15 +198,21 @@ def create_app(config_name: str | None = None) -> Flask:
 
         data = request.get_json()
         email = data.get('email')
+        username = data.get('username')
         
         from .models import User
-        user = User.query.filter_by(email=email).first()
+        user = None
+        if email and email != "null":
+            user = User.query.filter_by(email=email).first()
+        if not user and username and username != "null":
+            user = User.query.filter_by(username=username).first()
+            
         if not user:
-            return jsonify({"error": f"User {email} not found"}), 404
+            return jsonify({"error": f"User {username or email} not found"}), 404
         
         db.session.delete(user)
         db.session.commit()
-        return jsonify({"status": "ok", "message": f"Deleted {email}"}), 200
+        return jsonify({"status": "ok", "message": f"Deleted {user.username}"}), 200
 
     # Ensure CSRF exemption
     csrf.exempt(internal_user_list)

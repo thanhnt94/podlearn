@@ -16,8 +16,8 @@ class ShareRequest(db.Model):
 
     # Relationships
     video = db.relationship('Video', backref=db.backref('share_requests', lazy='dynamic', cascade='all, delete-orphan'))
-    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_shares')
-    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_shares')
+    sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('sent_shares', cascade='all, delete-orphan'))
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref=db.backref('received_shares', cascade='all, delete-orphan'))
 
     def __repr__(self) -> str:
         return f'<ShareRequest {self.sender_id}->{self.receiver_id} for video_id={self.video_id}>'
