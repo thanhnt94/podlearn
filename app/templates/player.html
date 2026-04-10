@@ -1,77 +1,46 @@
 {% extends "base.html" %}
-{% block title %}{{ lesson.video.title }} — AuraFlow{% endblock %}
+{% block title %}{{ lesson.video.title }} — PodLearn{% endblock %}
 {% block body_class %}player-page{% endblock %}
 
 {% block content %}
 <div class="player-layout">
-    <!-- ═══ LEFT PANE: Video ═══ -->
-    <div class="player-left">
-        <!-- Top bar with Brand Logo -->
-        <div class="player-topbar" style="display: flex; align-items: center; width: 100%;">
-            <!-- Nice Branding Logo -->
-            <a href="{{ url_for('dashboard.index') }}" class="brand-logo" style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:18px; color:var(--text-primary); margin-right:20px; text-decoration: none;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                <span style="letter-spacing: -0.5px;">Pod<span style="color:var(--accent);">Learn</span></span>
-            </a>
-            
-            <h2 class="player-topbar__title" title="{{ lesson.video.title }}" style="color: var(--text-muted); font-size: var(--font-size-xs); flex: 1; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                | &nbsp;&nbsp; {{ lesson.video.title }}
-            </h2>
-            
-            <!-- A-B Repeat & Shadowing Controls -->
-            <div class="ab-controls" style="display: flex; gap: 8px; margin-left: auto; align-items: center;">
-                <button id="btn-shadowing" class="btn btn--ghost btn--sm" onclick="toggleShadowingMode()" title="Shadowing Mode: Auto-pause after each sentence" style="padding: 4px 10px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                    <span>Shadowing</span>
-                </button>
-                <button id="btn-dictation" class="btn btn--ghost btn--sm" onclick="toggleDictationMode()" title="Dictation Mode: Interactive fill-in-the-blanks" style="padding: 4px 10px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                    <span>Dictation</span>
-                </button>
-                <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
-                <div id="ab-status" style="font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; display: none;">Looping A-B</div>
-
-                <button id="btn-set-a" class="btn btn--ghost btn--sm" onclick="setABLoop('A')" title="Set Start (Shortcut: [ )" style="padding: 4px 10px; min-width: 60px;">Set A</button>
-                <button id="btn-set-b" class="btn btn--ghost btn--sm" onclick="setABLoop('B')" title="Set End (Shortcut: ] )" style="padding: 4px 10px; min-width: 60px;">Set B</button>
-                <button id="btn-clear-ab" class="btn btn--ghost btn--sm" onclick="clearABLoop()" title="Clear Loop (Shortcut: \ )" style="display:none; color: var(--danger);">✕</button>
-            </div>
-
-
-            <!-- Real-time Study Timer -->
-            <div id="study-timer" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; margin-left: auto;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <span id="study-timer-clock">00:00</span>
-            </div>
-
-            <!-- NEW: Options inside Player Topbar -->
-            <button class="btn btn--ghost btn--sm" onclick="openOptionsModal()" style="margin-left: 10px;">
-
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                Options
+    <!-- Universal Top bar (Sticky) -->
+    <div class="player-topbar">
+        <a href="{{ url_for('dashboard.index') }}" class="brand-logo">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span class="desktop-only" style="letter-spacing: -0.5px;">Pod<span style="color:var(--accent);">Learn</span></span>
+        </a>
+        
+        <h2 class="player-topbar__title" title="{{ lesson.video.title }}">
+            | {{ lesson.video.title }}
+        </h2>
+        
+        <div class="ab-controls">
+            <button id="btn-shadowing" class="btn btn--ghost btn--sm" onclick="toggleShadowingMode()" title="Shadowing Mode">
+                <i data-lucide="mic" style="width:16px; height:16px;"></i>
+                <span class="desktop-only">Shadowing</span>
             </button>
-
-            {% if lesson.video.owner_id == current_user.id %}
-            <button class="btn btn--outline btn--sm" onclick="openShareModal()" style="margin-left: 8px; border-color: rgba(255,255,255,0.2);" title="Share with a user">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-                Share
+            <button id="btn-dictation" class="btn btn--ghost btn--sm" onclick="toggleDictationMode()" title="Dictation Mode">
+                <i data-lucide="keyboard" style="width:16px; height:16px;"></i>
+                <span class="desktop-only">Dictation</span>
             </button>
-            {% if lesson.video.visibility == 'private' %}
-            <button class="btn btn--primary btn--sm" onclick="publishVideo({{ lesson.video.id }})" style="margin-left: 8px; background:var(--success);" title="Submit to Public Library">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                Publish
+            <button class="btn btn--ghost btn--sm mobile-only" onclick="handleAddNoteClick()" title="Add Note">
+                <i data-lucide="plus" style="width:18px; height:18px;"></i>
             </button>
-            {% elif lesson.video.visibility == 'pending_public' %}
-            <button class="btn btn--primary btn--sm" disabled style="margin-left: 8px; opacity:0.6; cursor:not-allowed;" title="Pending Admin Review">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                Pending Review
+            <button class="btn btn--ghost btn--sm" onclick="openOptionsModal()" title="Settings">
+                <i data-lucide="settings" style="width:18px; height:18px;"></i>
             </button>
-            {% endif %}
-            {% endif %}
         </div>
+    </div>
+
+    <!-- ═══ CONTENT WRAPPER ═══ -->
+    <div class="player-content-wrap">
+        <!-- ═══ LEFT PANE: Video ═══ -->
+        <div class="player-left">
 
         <!-- YouTube Player Container (Pure 16:9) -->
         <div class="player-video-wrap">
@@ -79,26 +48,16 @@
                 <div id="ytPlayer"></div>
             </div>
             
-            <!-- BLUR OVERLAY FOR DICTATION: Hides hardcoded YouTube subs -->
             <div id="dictationBlurOverlay" class="dictation-blur-overlay"></div>
-
-            <!-- Video Overlay for Script -->
-
-            <div class="video-sub-overlay" id="videoSubOverlay" style="visibility: hidden;">
-
-            </div>
-
-            <!-- Video Overlay for active note -->
-            <div class="video-note-overlay" id="notePopup">
-                <span class="video-note-overlay__text" id="notePopupText"></span>
-            </div>
+            <div class="video-sub-overlay" id="videoSubOverlay" style="visibility: hidden;"></div>
+            <div class="video-note-overlay" id="notePopup"><span class="video-note-overlay__text" id="notePopupText"></span></div>
 
             <!-- Shadowing Mode Indicator Overlay -->
             <div id="shadowingHUD" class="shadowing-hud">
                 <div class="shadowing-hud__content">
                     <!-- Close Button -->
                     <button id="btn-shadow-cancel" class="hud-close-btn" onclick="cancelShadowingMode()" title="Exit Shadowing Mode">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        <i data-lucide="x"></i>
                     </button>
                     
                     <!-- Flashcard: Sentence Display -->
@@ -117,28 +76,33 @@
                     <!-- Action Bar: Controls -->
                     <div class="sentence-card__actions">
                         <button class="action-btn" onclick="playOriginalAudio()" title="Nghe Audio gốc">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            <i data-lucide="play"></i>
                         </button>
                         
                         <button id="btn-shadow-mic" class="mic-btn-main" onclick="startShadowSpeechRecognition()" title="Ghi âm Shadowing">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                            <i data-lucide="mic"></i>
                         </button>
 
                         <button id="btn-shadow-submit" class="action-btn" onclick="forceStopRecognition()" title="Đánh giá / Submit">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            <i data-lucide="check-circle-2"></i>
                         </button>
                     </div>
 
                     <!-- Interactive Toggle (Secondary) -->
-                    <div class="shadowing-hud__interactive-toggle">
+                    <div class="shadowing-hud__interactive-toggle" style="display:flex; align-items:center; gap:8px; justify-content:center; margin-top:10px; font-size:12px; color:var(--text-muted);">
                         <input type="checkbox" id="toggleShadowInteractive" onchange="syncShadowInteractive(this.checked)">
                         <label for="toggleShadowInteractive">Speech AI</label>
                     </div>
-                </div> <!-- Closes .shadowing-hud__content -->
-            </div> <!-- Closes .shadowing-hud -->
-            
-        </div> <!-- Closes .player-video-wrap -->
-    </div> <!-- Closes .player-left -->
+                </div>
+            </div>
+        </div>
+
+
+            <div class="mobile-tabs" id="mobileTabsContainer">
+                <div class="mobile-tab active" onclick="switchRightTab('transcript', this)">Transcript</div>
+                <div class="mobile-tab" onclick="switchRightTab('notes', this)">My Notes</div>
+            </div>
+        </div>
 
     <!-- ═══ RIGHT PANE: Tabs (Transcript & Notes) ═══ -->
     <div class="player-right">
@@ -224,8 +188,8 @@
                 </button>
             </div>
         </div>
-    </div>
-</div>
+    </div> <!-- close player-content-wrap -->
+</div> <!-- close player-layout -->
 
 
 <!-- Subtitle Manager Modal -->
@@ -694,6 +658,43 @@
                 alert('Error: ' + data.error);
             }
         } catch(err) { alert('Request failed.'); }
+    }
+
+    function openOptionsModal() {
+        document.getElementById('optionsModal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function switchRightTab(tabId, el) {
+        // Desktop Tabs
+        const paneTabs = document.querySelectorAll('.pane-tab');
+        const panes = document.querySelectorAll('.pane-content');
+        
+        // Mobile Tabs
+        const mobileTabs = document.querySelectorAll('.mobile-tab');
+        
+        // Cleanup all
+        panes.forEach(p => p.classList.remove('active-pane'));
+        paneTabs.forEach(t => t.classList.remove('active'));
+        mobileTabs.forEach(t => t.classList.remove('active'));
+        
+        // Activate Content
+        const targetPane = document.getElementById('pane-' + tabId);
+        if (targetPane) targetPane.classList.add('active-pane');
+        
+        // Activate Desktop Btn
+        const targetBtn = document.getElementById('tabBtn-' + tabId);
+        if (targetBtn) targetBtn.classList.add('active');
+        
+        // Activate Mobile Btn
+        if (el) {
+            el.classList.add('active');
+        } else {
+            // Find mobile tab by index/text if el not provided
+            mobileTabs.forEach(t => {
+                if (t.textContent.toLowerCase().includes(tabId)) t.classList.add('active');
+            });
+        }
     }
 
     function closeModals() {

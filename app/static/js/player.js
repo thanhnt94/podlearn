@@ -934,17 +934,37 @@ function initFromSaved() {
 
 
 // ── Tab & Overlay Toggles ─────────────────────────────────────
-function switchRightTab(tabName) {
+function switchRightTab(tabName, element) {
+    // 1. Sync Desktop Tabs
     document.querySelectorAll('.pane-tab').forEach(b => b.classList.remove('active'));
+    const desktopBtn = document.getElementById(`tabBtn-${tabName}`);
+    if (desktopBtn) desktopBtn.classList.add('active');
+
+    // 2. Sync Mobile Tabs (Pills)
+    document.querySelectorAll('.mobile-tab').forEach(b => b.classList.remove('active'));
+    if (element) {
+        element.classList.add('active');
+    } else {
+        // Find corresponding mobile tab if element wasn't passed (e.g. called from code)
+        const mobileTabs = document.querySelectorAll('.mobile-tab');
+        mobileTabs.forEach(t => {
+            if (t.textContent.toLowerCase().includes(tabName.toLowerCase())) {
+                t.classList.add('active');
+            }
+        });
+    }
+
+    // 3. Toggle Panes
     document.querySelectorAll('.pane-content').forEach(p => {
         p.classList.remove('active-pane');
         p.style.display = 'none';
     });
 
-    document.getElementById(`tabBtn-${tabName}`).classList.add('active');
     const pane = document.getElementById(`pane-${tabName}`);
-    pane.classList.add('active-pane');
-    pane.style.display = 'flex';
+    if (pane) {
+        pane.classList.add('active-pane');
+        pane.style.display = 'flex';
+    }
 }
 
 function switchModalTab(tabName) {
