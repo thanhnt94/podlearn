@@ -333,245 +333,180 @@
 
 
 <!-- Options Modal -->
-<div id="optionsModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
-    <div class="modal-content" style="background:var(--bg-secondary); padding:24px; border-radius:18px; width:540px; max-width:95%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 15px 50px rgba(0,0,0,0.6);">
-        <h3 style="margin-top:0; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 15px; display:flex; gap:10px; align-items:center;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            Display Options
-        </h3>
+<!-- Settings Drawer (Redesigned) -->
+<div id="optionsModal" class="drawer-backdrop" onclick="if(event.target===this) closeModals()">
+    <div class="drawer-content" onclick="event.stopPropagation()">
         
-        <div style="max-height: 70vh; overflow-y: auto; padding-right: 5px; display:flex; flex-direction:column; gap:20px;">
-            
-            <!-- Modal Tabs Nav -->
-            <div class="modal-tabs">
-                <div class="modal-tab active" id="modalTab-general" onclick="switchModalTab('general')">General</div>
-                <div class="modal-tab" id="modalTab-subtitles" onclick="switchModalTab('subtitles')">Subtitles (Overlay)</div>
-                <div class="modal-tab" id="modalTab-transcript" onclick="switchModalTab('transcript')">Transcript (Sidebar)</div>
-            </div>
-            
-            <!-- GENERAL TAB -->
-            <div id="modalPane-general" class="modal-pane">
-                <div style="display:flex; flex-direction:column; gap:20px;">
-                    <!-- Dictionary Section -->
-                    <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                        <h4 style="margin:0 0 15px 0; font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">Dictionary</h4>
-                        <div style="display:flex; flex-direction:column; gap:10px;">
-                            <label style="font-size:13px; color:var(--text-primary); font-weight:600;">Translation Language</label>
-                            <select id="optLookupTarget" class="lang-select" onchange="applyVisualOptions()" style="width: 100%;">
-                                <option value="vi" selected>Tiếng Việt</option>
-                                <option value="en">English</option>
-                                <option value="ja">日本語 (Japanese)</option>
-                                <option value="ko">한국어 (Korean)</option>
-                                <option value="zh-CN">简体中文 (Chinese)</option>
-                                <option value="fr">Français (French)</option>
-                                <option value="de">Deutsch (German)</option>
-                                <option value="es">Español (Spanish)</option>
-                            </select>
-                        </div>
-                    </div>
+        <div class="drawer-header">
+            <h3 class="drawer-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                Display Options
+            </h3>
+            <button class="btn--close" onclick="closeModals()" style="background:none; border:none; color:var(--text-muted); cursor:pointer;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
 
-                    <!-- Notes Section -->
-                    <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                        <h4 style="margin:0 0 15px 0; font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">Notifications</h4>
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                            <span style="color:var(--text-primary); font-weight:600;">Show Note Popups</span>
-                            <label class="switch">
-                                <input type="checkbox" id="toggleNoteOverlay" onchange="toggleOverlay('note')" checked>
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-                            <div style="display:flex; flex-direction:column; gap:6px;">
-                                <label style="font-size:11px; color:var(--text-secondary);">Theme:</label>
-                                <select id="optNoteColor" class="lang-select" onchange="applyVisualOptions()">
-                                    <option value="dark" selected>Dark Glass</option>
-                                    <option value="light">Light Card</option>
-                                    <option value="yellow">Yellow Sticky</option>
-                                    <option value="blue">Ocean Blue</option>
-                                    <option value="green">Forest Green</option>
-                                    <option value="purple">Lavender</option>
-                                    <option value="red">Sunset Red</option>
-                                </select>
-                            </div>
-                            <div style="display:flex; flex-direction:column; gap:6px;">
-                                <label style="font-size:11px; color:var(--text-secondary);">Position:</label>
-                                <select id="optNotePos" class="lang-select" onchange="applyVisualOptions()">
-                                    <option value="top-right" selected>Top Right</option>
-                                    <option value="top-left">Top Left</option>
-                                    <option value="bottom-right">Bottom Right</option>
-                                    <option value="bottom-left">Bottom Left</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Shadowing Section -->
-                    <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                        <h4 style="margin:0 0 15px 0; font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">Shadowing</h4>
-                        <div style="display:flex; flex-direction:column; gap:12px;">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <span style="font-size:13px; color:var(--text-primary); font-weight:600;">Hide subs when paused</span>
-                                <label class="switch">
-                                    <input type="checkbox" id="toggleShadowHideSubs" onchange="applyVisualOptions()">
-                                    <span class="switch-slider"></span>
-                                </label>
-                            </div>
-                            <div style="display:flex; flex-direction:column; gap:6px;">
-                                <label style="font-size:11px; color:var(--text-secondary);">Video Language (AI):</label>
-                                <select id="optShadowLanguage" class="lang-select" onchange="applyVisualOptions()" style="width: 100%;">
-                                    <option value="ja" selected>Japanese</option>
-                                    <option value="en">English</option>
-                                    <option value="vi">Tiếng Việt</option>
-                                    <option value="ko">Korean</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
+        <div class="drawer-body">
+            
+            <!-- SECTION: MAIN DISPLAY -->
+            <div class="settings-section">
+                <h4 class="settings-section-title">Subtitles Overlay</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                    <span style="font-size:13px; color:var(--text-primary); font-weight:600;">Enable Video Overlay</span>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleScriptOverlay" onchange="toggleOverlay('script')">
+                        <span class="switch-slider"></span>
+                    </label>
                 </div>
-            </div>
-            
-            <!-- SUBTITLES TAB (Overlay) -->
-            <div id="modalPane-subtitles" class="modal-pane" style="display:none;">
-                <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-                        <span style="color:var(--text-primary); font-weight:600;">Enable Video Overlay</span>
-                        <label class="switch">
-                            <input type="checkbox" id="toggleScriptOverlay" onchange="toggleOverlay('script')">
-                            <span class="switch-slider"></span>
-                        </label>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom: 20px;">
+                    <select id="displaySub1" class="lang-select" style="font-size: 11px; padding: 6px;"><option value="">S1</option></select>
+                    <select id="displaySub2" class="lang-select" style="font-size: 11px; padding: 6px;"><option value="">S2</option></select>
+                    <select id="displaySub3" class="lang-select" style="font-size: 11px; padding: 6px;"><option value="">S3</option></select>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <!-- Track 1 Scaling -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <label class="slider-label">S1 Size & Color</label>
+                            <span class="slider-val" id="val-optSubSize1">3.5%</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="range" id="optSubSize1" min="1" max="10" step="0.1" value="3.5" class="premium-slider" oninput="updateSliderLabel('optSubSize1', this.value); applyVisualOptions()">
+                            <input type="color" id="optSubColor1" value="#ffffff" onchange="applyVisualOptions()" style="width:24px; height:24px; border:none; background:transparent; cursor:pointer; flex-shrink: 0;">
+                        </div>
                     </div>
-                    
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 20px;">
-                        <select id="displaySub1" class="lang-select"><option value="">- Sub 1 -</option></select>
-                        <select id="displaySub2" class="lang-select"><option value="">- Sub 2 -</option></select>
-                        <select id="displaySub3" class="lang-select"><option value="">- Sub 3 -</option></select>
+                    <!-- Track 2 Scaling -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <label class="slider-label">S2 Size & Color</label>
+                            <span class="slider-val" id="val-optSubSize2">3.0%</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="range" id="optSubSize2" min="1" max="10" step="0.1" value="3.0" class="premium-slider" oninput="updateSliderLabel('optSubSize2', this.value); applyVisualOptions()">
+                            <input type="color" id="optSubColor2" value="#f1c40f" onchange="applyVisualOptions()" style="width:24px; height:24px; border:none; background:transparent; cursor:pointer; flex-shrink: 0;">
+                        </div>
                     </div>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:8px;">Overlay Position:</label>
-                        <select id="optSubPos" class="lang-select" onchange="applyVisualOptions()" style="width: 100%;">
+                    <!-- Track 3 Scaling -->
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <label class="slider-label">S3 Size & Color</label>
+                            <span class="slider-val" id="val-optSubSize3">2.5%</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="range" id="optSubSize3" min="1" max="10" step="0.1" value="2.5" class="premium-slider" oninput="updateSliderLabel('optSubSize3', this.value); applyVisualOptions()">
+                            <input type="color" id="optSubColor3" value="#00cec9" onchange="applyVisualOptions()" style="width:24px; height:24px; border:none; background:transparent; cursor:pointer; flex-shrink: 0;">
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 10px;">
+                        <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px;">Overlay Position</label>
+                        <select id="optSubPos" class="lang-select" onchange="applyVisualOptions()" style="width: 100%; height: 38px;">
                             <option value="bottom" selected>Bottom Center</option>
                             <option value="top">Top Center</option>
                             <option value="bottom-left">Bottom Left</option>
                             <option value="bottom-right">Bottom Right</option>
                         </select>
                     </div>
+                </div>
+            </div>
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 20px;">
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Size S1:</label>
-                            <select id="optSubSize1" class="lang-select" onchange="applyVisualOptions()">
-                                <option value="14px">14px</option>
-                                <option value="16px">16px</option>
-                                <option value="18px">18px</option>
-                                <option value="20px">20px</option>
-                                <option value="24px" selected>24px</option>
-                                <option value="28px">28px</option>
-                                <option value="32px">32px</option>
-                                <option value="36px">36px</option>
-                                <option value="42px">42px</option>
-                                <option value="48px">48px</option>
-                            </select>
+            <!-- SECTION: NOTES & POPUPS -->
+            <div class="settings-section">
+                <h4 class="settings-section-title">Note Notifications</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                    <span style="font-size:13px; color:var(--text-primary); font-weight:600;">Show Note Popups</span>
+                    <label class="switch">
+                        <input type="checkbox" id="toggleNoteOverlay" onchange="toggleOverlay('note')" checked>
+                        <span class="switch-slider"></span>
+                    </label>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <label class="slider-label">Note Font Size</label>
+                            <span class="slider-val" id="val-optNoteSize">3.5%</span>
                         </div>
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Size S2:</label>
-                            <select id="optSubSize2" class="lang-select" onchange="applyVisualOptions()">
-                                <option value="14px">14px</option>
-                                <option value="16px">16px</option>
-                                <option value="18px">18px</option>
-                                <option value="20px" selected>20px</option>
-                                <option value="24px">24px</option>
-                                <option value="28px">28px</option>
-                                <option value="32px">32px</option>
-                                <option value="36px">36px</option>
-                            </select>
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Size S3:</label>
-                            <select id="optSubSize3" class="lang-select" onchange="applyVisualOptions()">
-                                <option value="12px">12px</option>
-                                <option value="14px">14px</option>
-                                <option value="16px">16px</option>
-                                <option value="18px" selected>18px</option>
-                                <option value="20px">20px</option>
-                                <option value="24px">24px</option>
-                                <option value="28px">28px</option>
-                            </select>
-                        </div>
+                        <input type="range" id="optNoteSize" min="1" max="10" step="0.1" value="3.5" class="premium-slider" oninput="updateSliderLabel('optNoteSize', this.value); applyVisualOptions()">
                     </div>
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
                         <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Color S1:</label>
-                            <input type="color" id="optSubColor1" value="#ffffff" onchange="applyVisualOptions()" style="width:100%; height:30px; border:none; background:transparent; cursor:pointer;">
+                            <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Theme</label>
+                            <select id="optNoteColor" class="lang-select" onchange="applyVisualOptions()" style="padding: 0.5rem; height: 38px;">
+                                <option value="dark" selected>Dark Glass</option>
+                                <option value="light">Light Card</option>
+                                <option value="yellow">Yellow Sticky</option>
+                                <option value="blue">Ocean Blue</option>
+                                <option value="green">Forest Green</option>
+                                <option value="purple">Lavender</option>
+                                <option value="red">Sunset Red</option>
+                            </select>
                         </div>
                         <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Color S2:</label>
-                            <input type="color" id="optSubColor2" value="#f1c40f" onchange="applyVisualOptions()" style="width:100%; height:30px; border:none; background:transparent; cursor:pointer;">
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Color S3:</label>
-                            <input type="color" id="optSubColor3" value="#00cec9" onchange="applyVisualOptions()" style="width:100%; height:30px; border:none; background:transparent; cursor:pointer;">
+                            <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Position</label>
+                            <select id="optNotePos" class="lang-select" onchange="applyVisualOptions()" style="padding: 0.5rem; height: 38px;">
+                                <option value="top-right" selected>Top Right</option>
+                                <option value="top-left">Top Left</option>
+                                <option value="bottom-right">Bottom Right</option>
+                                <option value="bottom-left">Bottom Left</option>
+                            </select>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- TRANSCRIPT TAB (Sidebar) -->
-            <div id="modalPane-transcript" class="modal-pane" style="display:none;">
-                <div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:20px;">
-                    <div style="display:flex; flex-direction:column; gap:8px;">
-                        <label style="font-size:13px; color:var(--text-primary); font-weight:600;">Font Size</label>
-                        <select id="optTranscriptFs" class="lang-select" onchange="applyVisualOptions()" style="width: 100%;">
-                            <option value="12px">12px</option>
-                            <option value="13px">13px</option>
-                            <option value="14px">14px</option>
-                            <option value="15px">15px</option>
-                            <option value="16px" selected>16px</option>
-                            <option value="17px">17px</option>
-                            <option value="18px">18px</option>
-                            <option value="20px">20px</option>
-                            <option value="22px">22px</option>
-                            <option value="24px">24px</option>
-                            <option value="26px">26px</option>
-                            <option value="28px">28px</option>
+            <!-- SECTION: DICTIONARY & AI -->
+            <div class="settings-section">
+                <h4 class="settings-section-title">Dictionary & AI</h4>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <div>
+                        <label style="font-size:13px; color:var(--text-primary); font-weight:600; display:block; margin-bottom:8px;">Default Dictionary</label>
+                        <select id="optLookupTarget" class="lang-select" onchange="applyVisualOptions()" style="width: 100%; height: 38px;">
+                            <option value="vi" selected>Tiếng Việt</option>
+                            <option value="en">English</option>
+                            <option value="ja">日本語 (Japanese)</option>
                         </select>
                     </div>
-
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom: 20px;">
-                        <div style="display:flex; flex-direction:column; gap:8px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Color S1</label>
-                            <input type="color" id="optTranscriptColor1" value="#e8ecf4" onchange="applyVisualOptions()" style="width:100%; height:35px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; background:var(--bg-input); cursor:pointer; padding:3px;">
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:8px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Color S2</label>
-                            <input type="color" id="optTranscriptColor2" value="#f1c40f" onchange="applyVisualOptions()" style="width:100%; height:35px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; background:var(--bg-input); cursor:pointer; padding:3px;">
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:8px;">
-                            <label style="font-size:11px; color:var(--text-secondary);">Color S3</label>
-                            <input type="color" id="optTranscriptColor3" value="#00cec9" onchange="applyVisualOptions()" style="width:100%; height:35px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; background:var(--bg-input); cursor:pointer; padding:3px;">
-                        </div>
-                    </div>
-
-                    <div style="display:flex; flex-direction:column; gap:8px;">
-                        <label style="font-size:13px; color:var(--text-primary); font-weight:600;">Sidebar Background</label>
-                        <input type="color" id="optTranscriptBg" value="#111827" onchange="applyVisualOptions()" style="width:100%; height:40px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; background:var(--bg-input); cursor:pointer; padding:4px;">
-                    </div>
-
-                    <div style="padding:15px; background:rgba(255,255,255,0.03); border-radius:8px; border-left:4px solid var(--accent);">
-                        <p style="font-size:11px; color:var(--text-muted); margin:0; line-height:1.5;">
-                            <strong>Preview:</strong> These styles apply to the right-hand transcript sidebar. Changes are saved automatically per lesson.
-                        </p>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:13px; color:var(--text-primary); font-weight:600;">Hide subs when paused</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleShadowHideSubs" onchange="applyVisualOptions()">
+                            <span class="switch-slider"></span>
+                        </label>
                     </div>
                 </div>
             </div>
+
+            <!-- SECTION: TRANSCRIPT SIDEBAR -->
+            <div class="settings-section">
+                <h4 class="settings-section-title">Transcript Sidebar</h4>
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div class="slider-container">
+                        <div class="slider-header">
+                            <label class="slider-label">Sidebar Font Size</label>
+                            <span class="slider-val" id="val-optTranscriptFs">1.6%</span>
+                        </div>
+                        <input type="range" id="optTranscriptFs" min="0.7" max="2.5" step="0.05" value="1.1" class="premium-slider" oninput="updateSliderLabel('optTranscriptFs', this.value); applyVisualOptions()">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:13px; color:var(--text-primary); font-weight:600;">Background Color</span>
+                        <input type="color" id="optTranscriptBg" value="#111827" onchange="applyVisualOptions()" style="width:40px; height:24px; border:none; background:transparent; cursor:pointer;">
+                    </div>
+                </div>
+            </div>
+
         </div>
 
-        <!-- Persistent Modal Footer -->
-        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:12px; margin-top:25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
-            <button class="btn btn--ghost" onclick="closeModals()">Discard</button>
-            <button class="btn btn--primary" id="applySettingsBtn" onclick="applyVisualOptions(); saveLessonSettings(); loadDisplaySubtitles(); closeModals();" style="min-width: 120px;">
-                Apply Settings
+        <div class="drawer-footer">
+            <button class="btn btn--primary" style="flex:1;" onclick="saveLessonSettings(); closeModals();">
+                Done & Save
+            </button>
+            <button class="btn btn--ghost" style="width: 50px; padding:0; display:flex; align-items:center; justify-content:center;" onclick="closeModals()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
 

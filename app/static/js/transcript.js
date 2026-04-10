@@ -294,6 +294,9 @@ function updateVideoSubOverlay(currentTime) {
     const overlay = document.getElementById('videoSubOverlay');
     if (!overlay) return;
 
+    // Nếu đang trong chế độ preview (mở Settings), không ghi đè overlay bằng subtitle thật
+    if (typeof isInPreviewMode !== 'undefined' && isInPreviewMode) return;
+
     // Check if the user has disabled on-video subtitles
     const isShowEnabled = document.getElementById('toggleScriptOverlay')?.checked ?? true;
     if (!isShowEnabled) {
@@ -322,11 +325,18 @@ function updateVideoSubOverlay(currentTime) {
             let html = '';
 
             
-            // Get current visual configs from UI
-            const s1 = document.getElementById('optSubSize1')?.value || '24px';
-            const s2 = document.getElementById('optSubSize2')?.value || '20px';
-            const s3 = document.getElementById('optSubSize3')?.value || '18px';
-            const sizes = [s1, s2, s3];
+            // Get current visual configs from UI (Sliders return unitless numbers)
+            const s1 = document.getElementById('optSubSize1')?.value || '3.5';
+            const s2 = document.getElementById('optSubSize2')?.value || '3.0';
+            const s3 = document.getElementById('optSubSize3')?.value || '2.5';
+            // Convert to cqw for container-relative scaling. 
+            // Handle both '%'-suffixed and unitless numbers (from sliders).
+            const sizes = [s1, s2, s3].map(s => {
+                let val = s.toString();
+                if (val.endsWith('%')) return val.replace('%', 'cqw');
+                if (val.endsWith('px')) return val; // Legacy fallback
+                return val + 'cqw'; // Default for sliders
+            });
 
             const c1 = document.getElementById('optSubColor1')?.value || '#ffffff';
             const c2 = document.getElementById('optSubColor2')?.value || '#ffffff';

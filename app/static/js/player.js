@@ -861,24 +861,40 @@ function initFromSaved() {
     if (SAVED_TARGET && document.getElementById('displaySub2')) document.getElementById('displaySub2').value = SAVED_TARGET;
     if (SAVED_THIRD && document.getElementById('displaySub3')) document.getElementById('displaySub3').value = SAVED_THIRD;
 
-    // 2. Restore Visuals
+        // 2. Restore Visuals
     if (SAVED_SETTINGS && Object.keys(SAVED_SETTINGS).length > 0) {
+        // Helper to set slider and label
+        const setSlider = (id, val) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            // Strip units if present
+            let cleanVal = val.toString().replace(/px|%/g, '');
+            // Convert legacy px to apprx percentage for sliders
+            if (val.toString().endsWith('px')) {
+                const px = parseFloat(cleanVal);
+                if (px > 20) cleanVal = (px / 7).toFixed(1);
+                else cleanVal = (px / 10).toFixed(1);
+            }
+            el.value = cleanVal;
+            updateSliderLabel(id, cleanVal);
+        };
+
         // Subtitles
-        if (SAVED_SETTINGS.sub1_size && document.getElementById('optSubSize1')) document.getElementById('optSubSize1').value = SAVED_SETTINGS.sub1_size;
-        if (SAVED_SETTINGS.sub2_size && document.getElementById('optSubSize2')) document.getElementById('optSubSize2').value = SAVED_SETTINGS.sub2_size;
-        if (SAVED_SETTINGS.sub3_size && document.getElementById('optSubSize3')) document.getElementById('optSubSize3').value = SAVED_SETTINGS.sub3_size;
+        if (SAVED_SETTINGS.sub1_size) setSlider('optSubSize1', SAVED_SETTINGS.sub1_size);
+        if (SAVED_SETTINGS.sub2_size) setSlider('optSubSize2', SAVED_SETTINGS.sub2_size);
+        if (SAVED_SETTINGS.sub3_size) setSlider('optSubSize3', SAVED_SETTINGS.sub3_size);
         if (SAVED_SETTINGS.sub1_color && document.getElementById('optSubColor1')) document.getElementById('optSubColor1').value = SAVED_SETTINGS.sub1_color;
         if (SAVED_SETTINGS.sub2_color && document.getElementById('optSubColor2')) document.getElementById('optSubColor2').value = SAVED_SETTINGS.sub2_color;
         if (SAVED_SETTINGS.sub3_color && document.getElementById('optSubColor3')) document.getElementById('optSubColor3').value = SAVED_SETTINGS.sub3_color;
         if (SAVED_SETTINGS.sub_pos && document.getElementById('optSubPos')) document.getElementById('optSubPos').value = SAVED_SETTINGS.sub_pos;
         
         // Notes
-        if (SAVED_SETTINGS.note_size && document.getElementById('optNoteSize')) document.getElementById('optNoteSize').value = SAVED_SETTINGS.note_size;
+        if (SAVED_SETTINGS.note_size) setSlider('optNoteSize', SAVED_SETTINGS.note_size);
         if (SAVED_SETTINGS.note_theme && document.getElementById('optNoteColor')) document.getElementById('optNoteColor').value = SAVED_SETTINGS.note_theme;
         if (SAVED_SETTINGS.note_pos && document.getElementById('optNotePos')) document.getElementById('optNotePos').value = SAVED_SETTINGS.note_pos;
         
         // Transcript
-        if (SAVED_SETTINGS.transcript_fs && document.getElementById('optTranscriptFs')) document.getElementById('optTranscriptFs').value = SAVED_SETTINGS.transcript_fs;
+        if (SAVED_SETTINGS.transcript_fs) setSlider('optTranscriptFs', SAVED_SETTINGS.transcript_fs);
         if (SAVED_SETTINGS.transcript_color_1 && document.getElementById('optTranscriptColor1')) document.getElementById('optTranscriptColor1').value = SAVED_SETTINGS.transcript_color_1;
         if (SAVED_SETTINGS.transcript_color_2 && document.getElementById('optTranscriptColor2')) document.getElementById('optTranscriptColor2').value = SAVED_SETTINGS.transcript_color_2;
         if (SAVED_SETTINGS.transcript_color_3 && document.getElementById('optTranscriptColor3')) document.getElementById('optTranscriptColor3').value = SAVED_SETTINGS.transcript_color_3;
@@ -956,12 +972,39 @@ function toggleOverlay(type) {
 
 // ── Modals ────────────────────────────────────────────────────
 function openOptionsModal() {
-    document.getElementById('optionsModal').style.display = 'flex';
+    const modal = document.getElementById('optionsModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    setTimeout(() => {
+        modal.classList.add('active');
+        isInPreviewMode = true;
+        applyVisualOptions();
+    }, 10);
+    
+    document.body.style.overflow = 'hidden';
 }
 
 function closeModals() {
     document.getElementById('subtitleManagerModal').style.display = 'none';
-    document.getElementById('optionsModal').style.display = 'none';
+    
+    const optionsModal = document.getElementById('optionsModal');
+    if (optionsModal) {
+        optionsModal.classList.remove('active');
+        isInPreviewMode = false;
+        
+        // Xóa text preview trên player để trả lại không gian cho sub/note thật
+        const subOverlay = document.getElementById('videoSubOverlay');
+        if (subOverlay) subOverlay.innerHTML = '';
+        
+        const noteOverlay = document.getElementById('notePopup');
+        if (noteOverlay) noteOverlay.innerHTML = '';
+
+        setTimeout(() => {
+            optionsModal.style.display = 'none';
+        }, 400);
+    }
+    
     document.body.style.overflow = 'auto';
 }
 
@@ -1126,7 +1169,7 @@ async function deleteSubtitle(id) {
 // ── External Downloaders ──────────────────────────────────────
 function openExternalDownloader(site) {
     if (typeof YOUTUBE_ID === 'undefined' || !YOUTUBE_ID) {
-        alert('Không tìm thấy ID Video. Vui lòng tải lại trang.');
+        alert('Không tìm thấy ID Video. V vui lòng tải lại trang.');
         return;
     }
     
@@ -1158,8 +1201,61 @@ switchRightTab = function(tabName) {
     }
 };
 
+let isInPreviewMode = false;
+
+function updateSubPreview() {
+    // Wrapper to ensure sliders trigger the full visual refresh
+    applyVisualOptions();
+}
+
 // ── Visual Settings Application ───────────────────────────────
+
+/**
+ * Helper: Chuyển đổi đơn vị % sang cqw (Container Query Width) 
+ * để kích thước chữ tỉ lệ thuận với khung player container.
+ */
+function toResponsiveUnit(val) {
+    if (typeof val === 'string' && val.endsWith('%')) {
+        return val.replace('%', 'cqw');
+    }
+    return val;
+}
+
+/**
+ * Cập nhật nhãn hiển thị bên cạnh thanh trượt (slider)
+ */
+function updateSliderLabel(id, val) {
+    const label = document.getElementById(`val-${id}`);
+    if (label) {
+        // Clear previous content to avoid any double unit issues
+        label.innerHTML = val + (id === 'optTranscriptFs' ? 'rem' : '%');
+    }
+}
+
 function applyVisualOptions() {
+    // 0. Ensure Preview Logic (Inject dummy text before styling applies)
+    if (isInPreviewMode) {
+        const subOverlay = document.getElementById('videoSubOverlay');
+        const notePopup = document.getElementById('notePopup');
+        
+        if (subOverlay && !document.getElementById('livePreviewLine1')) {
+            subOverlay.innerHTML = `
+                <span id="livePreviewLine1" class="vso-line">Sample Subtitle Track 1</span>
+                <span id="livePreviewLine2" class="vso-line vso-line--1">Dòng phụ đề mẫu thứ hai</span>
+                <span id="livePreviewLine3" class="vso-line vso-line--2">Sample translation at the bottom</span>
+            `;
+        }
+        
+        if (notePopup && !document.getElementById('livePreviewNote')) {
+            notePopup.innerHTML = `
+                <div id="livePreviewNote" class="video-note-item">
+                    <div style="font-weight:700; margin-bottom:4px; font-size:0.9em; opacity:0.8;">Sample Note</div>
+                    <div>This is a preview of how your notes will appear. Adjust size and theme!</div>
+                </div>
+            `;
+        }
+    }
+
     // 1. Subtitles Overlay Override
     const subOverlay = document.getElementById('videoSubOverlay');
     if (subOverlay) {
@@ -1180,52 +1276,80 @@ function applyVisualOptions() {
         subOverlay.style.removeProperty('bottom');
         subOverlay.style.removeProperty('left');
         subOverlay.style.removeProperty('right');
-        subOverlay.style.removeProperty('transform');
-        subOverlay.style.removeProperty('align-items');
         subOverlay.style.removeProperty('text-align');
+        
+        // Force visible in preview
+        if (isInPreviewMode) {
+            subOverlay.style.visibility = 'visible';
+            subOverlay.style.display = 'flex';
+            
+            // APPLY CONTENT STYLING TO DUMMY LINES
+            const lp1 = document.getElementById('livePreviewLine1');
+            const lp2 = document.getElementById('livePreviewLine2');
+            const lp3 = document.getElementById('livePreviewLine3');
+            
+            if (lp1) {
+                const s1 = toResponsiveUnit(document.getElementById('optSubSize1')?.value + '%');
+                const s2 = toResponsiveUnit(document.getElementById('optSubSize2')?.value + '%');
+                const s3 = toResponsiveUnit(document.getElementById('optSubSize3')?.value + '%');
+                const c1 = document.getElementById('optSubColor1')?.value;
+                const c2 = document.getElementById('optSubColor2')?.value;
+                const c3 = document.getElementById('optSubColor3')?.value;
+
+                lp1.style.fontSize = s1; lp1.style.color = c1; lp1.style.display = 'block';
+                lp2.style.fontSize = s2; lp2.style.color = c2; lp2.style.display = 'block';
+                lp3.style.fontSize = s3; lp3.style.color = c3; lp3.style.display = 'block';
+            }
+        }
     }
 
     // 2. Note Overlay Override
     const noteOverlay = document.getElementById('notePopup');
     if (noteOverlay) {
-        const noteSize = document.getElementById('optNoteSize')?.value || '16px';
+        let noteSize = document.getElementById('optNoteSize')?.value || '3.5';
+        if (!noteSize.endsWith('%')) noteSize += '%';
+        
         const noteTheme = document.getElementById('optNoteColor')?.value || 'dark';
         const notePos = document.getElementById('optNotePos')?.value || 'top-right';
 
         // Sử dụng CSS Variable để có thể override trên mobile
-        document.documentElement.style.setProperty('--user-note-fs', noteSize);
+        document.documentElement.style.setProperty('--user-note-fs', toResponsiveUnit(noteSize));
         
-        // Reset old positioning bounds
-        noteOverlay.style.top = 'auto';
-        noteOverlay.style.bottom = 'auto';
-        noteOverlay.style.left = 'auto';
-        noteOverlay.style.right = 'auto';
+        // Remove old positioning
+        noteOverlay.style.top = '0';
+        noteOverlay.style.bottom = '0';
+        noteOverlay.style.left = '0';
+        noteOverlay.style.right = '0';
         noteOverlay.style.transform = 'none';
 
+        // Position using Flexbox Alignment
         if (notePos === 'top-right') {
-            noteOverlay.style.top = '20px';
-            noteOverlay.style.right = '20px';
+            noteOverlay.style.justifyContent = 'flex-start';
+            noteOverlay.style.alignItems = 'flex-end';
         } else if (notePos === 'top-left') {
-            noteOverlay.style.top = '20px';
-            noteOverlay.style.left = '20px';
+            noteOverlay.style.justifyContent = 'flex-start';
+            noteOverlay.style.alignItems = 'flex-start';
         } else if (notePos === 'bottom-right') {
-            noteOverlay.style.bottom = '60px'; // clear youtube controls
-            noteOverlay.style.right = '20px';
+            noteOverlay.style.justifyContent = 'flex-end';
+            noteOverlay.style.alignItems = 'flex-end';
+            noteOverlay.style.paddingBottom = '60px'; // Clear YouTube controls
         } else if (notePos === 'bottom-left') {
-            noteOverlay.style.bottom = '60px'; // clear youtube controls
-            noteOverlay.style.left = '20px';
+            noteOverlay.style.justifyContent = 'flex-end';
+            noteOverlay.style.alignItems = 'flex-start';
+            noteOverlay.style.paddingBottom = '60px'; // Clear YouTube controls
         }
 
         // Apply theme palettes
         const items = noteOverlay.querySelectorAll('.video-note-item');
         
         items.forEach(item => {
-            item.style.padding = '10px 15px';
-            item.style.borderRadius = '10px';
-            // Không set fontSize inline nữa, để CSS lo
+            item.style.padding = '12px 18px';
+            item.style.borderRadius = '14px';
+            item.style.fontSize = `var(--user-note-fs, ${toResponsiveUnit(noteSize)})`;
             item.style.fontWeight = '500';
-            item.style.backdropFilter = 'blur(8px)';
-            item.style.maxWidth = '320px';
+            item.style.backdropFilter = 'blur(12px) saturate(180%)';
+            item.style.maxWidth = '360px';
+            item.style.pointerEvents = 'auto'; // Enable interaction
 
             if (noteTheme === 'light') {
                 item.style.background = 'rgba(255, 255, 255, 0.95)';
@@ -1271,40 +1395,36 @@ function applyVisualOptions() {
         noteOverlay.style.border = 'none';
         noteOverlay.style.boxShadow = 'none';
         noteOverlay.style.backdropFilter = 'none';
+        
+        // Force visible in preview
+        if (isInPreviewMode) {
+            noteOverlay.style.display = 'flex';
+        }
     }
 
     // 3. Transcript Settings Sync
-    const transcriptFs = document.getElementById('optTranscriptFs')?.value || '16px';
-    const transcriptColor1 = document.getElementById('optTranscriptColor1')?.value || '#e8ecf4';
-    const transcriptColor2 = document.getElementById('optTranscriptColor2')?.value || '#f1c40f';
-    const transcriptColor3 = document.getElementById('optTranscriptColor3')?.value || '#00cec9';
+    // Đảm bảo đơn vị rem luôn đẹp, slider từ 0.7 -> 2.5
+    let transcriptFs = (document.getElementById('optTranscriptFs')?.value || '1.1') + 'rem';
     const transcriptBg = document.getElementById('optTranscriptBg')?.value || '#111827';
     
     document.documentElement.style.setProperty('--transcript-fs', transcriptFs);
-    document.documentElement.style.setProperty('--transcript-color-1', transcriptColor1);
-    document.documentElement.style.setProperty('--transcript-color-2', transcriptColor2);
-    document.documentElement.style.setProperty('--transcript-color-3', transcriptColor3);
     document.documentElement.style.setProperty('--transcript-bg', transcriptBg);
     
-    localStorage.setItem('AuraFlow_transcript_fs', transcriptFs);
-    localStorage.setItem('AuraFlow_transcript_color_1', transcriptColor1);
-    localStorage.setItem('AuraFlow_transcript_color_2', transcriptColor2);
-    localStorage.setItem('AuraFlow_transcript_color_3', transcriptColor3);
-    localStorage.setItem('AuraFlow_transcript_bg', transcriptBg);
+    if (isInPreviewMode) updateSubPreview();
 }
 
 
 async function saveLessonSettings() {
     const visualSettings = {
-        sub1_size: document.getElementById('optSubSize1')?.value || '24px',
-        sub2_size: document.getElementById('optSubSize2')?.value || '20px',
-        sub3_size: document.getElementById('optSubSize3')?.value || '18px',
+        sub1_size: document.getElementById('optSubSize1')?.value + '%',
+        sub2_size: document.getElementById('optSubSize2')?.value + '%',
+        sub3_size: document.getElementById('optSubSize3')?.value + '%',
         sub1_color: document.getElementById('optSubColor1')?.value || '#ffffff',
         sub2_color: document.getElementById('optSubColor2')?.value || '#f1c40f',
         sub3_color: document.getElementById('optSubColor3')?.value || '#00cec9',
         sub_pos: document.getElementById('optSubPos')?.value || 'bottom',
         
-        note_size: document.getElementById('optNoteSize')?.value || '16px',
+        note_size: document.getElementById('optNoteSize')?.value + '%',
         note_theme: document.getElementById('optNoteColor')?.value || 'dark',
         note_pos: document.getElementById('optNotePos')?.value || 'top-right',
         
@@ -1317,7 +1437,7 @@ async function saveLessonSettings() {
         shadow_interactive: document.getElementById('toggleShadowInteractive')?.checked || false,
         shadow_language: document.getElementById('optShadowLanguage')?.value || 'ja',
 
-        transcript_fs: document.getElementById('optTranscriptFs')?.value || '16px',
+        transcript_fs: (document.getElementById('optTranscriptFs')?.value || '1.1') + 'rem',
         transcript_color_1: document.getElementById('optTranscriptColor1')?.value || '#e8ecf4',
         transcript_color_2: document.getElementById('optTranscriptColor2')?.value || '#f1c40f',
         transcript_color_3: document.getElementById('optTranscriptColor3')?.value || '#00cec9',
