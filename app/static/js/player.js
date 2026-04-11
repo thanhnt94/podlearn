@@ -992,6 +992,9 @@ function initFromSaved() {
         if (SAVED_SETTINGS.sub2_color && document.getElementById('optSubColor2')) document.getElementById('optSubColor2').value = SAVED_SETTINGS.sub2_color;
         if (SAVED_SETTINGS.sub3_color && document.getElementById('optSubColor3')) document.getElementById('optSubColor3').value = SAVED_SETTINGS.sub3_color;
         if (SAVED_SETTINGS.sub_pos && document.getElementById('optSubPos')) document.getElementById('optSubPos').value = SAVED_SETTINGS.sub_pos;
+
+        if (SAVED_SETTINGS.sub_bg_color && document.getElementById('optSubBgColor')) document.getElementById('optSubBgColor').value = SAVED_SETTINGS.sub_bg_color;
+        if (SAVED_SETTINGS.sub_bg_opacity) setSlider('optSubBgOpacity', SAVED_SETTINGS.sub_bg_opacity);
         
         // Notes
         if (SAVED_SETTINGS.note_size) setSlider('optNoteSize', SAVED_SETTINGS.note_size);
@@ -1365,8 +1368,13 @@ function toResponsiveUnit(val) {
 function updateSliderLabel(id, val) {
     const label = document.getElementById(`val-${id}`);
     if (label) {
-        // Clear previous content to avoid any double unit issues
-        label.innerHTML = val + (id === 'optTranscriptFs' ? 'rem' : '%');
+        let unit = '%';
+        if (id === 'optTranscriptFs') unit = 'rem';
+        if (id === 'optSubBgOpacity') unit = ''; 
+        if (id.includes('Extra')) unit = 's';
+        if (id.includes('Accuracy')) unit = '%';
+        
+        label.innerHTML = val + unit;
     }
 }
 
@@ -1417,7 +1425,13 @@ function applyVisualOptions() {
         const r = parseInt(bgColor.slice(1, 3), 16);
         const g = parseInt(bgColor.slice(3, 5), 16);
         const b = parseInt(bgColor.slice(5, 7), 16);
-        subOverlay.style.background = `rgba(${r}, ${g}, ${b}, ${bgOpacity})`;
+        const rgba = `rgba(${r}, ${g}, ${b}, ${bgOpacity})`;
+        
+        // Apply to CSS variable so it affects all lines (.vso-line)
+        document.documentElement.style.setProperty('--vso-line-bg', rgba);
+
+        // Remove container background to avoid double overlay
+        subOverlay.style.background = 'transparent';
 
         // Clean up any stray inline styles that might interfere with CSS classes
         subOverlay.style.removeProperty('top');
