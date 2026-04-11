@@ -1487,9 +1487,11 @@ body.dictation-active .dictation-blur-overlay {
 }
 
 .drawer-content {
-    width: 420px;
+    width: 450px;
+    max-width: 100%;
     height: 100vh;
-    background: rgba(15, 23, 42, 0.7);
+    background: rgba(15, 23, 42, 0.9);
+
     backdrop-filter: blur(30px) saturate(180%);
     -webkit-backdrop-filter: blur(30px) saturate(180%);
     color: #fff;
@@ -1498,11 +1500,17 @@ body.dictation-active .dictation-blur-overlay {
     box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5);
     border-left: 1px solid rgba(255, 255, 255, 0.1);
     transform: translateX(100%);
-    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .drawer-backdrop.active .drawer-content {
     transform: translateX(0);
+}
+
+@media (min-width: 1600px) {
+    .drawer-content {
+        width: 500px;
+    }
 }
 
 .drawer-header {
@@ -1529,6 +1537,9 @@ body.dictation-active .dictation-blur-overlay {
     flex: 1;
     overflow-y: auto;
     padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.1) transparent;
 }
@@ -1637,115 +1648,22 @@ body.dictation-active .dictation-blur-overlay {
 
 @media (max-width: 768px) {
     .drawer-backdrop {
-        justify-content: flex-end;
-        align-items: flex-end;
+        top: calc(56.25vw + 50px);
+        height: auto;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.85);
     }
     .drawer-content {
         width: 100%;
-        height: 85vh;
-        border-radius: 24px 24px 0 0;
-        transform: translateY(100%);
+        height: 100%;
+        border-radius: 0;
+        transform: translateX(100%);
         border-left: none;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
     .drawer-backdrop.active .drawer-content {
-        transform: translateY(0);
+        transform: translateX(0);
     }
-}
-    opacity: 1;
-}
-
-.drawer-content {
-    background: rgba(15, 23, 42, 0.9);
-    backdrop-filter: blur(25px) saturate(180%);
-    -webkit-backdrop-filter: blur(25px) saturate(180%);
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
-    width: 420px;
-    max-width: 100%;
-    display: flex;
-    flex-direction: column;
-    transform: translateX(100%);
-    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.5);
-}
-
-.drawer-backdrop.active .drawer-content {
-    transform: translateX(0);
-}
-
-.drawer-header {
-    padding: 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.drawer-title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.drawer-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent) transparent;
-}
-
-.drawer-footer {
-    padding: 20px 24px;
-    background: rgba(255, 255, 255, 0.02);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    display: flex;
-    gap: 12px;
-}
-
-/* Mobile: Transform to Bottom Sheet */
-@media (max-width: 768px) {
-    .drawer-backdrop {
-        justify-content: center;
-        align-items: flex-end;
-    }
-
-    .drawer-content {
-        width: 100%;
-        height: 85vh;
-        border-left: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 24px 24px 0 0;
-        transform: translateY(100%);
-    }
-
-    .drawer-backdrop.active .drawer-content {
-        transform: translateY(0);
-    }
-}
-
-/* Settings Group Card */
-.settings-section {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    padding: 20px;
-}
-
-.settings-section-title {
-    margin: 0 0 16px 0;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 1px;
 }
 
 /* Preview Card */

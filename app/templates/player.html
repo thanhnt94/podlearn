@@ -324,10 +324,10 @@
                     </label>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom: 20px;">
-                    <select id="displaySub1" class="lang-select" style="font-size: 11px; padding: 6px;"><option value="">S1</option></select>
-                    <select id="displaySub2" class="lang-select" style="font-size: 11px; padding: 6px;"><option value="">S2</option></select>
-                    <select id="displaySub3" class="lang-select" style="font-size: 11px; padding: 6px;"><option value="">S3</option></select>
+                <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px; margin-bottom: 20px;">
+                    <select id="displaySub1" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">S1</option></select>
+                    <select id="displaySub2" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">S2</option></select>
+                    <select id="displaySub3" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">S3</option></select>
                 </div>
 
                 <div style="display:flex; flex-direction:column; gap:16px;">
