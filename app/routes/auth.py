@@ -146,8 +146,8 @@ def profile():
     if auth_provider == 'central':
         # Redirect to SSO profile management if Central Auth is active
         sso_url = current_app.config.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://localhost:5000')
-        # In standardized ecosystem settings, profile/settings is usually at /profile or /settings
-        return redirect(f"{sso_url}/profile")
+        # Fix: Standard CentralAuth path is /user/profile
+        return redirect(f"{sso_url}/user/profile")
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()

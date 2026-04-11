@@ -2358,3 +2358,74 @@ input[type="range"].premium-slider::-moz-range-thumb {
     background: #fff;
     color: #000;
 }
+
+/* ── Dashboard High-Fidelity Nav Overhaul ────────────────────── */
+.dashboard-tabs {
+    display: none !important; /* Moved to bottom nav */
+}
+
+.header-stats {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+.dash-content-pane {
+    display: none;
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.dash-content-pane.active {
+    display: block;
+}
+
+/* ── Mobile Navigation Enhancements ─────────────────────────── */
+.bottom-nav {
+    height: 70px;
+    padding-bottom: 5px;
+}
+
+.bottom-nav__item {
+    padding: 8px 0;
+    gap: 4px;
+}
+
+.bottom-nav__item i {
+    width: 20px;
+    height: 20px;
+}
+
+.bottom-nav__item span {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Notification & UI Polish ──────────────────────────────── */
+.notif-bell-btn:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.notif-item {
+    transition: all 0.3s ease;
+}
+
+.notif-item:hover {
+    background: rgba(108,92,231,0.08) !important;
+}
+
+/* ── Mobile Overrides ────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .header-stats {
+        padding: 2px 8px;
+        border: none;
+        background: transparent;
+    }
+}

@@ -207,18 +207,10 @@ function toggleShadowingMode() {
         if (isShadowingMode) {
             btn.classList.add('btn--accent');
             if (transcriptLines) transcriptLines.classList.add('is-shadowing-mode');
-            btn.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                <span>Shadowing: ON</span>
-            `;
             lastShadowedIndex = -1; // Reset to catch current line if needed
         } else {
             btn.classList.remove('btn--accent');
             if (transcriptLines) transcriptLines.classList.remove('is-shadowing-mode');
-            btn.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                <span>Shadowing</span>
-            `;
             if (shadowingPauseTimeout) {
                 clearTimeout(shadowingPauseTimeout);
                 shadowingPauseTimeout = null;
@@ -1723,19 +1715,15 @@ async function toggleLessonCompletion() {
 function updateCompletionUI() {
     const btn = document.getElementById('btn-toggle-complete');
     if (!btn) return;
+    const span = btn.querySelector('span');
+    const icon = btn.querySelector('i');
 
     if (isMarkedCompleted) {
-        btn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <span>Completed</span>
-        `;
+        if (span) span.textContent = 'Completed';
         btn.classList.add('btn--accent');
         btn.classList.remove('btn--ghost');
     } else {
-        btn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle></svg>
-            <span>Mark Complete</span>
-        `;
+        if (span) span.textContent = 'Mark Complete';
         btn.classList.remove('btn--accent');
         btn.classList.add('btn--ghost');
     }

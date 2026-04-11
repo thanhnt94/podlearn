@@ -15,7 +15,19 @@
                 <span style="letter-spacing: -0.5px;">Pod<span style="color:var(--accent);">Learn</span></span>
             </h1>
         </div>
-        <div class="dashboard-header__right" style="display:flex; align-items:center; gap:20px;">
+        <div class="dashboard-header__right" style="display:flex; align-items:center; gap:24px;">
+            <!-- Header Compact Stats -->
+            <div class="header-stats desktop-only" style="display:flex; align-items:center; gap:16px; margin-right: 8px;">
+                <div style="display:flex; align-items:center; gap:6px; color:#ff7675; font-weight:800; font-size:14px;">
+                    <span>{{ current_streak }}</span>
+                    <i data-lucide="flame" style="width:18px; height:18px;"></i>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; color:#a29bfe; font-weight:800; font-size:14px;">
+                    <span>{{ completed_count }}/{{ total_lessons }}</span>
+                    <i data-lucide="book-open" style="width:18px; height:18px;"></i>
+                </div>
+            </div>
+
             <div style="display:flex; align-items:center; gap:12px;">
                 <!-- Notification Bell -->
                 <div class="notif-wrapper" style="position:relative;">
@@ -25,9 +37,7 @@
                         <span class="notif-badge" id="notifBadge" style="position:absolute; top:2px; right:2px; width:16px; height:16px; background:#ef4444; border-radius:50%; font-size:9px; font-weight:900; color:#fff; display:flex; align-items:center; justify-content:center; border:2px solid var(--bg-secondary);">{{ pending_shares|length }}</span>
                         {% endif %}
                     </button>
-                    <!-- ... notifPanel content ... -->
                 </div>
-                <!-- ... rest of desktop header ... -->
             </div>
         </div>
     </header>
@@ -42,8 +52,18 @@
                 </svg>
             <span style="font-size: 19px; font-weight: 800; letter-spacing: -0.5px; color: #fff;">PodLearn</span>
         </div>
-        <div style="display:flex; align-items:center; gap:16px;">
-            <i data-lucide="search" style="width:20px; height:20px; color: #fff;"></i>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <!-- Mobile Header Compact Stats -->
+            <div style="display:flex; align-items:center; gap:12px; margin-right: 4px;">
+                <div style="display:flex; align-items:center; gap:4px; color:#ff7675; font-weight:900; font-size:13px;">
+                    <span>{{ current_streak }}</span>
+                    <i data-lucide="flame" style="width:16px; height:16px;"></i>
+                </div>
+                <div style="display:flex; align-items:center; gap:4px; color:#a29bfe; font-weight:900; font-size:13px;">
+                    <span>{{ completed_count }}/{{ total_lessons }}</span>
+                    <i data-lucide="book-open" style="width:16px; height:16px;"></i>
+                </div>
+            </div>
             <div style="position:relative;" onclick="toggleNotifPanel()">
                 <i data-lucide="bell" style="width:20px; height:20px; color: #fff;"></i>
                 {% if pending_shares %}
@@ -57,37 +77,8 @@
     </header>
 
     <main class="dashboard-main">
-        <!-- WRAPPER FOR PERSONAL CONTENT -->
-        <div id="personalModeWrapper" class="mode-container active">
-        <!-- NEW: Statistics Section -->
-        <div class="stats-overview" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom: 30px; padding: 0 4px;">
-            <!-- General Activity -->
-            <div class="stat-card" style="background: linear-gradient(135deg, rgba(255, 118, 117, 0.15), rgba(255, 118, 117, 0.05)); padding: 16px; border-radius: 20px; border: 1px solid rgba(255, 118, 117, 0.2); display:flex; flex-direction:column; gap:4px; position:relative; overflow:hidden;">
-                <span style="font-size: 9px; color: #ff7675; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Streak</span>
-                <div style="display:flex; align-items:baseline; gap:4px;">
-                    <span style="font-size: 24px; font-weight: 900; color: white;">{{ current_streak }}</span>
-                    <span style="font-size: 11px; font-weight: 700; color: #ff7675;">Ngày 🔥</span>
-                </div>
-            </div>
-
-            <!-- Podcast Mastery -->
-            <div class="stat-card" style="background: rgba(108, 92, 231, 0.08); padding: 16px; border-radius: 20px; border: 1px solid rgba(108, 92, 231, 0.15); display:flex; flex-direction:column; gap:4px; position:relative; overflow:hidden;">
-                <span style="font-size: 9px; color: #a29bfe; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Podcast</span>
-                <div style="display:flex; align-items:baseline; gap:4px;">
-                    <span style="font-size: 24px; font-weight: 800; color: white;">{{ completed_count }}</span>
-                    <span style="font-size: 11px; color: rgba(255,255,255,0.4);">/ {{ total_lessons }}</span>
-                </div>
-            </div>
-
-        </div>
-
-
-        <div class="dashboard-toolbar">
-            <div class="welcome-section">
-                <h2 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: 5px;">Chào mừng bạn đến với PodLearn.</h2>
-                <p style="color: var(--text-secondary); font-size: 16px;">Hôm nay bạn muốn học gì?</p>
-            </div>
-        </div>
+        <!-- WRAPPER FOR CONTENT PANES -->
+        <div id="dashboardContentWrapper" class="active">
 
         <!-- PENDING SHARE REQUESTS INBOX -->
         {% if pending_shares %}
@@ -129,9 +120,8 @@
         </script>
         {% endif %}
 
-        <!-- DISCOVERY TRACK (VIDEOS) -->
-        <div id="discoveryContent" class="tab-content active">
-            <!-- Header for Podcast Tab -->
+        <!-- LIBRARY TRACK (MY LESSONS) -->
+        <div id="libraryContent" class="dash-content-pane active">
             <div class="flex items-center justify-between mb-8">
                 <h3 class="text-xl font-bold">Thư viện Podcast của bạn</h3>
                 <button onclick="togglePodcastModal(true)" class="btn btn--primary btn--sm flex items-center gap-2">
@@ -204,13 +194,94 @@
             </div>
         </div>
 
-        <!-- REFLEXIVE TRACK (SENTENCE SETS / DECKS) -->
-        </div> <!-- End of personalModeWrapper -->
-    </main>
-</div>
-    </main>
-</div>
+        <!-- DISCOVERY TRACK (COMMUNITY VIDEOS) -->
+        <div id="discoveryContent" class="dash-content-pane">
+            <div class="flex items-center justify-between mb-8">
+                <h3 class="text-xl font-bold">Khám phá Podcast cộng đồng</h3>
+            </div>
+            
+            <div class="lesson-grid">
+                {% if public_videos %}
+                    {% for video in public_videos %}
+                    <div class="lesson-card">
+                        {% set is_joined = video.id in user_lesson_video_ids %}
+                        {% if is_joined %}
+                            {% set l_id = video_lesson_map[video.id] %}
+                            <a href="{{ url_for('player.view', lesson_id=l_id) }}" class="lesson-card__link">
+                        {% else %}
+                            <div class="lesson-card__link" style="cursor: default;">
+                        {% endif %}
+                        
+                            <div class="lesson-card__thumb-wrapper">
+                                <img src="{{ video.thumbnail_url }}" alt="{{ video.title }}" class="lesson-card__thumb" loading="lazy">
+                                <div class="lesson-card__badge" style="position:absolute; top:10px; right:10px; background:rgba(108, 92, 231, 0.9); color:#fff; padding:4px 8px; border-radius:6px; font-size:9px; font-weight:700;">PUBLIC</div>
+                            </div>
+                            <div class="lesson-card__body">
+                                <h3 class="lesson-card__title">{{ video.title }}</h3>
+                                <div class="lesson-card__meta">
+                                    <span class="lesson-card__duration">{{ video.duration_seconds | duration }}</span>
+                                    <span class="lesson-card__contributor" style="color:var(--accent); font-size:9px; font-weight:700; text-transform:uppercase; display:block; margin-top:6px; opacity:0.8;">
+                                        <i data-lucide="user" class="w-2.5 h-2.5 inline-block mr-1"></i>
+                                        By {{ video.owner.username if video.owner else 'System' }}
+                                    </span>
+                                </div>
+                            </div>
+                        
+                        {% if is_joined %}
+                            </a>
+                        {% else %}
+                            </div>
+                        {% endif %}
 
+                        <div class="lesson-card__actions">
+                            {% if is_joined %}
+                                <button class="btn btn--sm" style="background:rgba(255,255,255,0.05); color:var(--text-muted); cursor:default; font-size:10px;" disabled>
+                                    <i data-lucide="check" class="w-3 h-3 inline mr-1"></i> Already in Library
+                                </button>
+                            {% else %}
+                                <button onclick="joinPublicVideo({{ video.id }})" class="btn btn--primary btn--sm flex items-center gap-2" style="font-size:10px; padding:6px 12px;">
+                                    <i data-lucide="plus" class="w-3 h-3"></i> Add to Library
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state__icon">🌍</div>
+                        <p>Chưa có Podcast công khai nào.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- STATISTICS TRACK (USAGE TRENDS) -->
+        <div id="statsContent" class="dash-content-pane">
+            <div class="flex items-center justify-between mb-8">
+                <h3 class="text-xl font-bold">Thống kê học tập</h3>
+            </div>
+            
+            <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:24px; padding:24px; margin-bottom:24px;">
+                <h4 style="font-size:13px; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:20px;">Hoạt động 7 ngày qua</h4>
+                <div style="height: 300px; width: 100%;">
+                    <canvas id="activityChart"></canvas>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+                <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:20px; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Tổng thời gian học</span>
+                    <div style="font-size:24px; font-weight:900; color:#fff; margin-top:8px;">{{ total_time_formatted }}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:20px; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Ghi chú đã tạo</span>
+                    <div style="font-size:24px; font-weight:900; color:#fff; margin-top:8px;">{{ total_notes }}</div>
+                </div>
+            </div>
+        </div>
+
+        </div> <!-- End of dashboardContentWrapper -->
+    </main>
 </div>
 
 <!-- Modal: Add Podcast (YouTube) -->
@@ -279,24 +350,18 @@
 <script>
     lucide.createIcons();
 
-    function switchMode(mode, element) {
-        // Mode switching logic removed per user request for Podcast focus.
-        // Dashboard is now locked to personal podcast discovery mode.
-        syncBottomNav('personal');
-        lucide.createIcons();
-    }
+    function switchDashTrack(track, element) {
+        // Toggle Active Pane
+        document.querySelectorAll('.dash-content-pane').forEach(p => p.classList.remove('active'));
+        const pane = document.getElementById(track + 'Content');
+        if (pane) pane.classList.add('active');
 
-    function syncBottomNav(mode) {
+        // Sync Bottom Navigation Styling
         document.querySelectorAll('.bottom-nav__item').forEach(nav => nav.classList.remove('active'));
-        document.getElementById('nav-home')?.classList.add('active');
-    }
+        const navItem = document.querySelector(`.bottom-nav__item[data-tab="${track}"]`);
+        if (navItem) navItem.classList.add('active');
 
-    function switchTrack(trackId, element) {
-        // Track switching removed. Defaulting to Discovery (Podcast).
-    }
-        const target = document.getElementById('community_' + trackId + 'Content');
-        if (target) target.classList.add('active');
-        localStorage.setItem('aura_dashboard_community_track', trackId);
+        localStorage.setItem('aura_dashboard_last_track', track);
         lucide.createIcons();
     }
 
@@ -325,6 +390,16 @@
 
     // Load preference
     window.addEventListener('DOMContentLoaded', () => {
+        // 1. Check URL parameters first (high priority)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTab = urlParams.get('tab');
+        
+        // 2. Check local storage (fallback)
+        const lastTrack = urlTab || localStorage.getItem('aura_dashboard_last_track') || 'library';
+        
+        const trackBtn = document.querySelector(`.bottom-nav__item[data-tab="${lastTrack}"]`) || document.getElementById('nav-home');
+        if (trackBtn) switchDashTrack(lastTrack, trackBtn);
+
         const lastMode = localStorage.getItem('pod_dashboard_mode') || 'personal';
         const modeBtn = document.querySelector(`.mode-btn[onclick*="${lastMode}"]`);
         
@@ -593,7 +668,7 @@
             if (data.success) {
                 alert(data.message);
                 // Switch to discovery (Podcast) tab to see the new lesson
-                localStorage.setItem('aura_dashboard_track', 'discovery');
+                localStorage.setItem('aura_dashboard_last_track', 'discovery');
                 location.reload();
             } else {
                 alert('Error: ' + data.error);
@@ -666,85 +741,5 @@
     }
 
 </script>
-<style>
-    .set-filter-btn {
-        background: transparent;
-        border: none;
-        color: rgba(255,255,255,0.4);
-        cursor: pointer;
-    }
-    .set-filter-btn:hover {
-        color: rgba(255,255,255,0.8);
-        background: rgba(255,255,255,0.03);
-    }
-    .set-filter-btn.active {
-        background: rgba(108, 92, 231, 1);
-        color: white;
-        box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
-    }
-    .community-track-btn {
-        background: transparent;
-        border: none;
-        color: rgba(255,255,255,0.4);
-        cursor: pointer;
-    }
-    .community-track-btn:hover {
-        color: rgba(255,255,255,0.8);
-        background: rgba(255,255,255,0.03);
-    }
-    .community-track-btn.active {
-        background: var(--accent);
-        color: white;
-        box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
-    }
-    .mode-container {
-        display: none;
-    }
-    .mode-container.active {
-        display: block;
-    }
-    .tab-content {
-        display: none;
-    }
-    .tab-content.active {
-        display: block;
-    }
-    .community-tab-content {
-        display: none;
-        animation: fadeInUp 0.4s ease-out;
-    }
-    .community-tab-content.active {
-        display: block;
-    }
-
-    @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Notification Bell */
-    .notif-bell-btn:hover {
-        background: rgba(255,255,255,0.06);
-    }
-    .notif-bell-btn:hover i {
-        color: var(--text-primary);
-    }
-    .notif-item {
-        transition: all 0.3s ease;
-    }
-    .notif-item:hover {
-        background: rgba(108,92,231,0.08) !important;
-    }
-    .notif-item button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-    @media (max-width: 768px) {
-        .notif-panel {
-            width: 320px !important;
-            right: -60px !important;
-        }
-    }
-</style>
 {% endblock %}
 

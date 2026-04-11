@@ -45,9 +45,17 @@
 
     <!-- Bottom Navigation Bar (Mobile Only) -->
     <nav class="bottom-nav mobile-only">
-        <a href="{{ url_for('dashboard.index') }}" class="bottom-nav__item {% if request.endpoint == 'dashboard.index' %}active{% endif %}" id="nav-home">
+        <a href="{% if request.endpoint == 'dashboard.index' %}javascript:void(0){% else %}{{ url_for('dashboard.index', tab='library') }}{% endif %}" class="bottom-nav__item {% if request.endpoint == 'dashboard.index' %}active{% endif %}" id="nav-home" data-tab="library" onclick="if(window.switchDashTrack) switchDashTrack('library', this)">
             <i data-lucide="home"></i>
             <span>Home</span>
+        </a>
+        <a href="{% if request.endpoint == 'dashboard.index' %}javascript:void(0){% else %}{{ url_for('dashboard.index', tab='discovery') }}{% endif %}" class="bottom-nav__item" id="nav-discovery" data-tab="discovery" onclick="if(window.switchDashTrack) switchDashTrack('discovery', this)">
+            <i data-lucide="globe"></i>
+            <span>Community</span>
+        </a>
+        <a href="{% if request.endpoint == 'dashboard.index' %}javascript:void(0){% else %}{{ url_for('dashboard.index', tab='stats') }}{% endif %}" class="bottom-nav__item" id="nav-stats" data-tab="stats" onclick="if(window.switchDashTrack) switchDashTrack('stats', this)">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Stats</span>
         </a>
         <a href="{{ url_for('auth.profile') }}" class="bottom-nav__item {% if request.endpoint == 'auth.profile' %}active{% endif %}" id="nav-profile">
             <i data-lucide="user"></i>
