@@ -2421,11 +2421,133 @@ input[type="range"].premium-slider::-moz-range-thumb {
     background: rgba(108,92,231,0.08) !important;
 }
 
-/* ── Mobile Overrides ────────────────────────────────────────── */
-@media (max-width: 768px) {
-    .header-stats {
-        padding: 2px 8px;
-        border: none;
-        background: transparent;
+/* ── Subtitle Manager Drawer ────────────────────────────────── */
+.track-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.track-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    padding: 14px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.track-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.track-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.track-card__lang {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-primary);
+    background: rgba(108, 92, 231, 0.15);
+    padding: 4px 10px;
+    border-radius: 8px;
+    letter-spacing: 0.5px;
+}
+
+.track-card__meta {
+    flex: 1;
+    margin-left: 12px;
+}
+
+.track-card__uploader {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.track-card__info {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.track-card__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 10px;
+}
+
+.track-card__btn-select {
+    font-size: 10px !important;
+    padding: 6px 4px !important;
+}
+
+.track-card__btn-delete {
+    background: rgba(255, 107, 107, 0.1) !important;
+    color: var(--error) !important;
+}
+
+.upload-zone {
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.upload-zone:hover {
+    border-color: var(--accent);
+    background: rgba(108, 92, 231, 0.05);
+}
+
+.loading-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 13px;
+}
+
+#subtitleManagerModal .modal-tab {
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+#subtitleManagerModal .modal-tab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#subtitleManagerModal .modal-tab.active {
+    background: #fff;
+    color: #000;
+}
+
+/* Desktop positioning: Place Sub Manager to the left of the transcript sidebar */
+@media (min-width: 769px) {
+    #subtitleManagerModal {
+        justify-content: flex-end;
+    }
+    #subtitleManagerModal .drawer-content {
+        margin-right: 450px; 
+        border-radius: 20px 0 0 20px;
+        width: 420px;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: -10px 0 30px rgba(0,0,0,0.5);
     }
 }

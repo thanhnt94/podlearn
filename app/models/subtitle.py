@@ -20,10 +20,8 @@ class SubtitleTrack(db.Model):
     content_json = db.Column(db.JSON, nullable=True)
     note = db.Column(db.String(255), nullable=True)
 
-    # Unique constraint: one track per language per video
-    __table_args__ = (
-        db.UniqueConstraint('video_id', 'language_code', name='uq_video_lang'),
-    )
+    # Unique constraint removed to allow multiple versions per language per video
+    __table_args__ = ()
 
     # Relationships
     video = db.relationship('Video', back_populates='subtitle_tracks')

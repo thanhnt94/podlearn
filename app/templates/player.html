@@ -192,105 +192,78 @@
 </div> <!-- close player-layout -->
 
 
-<!-- Subtitle Manager Modal -->
-<div id="subtitleManagerModal" class="modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:999; justify-content:center; align-items:center; backdrop-filter:blur(3px);">
-    <div class="modal-content" style="background:var(--bg-secondary); padding:24px; border-radius:18px; width:500px; max-width:95%; border:1px solid rgba(255,255,255,0.1); box-shadow:0 15px 50px rgba(0,0,0,0.6); display:flex; flex-direction:column; max-height: 85vh;">
-        <h3 style="margin-top:0; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 15px; display:flex; gap:10px; align-items:center;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Subtitle Manager
-        </h3>
-
-        <div class="modal-tabs" style="margin-bottom: 20px; overflow-x: auto; white-space: nowrap; display: flex; gap: 5px;">
-            <div class="modal-tab active" id="subTab-manage" onclick="switchSubTab('manage')">Available</div>
-            <div class="modal-tab" id="subTab-youtube" onclick="switchSubTab('youtube')">YouTube Fetch</div>
-            <div class="modal-tab" id="subTab-manual" onclick="switchSubTab('manual')">Upload File</div>
-            <div class="modal-tab" id="subTab-external" onclick="switchSubTab('external')">External Web</div>
+<!-- Subtitle Manager Drawer -->
+<div id="subtitleManagerModal" class="drawer-backdrop" onclick="if(event.target===this) closeSubtitleManager()">
+    <div class="drawer-content" onclick="event.stopPropagation()">
+        
+        <div class="drawer-header">
+            <h3 class="drawer-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                Tracks Manager
+            </h3>
+            <button class="btn--close" onclick="closeSubtitleManager()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
         </div>
 
-
-        <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
-            <!-- Tab: Manage -->
-            <div id="subPane-manage" class="sub-pane">
-                <div id="existingSubsList" style="display:flex; flex-direction:column; gap:10px;">
-                    <div style="text-align:center; padding:20px; color:var(--text-muted);">Loading available tracks...</div>
-                </div>
+        <div class="drawer-body">
+            <div class="modal-tabs" style="margin-bottom: 24px; padding: 4px; background: rgba(255,255,255,0.03); border-radius: 12px; display: flex; gap: 4px;">
+                <div class="modal-tab active" id="subTab-manage" onclick="switchSubTab('manage')" style="flex:1; text-align:center; padding: 10px; border-radius: 8px; font-size: 13px;">Library</div>
+                <div class="modal-tab" id="subTab-youtube" onclick="switchSubTab('youtube')" style="flex:1; text-align:center; padding: 10px; border-radius: 8px; font-size: 13px;">YouTube</div>
+                <div class="modal-tab" id="subTab-manual" onclick="switchSubTab('manual')" style="flex:1; text-align:center; padding: 10px; border-radius: 8px; font-size: 13px;">Local</div>
             </div>
 
-            <!-- Tab: YouTube Fetch -->
-            <div id="subPane-youtube" class="sub-pane" style="display:none;">
-                <div style="display:flex; flex-direction:column; gap:15px;">
-                    <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
-                        <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px; line-height:1.4;">
-                            Connect directly to YouTube to pull official or auto-generated captions for this video.
-                        </p>
-                        <button id="btnFetchYtSubs" class="btn btn--primary btn--sm" style="width:100%;" onclick="fetchYoutubeSubs()">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 12 12 12 8"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                            Fetch List from YouTube
-                        </button>
+            <div class="sub-pane-container">
+                <!-- Tab: Manage -->
+                <div id="subPane-manage" class="sub-pane">
+                    <div id="existingSubsList" class="track-list">
+                        <div class="loading-state">Loading library...</div>
                     </div>
-                    <div id="youtubeSubsList" style="display:flex; flex-direction:column; gap:8px;"></div>
                 </div>
-            </div>
 
-            <!-- Tab: Manual Upload -->
-            <div id="subPane-manual" class="sub-pane" style="display:none;">
-                <div style="display:flex; flex-direction:column; gap:15px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Language:</label>
-                        <select id="importLang" class="lang-select" style="width: 100%;"></select>
-                    </div>
-                    
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Select File:</label>
-                        <label for="subtitleFile" class="btn btn--secondary" style="text-align:center; cursor:pointer; padding:12px; background:rgba(255,255,255,0.03);">
-                            📁 Choose .vtt or .srt
-                        </label>
-                        <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;" onchange="handleFileSelect(event)">
-                        <span id="fileNameDisplay" style="font-size:12px; color:var(--text-muted); text-align:center; margin-top:5px;">None selected</span>
-                    </div>
-
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Uploader Name:</label>
-                            <input type="text" id="uploadSubName" class="note-input" placeholder="e.g. Hieu" style="padding: 8px; font-size: 13px;">
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            <label style="font-size: var(--font-size-xs); color: var(--text-secondary);">Note:</label>
-                            <input type="text" id="uploadSubNote" class="note-input" placeholder="e.g. V2 Fix" style="padding: 8px; font-size: 13px;">
-                        </div>
-                    </div>
-
-                    <button class="btn btn--primary" id="uploadSubsBtn" onclick="uploadSubtitle()" disabled style="width:100%; margin-top:10px;">
-                        Upload & Save
+                <!-- Tab: YouTube Fetch -->
+                <div id="subPane-youtube" class="sub-pane" style="display:none;">
+                    <button id="btnFetchYtSubs" class="btn btn--primary btn--full" style="margin-bottom: 20px;" onclick="fetchYoutubeSubs()">
+                        <i data-lucide="refresh-cw" style="width:16px; height:16px; margin-right:8px;"></i>
+                        Refresh List
                     </button>
+                    <div id="youtubeSubsList" class="track-list"></div>
                 </div>
-            </div>
 
-            <!-- Tab: External Web Fallback -->
-            <div id="subPane-external" class="sub-pane" style="display:none;">
-                <div style="display:flex; flex-direction:column; gap:15px;">
-                    <p style="font-size:12px; color:var(--text-secondary); line-height:1.5; margin-bottom:5px;">
-                        Hệ thống tự động đang bị YouTube giới hạn. Bạn có thể sử dụng các công cụ bên dưới để lấy file phụ đề (hệ thống đã tự gắn link video hiện tại).
-                        <br><br>👉 Tải file dạng <b>.vtt</b> hoặc <b>.srt</b> sau đó dùng tab <b>Upload File</b>.
-                    </p>
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <button class="btn btn--secondary" style="justify-content:flex-start; height:auto; padding:12px;" onclick="openExternalDownloader('downsub')">
-                            <span style="font-size:18px; margin-right:10px;">🌐</span> Tải qua DownSub.com
-                        </button>
-                        <button class="btn btn--secondary" style="justify-content:flex-start; height:auto; padding:12px;" onclick="openExternalDownloader('savesubs')">
-                            <span style="font-size:18px; margin-right:10px;">🌍</span> Tải qua SaveSubs.com
-                        </button>
-                        <button class="btn btn--secondary" style="justify-content:flex-start; height:auto; padding:12px;" onclick="openExternalDownloader('yousubtitles')">
-                            <span style="font-size:18px; margin-right:10px;">📺</span> Tải qua YouSubtitles.com
+                <!-- Tab: Manual Upload -->
+                <div id="subPane-manual" class="sub-pane" style="display:none;">
+                    <div class="settings-section" style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 14px;">
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label class="slider-label">Language Code</label>
+                            <select id="importLang" class="lang-select" style="width: 100%;"></select>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label class="slider-label">Select File (.vtt, .srt)</label>
+                            <label for="subtitleFile" class="upload-zone">
+                                <i data-lucide="upload-cloud" style="width:24px; height:24px; margin-bottom:8px; opacity:0.5;"></i>
+                                <span id="fileNameDisplay">Choose File</span>
+                            </label>
+                            <input type="file" id="subtitleFile" accept=".vtt,.srt" style="display:none;" onchange="handleFileSelect(event)">
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom: 16px;">
+                            <div class="form-group">
+                                <label class="slider-label">Your Name</label>
+                                <input type="text" id="uploadSubName" class="note-input" placeholder="e.g. Hieu" style="padding: 10px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="slider-label">Version Note</label>
+                                <input type="text" id="uploadSubNote" class="note-input" placeholder="e.g. Deep Edit" style="padding: 10px;">
+                            </div>
+                        </div>
+
+                        <button class="btn btn--accent btn--full" id="uploadSubsBtn" onclick="uploadSubtitle()" disabled>
+                            Upload to Library
                         </button>
                     </div>
                 </div>
             </div>
-        </div>
-
-
-        <div style="display:flex; justify-content:flex-end; margin-top:20px; padding-top:15px; border-top: 1px solid rgba(255,255,255,0.05);">
-            <button class="btn btn--ghost" onclick="closeSubtitleManager()">Close</button>
         </div>
     </div>
 </div>
@@ -325,9 +298,9 @@
                 </div>
 
                 <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px; margin-bottom: 20px;">
-                    <select id="displaySub1" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">S1</option></select>
-                    <select id="displaySub2" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">S2</option></select>
-                    <select id="displaySub3" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">S3</option></select>
+                    <select id="displaySub1" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">Subtitle 1</option></select>
+                    <select id="displaySub2" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">Subtitle 2</option></select>
+                    <select id="displaySub3" class="lang-select" style="font-size: 11px; padding: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"><option value="">Subtitle 3</option></select>
                 </div>
 
                 <div style="display:flex; flex-direction:column; gap:16px;">
@@ -736,6 +709,11 @@
     var SAVED_ORIGINAL = '{{ lesson.original_lang_code or "" }}';
     var SAVED_TARGET = '{{ lesson.target_lang_code or "" }}';
     var SAVED_THIRD = '{{ lesson.third_lang_code or "" }}';
+
+    var SAVED_S1_TRACK_ID = {{ lesson.s1_track_id if lesson.s1_track_id is not none else 'null' }};
+    var SAVED_S2_TRACK_ID = {{ lesson.s2_track_id if lesson.s2_track_id is not none else 'null' }};
+    var SAVED_S3_TRACK_ID = {{ lesson.s3_track_id if lesson.s3_track_id is not none else 'null' }};
+
     var SAVED_SETTINGS = {% if lesson.settings_json %}{{ lesson.settings_json | safe }}{% else %}{}{% endif %};
     var IS_COMPLETED = ('{{ lesson.is_completed }}' === 'True');
 

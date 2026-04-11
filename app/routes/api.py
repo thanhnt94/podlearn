@@ -189,8 +189,10 @@ def get_available_subtitles(lesson_id):
             'language_code': t.language_code,
             'is_auto_generated': t.is_auto_generated,
             'uploader_name': t.uploader_name or "Unknown",
+            'uploader_id': t.uploader_id,
             'fetched_at': t.fetched_at.isoformat() if hasattr(t, 'fetched_at') and t.fetched_at else None,
-            'line_count': len(t.content_json) if t.content_json else 0
+            'line_count': len(t.content_json) if t.content_json else 0,
+            'note': t.note
         })
     return jsonify({'subtitles': results})
 
@@ -235,18 +237,25 @@ def download_youtube_sub(lesson_id):
         return jsonify(result), status_code
 
     parsed_lines = result['lines']
-    track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code).first()
-    if not track:
-        track = SubtitleTrack(video_id=lesson.video.id, language_code=lang_code)
-        db.session.add(track)
     
-    track.content_json = parsed_lines
-    track.is_auto_generated = is_auto
-    track.uploader_name = "YouTube"
-    track.fetched_at = datetime.now(timezone.utc)
-    
+    # Always create a new track for the user who fetched it
+    track = SubtitleTrack(
+        video_id=lesson.video.id, 
+        language_code=lang_code,
+        content_json=parsed_lines,
+        is_auto_generated=is_auto,
+        uploader_id=current_user.id,
+        uploader_name=current_user.username,
+        fetched_at=datetime.now(timezone.utc)
+    )
+    db.session.add(track)
     db.session.commit()
-    return jsonify({'success': True, 'line_count': len(parsed_lines)})
+    
+    return jsonify({
+        'success': True, 
+        'track_id': track.id,
+        'line_count': len(parsed_lines)
+    })
 
 
 
@@ -257,10 +266,18 @@ def download_youtube_sub(lesson_id):
 def fetch_subtitles(lesson_id):
     lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
     data = request.get_json(force=True) or {}
+    track_id = data.get('track_id')
     lang_code = data.get('language_code', '').strip()
 
-    if not lang_code: return jsonify({'error': 'language_code required'}), 400
-    track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code).first()
+    if not track_id and not lang_code: 
+        return jsonify({'error': 'language_code or track_id required'}), 400
+    if track_id:
+        track = SubtitleTrack.query.get(track_id)
+    else:
+        # Fallback to most recent for that language
+        track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code)\
+                             .order_by(SubtitleTrack.fetched_at.desc()).first()
+
     if track:
         # Compatibility fix: Ensure 'end' is present for all lines
         lines = []
@@ -270,7 +287,11 @@ def fetch_subtitles(lesson_id):
             elif 'end' not in line:
                 line['end'] = line['start'] + 2.0 # Fallback
             lines.append(line)
-        return jsonify({'language_code': track.language_code, 'lines': lines})
+        return jsonify({
+            'language_code': track.language_code, 
+            'track_id': track.id,
+            'lines': lines
+        })
     return jsonify({'error': 'Track not found'}), 404
 
 @api_bp.route('/subtitles/upload/<int:lesson_id>', methods=['POST'])
@@ -301,22 +322,22 @@ def upload_subtitle(lesson_id):
 
         parsed_lines = result['lines']
 
-        # Check for existing track
-        track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code).first()
-        if not track:
-            track = SubtitleTrack(video_id=lesson.video.id, language_code=lang_code)
-            db.session.add(track)
-
-        track.content_json = parsed_lines
-        track.uploader_id = current_user.id
-        track.uploader_name = uploader_name
-        track.note = note
-        track.fetched_at = datetime.now(timezone.utc)
-        
+        # Always create a new track record
+        track = SubtitleTrack(
+            video_id=lesson.video.id, 
+            language_code=lang_code,
+            content_json=parsed_lines,
+            uploader_id=current_user.id,
+            uploader_name=uploader_name,
+            note=note,
+            fetched_at=datetime.now(timezone.utc)
+        )
+        db.session.add(track)
         db.session.commit()
         
         return jsonify({
             'success': True,
+            'track_id': track.id,
             'language_code': lang_code,
             'line_count': len(parsed_lines),
             'lines': parsed_lines
@@ -338,6 +359,11 @@ def set_languages(lesson_id):
     lesson.original_lang_code = data.get('original_lang_code')
     lesson.target_lang_code = data.get('target_lang_code')
     lesson.third_lang_code = data.get('third_lang_code')
+
+    # Specific Track IDs
+    lesson.s1_track_id = data.get('s1_track_id')
+    lesson.s2_track_id = data.get('s2_track_id')
+    lesson.s3_track_id = data.get('s3_track_id')
     
     # Save explicit timing settings
     if 'note_appear_before' in data:

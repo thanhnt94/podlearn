@@ -29,10 +29,6 @@ def process_video_metadata(video_id_int: int):
             db.session.commit()
             return {"error": "Failed to fetch metadata"}
 
-        # 2. Pre-fetch English subtitles by default
-        # get_subtitle_track already caches to content_json as we updated it previously
-        get_subtitle_track(video.id, video.youtube_id, 'en')
-        
         # Mark as completed
         video.status = 'completed'
         db.session.commit()

@@ -651,7 +651,7 @@ async function loadAvailableLanguages() {
     for (const lang of COMMON_LANGS) {
         importHtml += `<option value="${lang.code}">${lang.name}</option>`;
     }
-    importSelect.innerHTML = importHtml;
+    if (importSelect) importSelect.innerHTML = importHtml;
 
     // Fetch Database available list
     try {
@@ -665,21 +665,38 @@ async function loadAvailableLanguages() {
             let html = `<option value="">${placeholder}</option>`;
             if (data.subtitles) {
                 for (const sub of data.subtitles) {
-                    const label = `${sub.language_code.toUpperCase()} (by ${sub.uploader_name})`;
-                    html += `<option value="${sub.language_code}">${label}</option>`;
+                    // Use the format requested by user: EN (username)
+                    const label = `${sub.language_code.toUpperCase()} (${sub.uploader_name})`;
+                    // Value is the track ID now, for precise selection
+                    html += `<option value="${sub.id}" data-lang="${sub.language_code}">${label}</option>`;
                 }
             }
             return html;
         };
 
-        displaySub1.innerHTML = buildDisplayOptions('- Subtitle 1 -');
-        displaySub2.innerHTML = buildDisplayOptions('- Subtitle 2 -');
-        displaySub3.innerHTML = buildDisplayOptions('- Subtitle 3 -');
+        if (displaySub1) displaySub1.innerHTML = buildDisplayOptions('Subtitle 1');
+        if (displaySub2) displaySub2.innerHTML = buildDisplayOptions('Subtitle 2');
+        if (displaySub3) displaySub3.innerHTML = buildDisplayOptions('Subtitle 3');
 
-        // Restore saved selections
-        if (SAVED_ORIGINAL) displaySub1.value = SAVED_ORIGINAL;
-        if (SAVED_TARGET) displaySub2.value = SAVED_TARGET;
-        if (SAVED_THIRD) displaySub3.value = SAVED_THIRD;
+        // Restore saved selections by Track ID first
+        if (SAVED_S1_TRACK_ID && displaySub1) displaySub1.value = SAVED_S1_TRACK_ID;
+        else if (SAVED_ORIGINAL && displaySub1) {
+            // Find a track that matches the old lang_code if ID is missing
+            const opt = Array.from(displaySub1.options).find(o => o.dataset.lang === SAVED_ORIGINAL);
+            if (opt) displaySub1.value = opt.value;
+        }
+
+        if (SAVED_S2_TRACK_ID && displaySub2) displaySub2.value = SAVED_S2_TRACK_ID;
+        else if (SAVED_TARGET && displaySub2) {
+            const opt = Array.from(displaySub2.options).find(o => o.dataset.lang === SAVED_TARGET);
+            if (opt) displaySub2.value = opt.value;
+        }
+
+        if (SAVED_S3_TRACK_ID && displaySub3) displaySub3.value = SAVED_S3_TRACK_ID;
+        else if (SAVED_THIRD && displaySub3) {
+            const opt = Array.from(displaySub3.options).find(o => o.dataset.lang === SAVED_THIRD);
+            if (opt) displaySub3.value = opt.value;
+        }
 
     } catch (err) {
         console.error('[AuraFlow] Failed to load DB subtitles:', err);
@@ -743,10 +760,22 @@ async function uploadSubtitle() {
         // Refresh available subtitles list
         await loadAvailableLanguages();
 
-        // Auto-select the newly uploaded file as Subtitle 1
-        document.getElementById('displaySub1').value = langCode;
+        // Auto-select the newly uploaded file as Subtitle 1 by ID
+        if (data.track_id) {
+            const select = document.getElementById('displaySub1');
+            if (select) select.value = data.track_id;
+        }
 
-        // Load stats before rendering transcript
+        // Switch to manage tab to see library
+        switchSubTab('manage');
+        await refreshExistingSubs();
+
+        // Reset upload form
+        selectedSubtitleFile = null;
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        if (fileNameDisplay) fileNameDisplay.textContent = "Choose File";
+        btn.disabled = true;
+        btn.innerHTML = 'Upload to Library';
         if (typeof loadShadowingStats === 'function') await loadShadowingStats();
 
         // Render transcript immediately
@@ -785,7 +814,10 @@ async function loadDisplaySubtitles() {
     const status = document.getElementById('transcriptStatus');
 
     if (!sub1 && !sub2 && !sub3) {
-        alert('Please select at least one subtitle track to display.');
+        // Only alert if this was a manual user action (not auto-load on start)
+        if (status && status.textContent.includes('Fetching')) {
+            alert('Please select at least one subtitle track to display.');
+        }
         return;
     }
 
@@ -796,18 +828,24 @@ async function loadDisplaySubtitles() {
     if (status) status.textContent = 'Fetching subtitles...';
 
 
-    const selectedLangs = [sub1, sub2, sub3].filter(Boolean);
+    const selectedTracks = [sub1, sub2, sub3];
     const tracksData = [];
     
     try {
-        for (const lang of selectedLangs) {
+        for (let i = 0; i < selectedTracks.length; i++) {
+            const trackId = selectedTracks[i];
+            if (!trackId) {
+                tracksData.push([]);
+                continue;
+            }
+
             const res = await fetch(`/api/subtitles/fetch/${LESSON_ID}`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCsrfToken()
                 },
-                body: JSON.stringify({ language_code: lang }),
+                body: JSON.stringify({ track_id: trackId }),
             });
 
             const data = await res.json();
@@ -815,7 +853,7 @@ async function loadDisplaySubtitles() {
             if (res.ok) {
                 tracksData.push(data.lines);
             } else {
-                console.warn(`[AuraFlow] Could not load ${lang} subs:`, data.error);
+                console.warn(`[AuraFlow] Could not load track ${trackId}:`, data.error);
                 tracksData.push([]);
             }
         }
@@ -828,8 +866,15 @@ async function loadDisplaySubtitles() {
 
     renderTranscript(tracksData);
     if (tracksData[0]) {
-        const activeNames = selectedLangs.map(l => l.toUpperCase());
-        status.textContent = `Displaying: ${activeNames.join(' • ')} (${tracksData[0].length} blocks)`;
+        // Find language codes for the selected tracks to display in status
+        const activeLabels = [];
+        [sub1, sub2, sub3].forEach((id, idx) => {
+            if (!id) return;
+            const select = document.getElementById(`displaySub${idx+1}`);
+            const text = select.options[select.selectedIndex]?.text || id;
+            activeLabels.push(text);
+        });
+        status.textContent = `Displaying: ${activeLabels.join(' • ')} (${tracksData[0].length} blocks)`;
     }
 
 
@@ -849,9 +894,7 @@ async function loadDisplaySubtitles() {
 // ── Initialization Override ───────────────────────────────────
 function initFromSaved() {
     // 1. Restore Language Selections
-    if (SAVED_ORIGINAL && document.getElementById('displaySub1')) document.getElementById('displaySub1').value = SAVED_ORIGINAL;
-    if (SAVED_TARGET && document.getElementById('displaySub2')) document.getElementById('displaySub2').value = SAVED_TARGET;
-    if (SAVED_THIRD && document.getElementById('displaySub3')) document.getElementById('displaySub3').value = SAVED_THIRD;
+    // 1. Language Selections already restored by loadAvailableLanguages() using Track IDs
 
         // 2. Restore Visuals
     if (SAVED_SETTINGS && Object.keys(SAVED_SETTINGS).length > 0) {
@@ -1033,51 +1076,65 @@ function switchSubTab(tabName) {
 }
 
 async function openSubtitleManager() {
-    document.getElementById('subtitleManagerModal').style.display = 'flex';
+    const modal = document.getElementById('subtitleManagerModal');
+    modal.style.display = 'block';
+    // Small delay to trigger CSS transition
+    setTimeout(() => modal.classList.add('active'), 10);
     document.body.style.overflow = 'hidden';
     
-    // Always start on Manage tab
     switchSubTab('manage');
-    
+    await refreshExistingSubs();
+}
+
+function closeSubtitleManager() {
+    const modal = document.getElementById('subtitleManagerModal');
+    modal.classList.remove('active');
+    setTimeout(() => {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }, 400);
+}
+
+async function refreshExistingSubs() {
     const listEl = document.getElementById('existingSubsList');
-    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">Loading...</div>';
+    listEl.innerHTML = '<div class="loading-state">Syncing library...</div>';
 
     try {
-        const res = await fetch(`/api/subtitles/available/${LESSON_ID}`, {
-            headers: { 'X-CSRFToken': getCsrfToken() }
-        });
+        const res = await fetch(`/api/subtitles/available/${LESSON_ID}`);
         const data = await res.json();
 
         if (!data.subtitles || data.subtitles.length === 0) {
-            listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No tracks found. Upload or Fetch one!</div>';
+            listEl.innerHTML = '<div class="loading-state">No tracks found. Fetch from YouTube or Upload!</div>';
             return;
         }
 
         let html = '';
         data.subtitles.forEach(sub => {
+            const dateStr = sub.fetched_at ? new Date(sub.fetched_at).toLocaleDateString() : 'Unknown date';
             html += `
-                <div style="background:rgba(255,255,255,0.03); padding:12px 15px; border-radius:10px; border:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div style="font-weight:600; font-size:14px; color:var(--text-primary);">
-                            ${sub.language_code.toUpperCase()} 
-                            <span style="font-weight:400; font-size:11px; opacity:0.6; margin-left:5px;">${sub.is_auto_generated ? '(Auto)' : ''}</span>
+                <div class="track-card">
+                    <div class="track-card__header">
+                        <span class="track-card__lang">${sub.language_code.toUpperCase()}</span>
+                        <div class="track-card__meta">
+                            <div class="track-card__uploader">${sub.uploader_name}</div>
+                            <div class="track-card__info">${sub.line_count} lines • ${dateStr}</div>
                         </div>
-                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
-                            ${sub.line_count} lines • by ${sub.uploader_name}
-                        </div>
+                        <button class="btn btn--sm track-card__btn-delete" onclick="deleteSubtitle(${sub.id})" title="Delete">
+                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
                     </div>
-                    <button class="btn btn--ghost btn--sm" onclick="deleteSubtitle(${sub.id})" title="Delete track" style="color:var(--danger); padding:6px; min-width:auto;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    </button>
+                    ${sub.note ? `<div style="font-size:11px; opacity:0.6; font-style:italic; margin-bottom: 8px;">"${sub.note}"</div>` : ''}
+                    ${sub.note ? `<div style="font-size:11px; opacity:0.6; font-style:italic;">"${sub.note}"</div>` : ''}
                 </div>
             `;
         });
         listEl.innerHTML = html;
 
     } catch (err) {
-        listEl.innerHTML = `<div style="color:var(--danger); padding:20px;">Error: ${err.message}</div>`;
+        listEl.innerHTML = `<div class="error-state">Failed to load: ${err.message}</div>`;
     }
 }
+
 
 async function fetchYoutubeSubs() {
     const listEl = document.getElementById('youtubeSubsList');
@@ -1085,51 +1142,47 @@ async function fetchYoutubeSubs() {
     
     btn.disabled = true;
     btn.innerHTML = 'Connecting to YouTube...';
-    listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">Querying YouTube catalog...</div>';
+    listEl.innerHTML = '<div class="loading-state">Querying YouTube catalog...</div>';
 
     try {
         const res = await fetch(`/api/youtube/subtitles-list/${YOUTUBE_ID}`);
         const data = await res.json();
-
         if (data.error) throw new Error(data.error);
 
         if (!data.subtitles || data.subtitles.length === 0) {
-            listEl.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No captions found on YouTube for this video.</div>';
+            listEl.innerHTML = '<div class="loading-state">No captions found on YouTube.</div>';
             return;
         }
 
-        let html = '<div style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Found ' + data.subtitles.length + ' tracks:</div>';
+        let html = '';
         data.subtitles.forEach(sub => {
             html += `
-                <div style="background:rgba(255,255,255,0.02); padding:10px 15px; border-radius:10px; border:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
-                    <div style="font-size:13px; color:var(--text-primary);">
-                        <strong>${sub.lang_code.toUpperCase()}</strong> - ${sub.name}
+                <div class="track-card" style="padding: 10px 14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="font-size:13px;">
+                            <strong style="color:var(--accent);">${sub.lang_code.toUpperCase()}</strong> - ${sub.name}
+                        </div>
+                        <button class="btn btn--accent btn--sm" onclick="downloadYoutubeSub('${sub.lang_code}', ${sub.is_auto})" style="padding:4px 12px; font-size:11px;">
+                            Download
+                        </button>
                     </div>
-                    <button class="btn btn--accent btn--sm" onclick="downloadYoutubeSub('${sub.lang_code}', ${sub.is_auto})" style="padding:4px 12px; font-size:11px; min-width:80px;">
-                        Download
-                    </button>
                 </div>
             `;
         });
         listEl.innerHTML = html;
 
     } catch (err) {
-        listEl.innerHTML = `<div style="color:var(--danger); padding:20px;">Fetching failed: ${err.message}</div>`;
+        listEl.innerHTML = `<div class="error-state">Failed: ${err.message}</div>`;
     } finally {
         btn.disabled = false;
-        btn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 12 12 12 8"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-            Fetch List from YouTube
-        `;
+        btn.innerHTML = '<i data-lucide="refresh-cw" style="width:16px; height:16px; margin-right:8px;"></i> Refresh List';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 }
 
 async function downloadYoutubeSub(langCode, isAuto) {
-    if (!confirm(`Download and import ${langCode.toUpperCase()} subtitle from YouTube?`)) return;
-
+    // No confirmation needed for fetch anymore as it's just adding to library
     try {
-        console.log(`[AuraFlow] Downloading yt sub: ${langCode} (auto=${isAuto})`);
-        
         const res = await fetch(`/api/youtube/subtitles-download/${LESSON_ID}`, {
             method: 'POST',
             headers: { 
@@ -1140,19 +1193,12 @@ async function downloadYoutubeSub(langCode, isAuto) {
         });
 
         const data = await res.json();
-        
-        if (!res.ok) {
-            alert(data.error || "Download failed.");
-            return;
-        }
+        if (!res.ok) throw new Error(data.error || "Download failed.");
 
-        if (data.success) {
-            alert(`Imported ${langCode.toUpperCase()} successfully!`);
-            await loadAvailableLanguages();
-            await openSubtitleManager(); 
-        }
+        await loadAvailableLanguages();
+        await refreshExistingSubs();
+        switchSubTab('manage');
     } catch (err) {
-        console.error("[AuraFlow] Download error:", err);
         alert("Error: " + err.message);
     }
 }
@@ -1169,7 +1215,7 @@ async function deleteSubtitle(id) {
 
         if (res.ok) {
             await loadAvailableLanguages();
-            await openSubtitleManager(); // Refresh UI
+            await refreshExistingSubs();
         } else {
             alert("Failed to delete.");
         }
@@ -1475,9 +1521,14 @@ async function saveLessonSettings() {
                 'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({
-                original_lang_code: sub1 || SAVED_ORIGINAL,
-                target_lang_code: sub2 || SAVED_TARGET || '',
-                third_lang_code: sub3 || SAVED_THIRD || '',
+                original_lang_code: document.getElementById('displaySub1')?.options[document.getElementById('displaySub1')?.selectedIndex]?.dataset.lang || SAVED_ORIGINAL,
+                target_lang_code: document.getElementById('displaySub2')?.options[document.getElementById('displaySub2')?.selectedIndex]?.dataset.lang || SAVED_TARGET || '',
+                third_lang_code: document.getElementById('displaySub3')?.options[document.getElementById('displaySub3')?.selectedIndex]?.dataset.lang || SAVED_THIRD || '',
+                
+                s1_track_id: sub1 || null,
+                s2_track_id: sub2 || null,
+                s3_track_id: sub3 || null,
+
                 note_appear_before: noteBefore,
                 note_duration: noteDuration,
                 settings: visualSettings

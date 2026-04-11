@@ -132,9 +132,7 @@ function renderTranscript(tracksDataArray) {
                 </div>
 
                 <div class="tline__text-col" onclick="seekAndPlay(${line.start})">
-                    <div class="tline__original" style="font-size: var(--transcript-fs, 16px);">
-                        ${textsHtml}
-                    </div>
+                    ${textsHtml}
                     ${statsHtml}
                 </div>
                 

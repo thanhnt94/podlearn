@@ -13,6 +13,11 @@ class Lesson(db.Model):
     original_lang_code = db.Column(db.String(10))
     target_lang_code = db.Column(db.String(10))
     third_lang_code = db.Column(db.String(10))
+
+    # Precise Track Selection
+    s1_track_id = db.Column(db.Integer, db.ForeignKey('subtitle_tracks.id'), nullable=True)
+    s2_track_id = db.Column(db.Integer, db.ForeignKey('subtitle_tracks.id'), nullable=True)
+    s3_track_id = db.Column(db.Integer, db.ForeignKey('subtitle_tracks.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_accessed = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
