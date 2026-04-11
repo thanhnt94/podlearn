@@ -43,7 +43,7 @@
         <div class="player-left">
 
         <!-- YouTube Player Container (Pure 16:9) -->
-        <div class="player-video-wrap">
+        <div class="player-video-wrap" id="mainPlayerContainer">
             <div class="player-video" id="playerContainer">
                 <div id="ytPlayer"></div>
             </div>
@@ -51,6 +51,46 @@
             <div id="dictationBlurOverlay" class="dictation-blur-overlay"></div>
             <div class="video-sub-overlay" id="videoSubOverlay" style="visibility: hidden;"></div>
             <div class="video-note-overlay" id="notePopup"><span class="video-note-overlay__text" id="notePopupText"></span></div>
+
+            <!-- Custom Premium Controller -->
+            <div class="custom-controls" id="customControls">
+                <div class="controls-top">
+                    <input type="range" id="progressSlider" class="progress-slider" min="0" max="100" step="0.1" value="0">
+                </div>
+                <div class="controls-bottom">
+                    <div class="controls-left">
+                        <button class="ctrl-btn" id="btn-play-pause" onclick="togglePlayPause()">
+                            <i data-lucide="play" id="playIcon"></i>
+                        </button>
+                        <button class="ctrl-btn" onclick="seekRelative(-5)">
+                            <i data-lucide="rotate-ccw"></i>
+                        </button>
+                        <button class="ctrl-btn" onclick="seekRelative(5)">
+                            <i data-lucide="rotate-cw"></i>
+                        </button>
+                        <div class="time-display">
+                            <span id="currentTime">00:00</span> / <span id="durationTime">00:00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="controls-right">
+                        <div class="speed-selector">
+                            <button class="ctrl-btn" id="activeSpeedBtn">1.0x</button>
+                            <div class="speed-menu">
+                                <span onclick="setPlaybackSpeed(0.5)">0.5x</span>
+                                <span onclick="setPlaybackSpeed(0.75)">0.75x</span>
+                                <span onclick="setPlaybackSpeed(1.0)">1.0x</span>
+                                <span onclick="setPlaybackSpeed(1.25)">1.25x</span>
+                                <span onclick="setPlaybackSpeed(1.5)">1.5x</span>
+                                <span onclick="setPlaybackSpeed(2.0)">2.0x</span>
+                            </div>
+                        </div>
+                        <button class="ctrl-btn" id="btn-fullscreen" onclick="toggleCustomFullscreen()">
+                            <i data-lucide="maximize"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <!-- Shadowing Mode Indicator Overlay -->
             <div id="shadowingHUD" class="shadowing-hud">

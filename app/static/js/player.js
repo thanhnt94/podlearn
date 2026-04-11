@@ -91,6 +91,7 @@ function onYouTubeIframeAPIReady() {
             cc_load_policy: 0,
             iv_load_policy: 3,
             playsinline: 1,
+            controls: 0,
         },
         events: {
             onReady: onPlayerReady,
@@ -128,11 +129,21 @@ function onPlayerError(event) {
 
 function onPlayerStateChange(event) {
     const overlay = document.getElementById('videoSubOverlay');
+    const playIcon = document.getElementById('playIcon');
+
     if (event.data === YT.PlayerState.PLAYING) {
         startTimeUpdates();
         if (overlay) overlay.classList.remove('is-interactive');
+        if (playIcon) {
+            playIcon.setAttribute('data-lucide', 'pause');
+            lucide.createIcons();
+        }
     } else {
         stopTimeUpdates();
+        if (playIcon) {
+            playIcon.setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+        }
         if (event.data === YT.PlayerState.PAUSED) {
             onTimeUpdate(ytPlayer.getCurrentTime());
             if (overlay) overlay.classList.add('is-interactive');
@@ -161,12 +172,16 @@ function stopTimeUpdates() {
 }
 
 function onTimeUpdate(currentTime) {
+    // 1. Update Transcript Highlight
     if (typeof updateTranscriptHighlight === 'function') {
         updateTranscriptHighlight(currentTime);
     }
+    // 2. Check Note Popups
     if (typeof checkNotePopup === 'function') {
         checkNotePopup(currentTime);
     }
+    // 3. Update Custom Player UI
+    updateCustomPlayerUI(currentTime);
 
     // ── Shadowing Mode Logic ─────────────────────────────────
     if (isShadowingMode && typeof mergedLines !== 'undefined' && mergedLines.length > 0) {
@@ -617,6 +632,61 @@ function normalizeWord(word) {
 
 
 // ── Seek ─────────────────────────────────────────────────────
+function togglePlayPause() {
+    if (!ytPlayer) return;
+    const state = ytPlayer.getPlayerState();
+    if (state === YT.PlayerState.PLAYING) {
+        ytPlayer.pauseVideo();
+    } else {
+        ytPlayer.playVideo();
+    }
+}
+
+function seekRelative(seconds) {
+    if (!ytPlayer) return;
+    const cur = ytPlayer.getCurrentTime();
+    ytPlayer.seekTo(cur + seconds, true);
+}
+
+function setPlaybackSpeed(speed) {
+    if (!ytPlayer) return;
+    ytPlayer.setPlaybackRate(speed);
+    const speedBtn = document.getElementById('activeSpeedBtn');
+    if (speedBtn) speedBtn.textContent = speed + 'x';
+}
+
+function toggleCustomFullscreen() {
+    const container = document.getElementById('mainPlayerContainer');
+    if (!document.fullscreenElement) {
+        if (container.requestFullscreen) {
+            container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+            container.webkitRequestFullscreen();
+        } else if (container.msRequestFullscreen) {
+            container.msRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+}
+
+// Initializing slider events
+document.addEventListener('DOMContentLoaded', () => {
+    const slider = document.getElementById('progressSlider');
+    if (slider) {
+        slider.addEventListener('mousedown', () => slider.classList.add('dragging'));
+        slider.addEventListener('mouseup', () => slider.classList.remove('dragging'));
+        slider.addEventListener('input', (e) => {
+            if (!ytPlayer || typeof ytPlayer.getDuration !== 'function') return;
+            const duration = ytPlayer.getDuration();
+            const time = (e.target.value / 100) * duration;
+            ytPlayer.seekTo(time, true);
+        });
+    }
+});
+
 function seekTo(seconds) {
     if (ytPlayer && isPlayerReady) {
         ytPlayer.seekTo(seconds, true);
