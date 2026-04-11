@@ -547,13 +547,13 @@ async function calculatePronunciationScore(original, spoken, langCode) {
         if (targetEl) targetEl.textContent = finalTarget;
 
         if (score >= threshold) {
-            if (statusEl) statusEl.textContent = `EXCELLENT (${Math.round(score)}%)`;
+            if (statusEl) statusEl.textContent = `EXCELLENT`;
             hud?.classList.remove('shadow-state-processing', 'shadow-state-error');
             hud?.classList.add('shadow-state-success');
             
             setTimeout(resumeFromShadowing, 1200);
         } else {
-            if (statusEl) statusEl.textContent = `RETRY (${Math.round(score)}%)`;
+            if (statusEl) statusEl.textContent = `RETRY`;
             hud?.classList.remove('shadow-state-processing', 'shadow-state-success');
             hud?.classList.add('shadow-state-error');
         }
@@ -1029,10 +1029,11 @@ function initFromSaved() {
 
     applyVisualOptions();
     
-    // Auto-load if languages are selected
-    if (window.SAVED_ORIGINAL || window.SAVED_TARGET || window.SAVED_THIRD) {
+    // Auto-load if languages are selected (checking both Track IDs and legacy codes)
+    if (window.SAVED_S1_TRACK_ID || window.SAVED_S2_TRACK_ID || window.SAVED_S3_TRACK_ID || 
+        window.SAVED_ORIGINAL || window.SAVED_TARGET || window.SAVED_THIRD) {
         console.log("[AuraFlow] Auto-loading subtitles...");
-        setTimeout(loadDisplaySubtitles, 500);
+        setTimeout(loadDisplaySubtitles, 800); // Slightly more delay to ensure all DOM is ready
     }
 }
 
@@ -1104,6 +1105,15 @@ function openOptionsModal() {
     setTimeout(() => {
         modal.classList.add('active');
         isInPreviewMode = true;
+        if (SAVED_SETTINGS.sub_bg_color) {
+            const bgEl = document.getElementById('optSubBgColor');
+            if (bgEl) bgEl.value = SAVED_SETTINGS.sub_bg_color;
+        }
+        if (SAVED_SETTINGS.sub_bg_opacity) {
+            const opacityEl = document.getElementById('optSubBgOpacity');
+            if (opacityEl) opacityEl.value = SAVED_SETTINGS.sub_bg_opacity;
+        }
+
         applyVisualOptions();
     }, 10);
     
@@ -1399,6 +1409,16 @@ function applyVisualOptions() {
         // Add new position class
         subOverlay.classList.add(`vso--pos-${subPos}`);
 
+        // Background Customization
+        const bgColor = document.getElementById('optSubBgColor')?.value || '#000000';
+        const bgOpacity = document.getElementById('optSubBgOpacity')?.value || '0.6';
+        
+        // Convert hex to rgb for rgba
+        const r = parseInt(bgColor.slice(1, 3), 16);
+        const g = parseInt(bgColor.slice(3, 5), 16);
+        const b = parseInt(bgColor.slice(5, 7), 16);
+        subOverlay.style.background = `rgba(${r}, ${g}, ${b}, ${bgOpacity})`;
+
         // Clean up any stray inline styles that might interfere with CSS classes
         subOverlay.style.removeProperty('top');
         subOverlay.style.removeProperty('bottom');
@@ -1551,6 +1571,8 @@ async function saveLessonSettings() {
         sub2_color: document.getElementById('optSubColor2')?.value || '#f1c40f',
         sub3_color: document.getElementById('optSubColor3')?.value || '#00cec9',
         sub_pos: document.getElementById('optSubPos')?.value || 'bottom',
+        sub_bg_color: document.getElementById('optSubBgColor')?.value || '#000000',
+        sub_bg_opacity: document.getElementById('optSubBgOpacity')?.value || '0.6',
         
         note_size: document.getElementById('optNoteSize')?.value + '%',
         note_theme: document.getElementById('optNoteColor')?.value || 'dark',

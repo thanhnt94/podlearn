@@ -65,8 +65,7 @@ function updateTranscriptStatsUI() {
                     statsContainer.className = 'tline__shadow-stats';
                     textCol.appendChild(statsContainer);
                 }
-                statsContainer.title = `Best: ${stat.best}% | Avg: ${stat.avg}%`;
-                statsContainer.textContent = `🎯 ${stat.count} attempts · ${stat.best}%`;
+                statsContainer.textContent = `🎯 ${stat.count} attempts`;
             }
         }
     });
@@ -117,8 +116,8 @@ function renderTranscript(tracksDataArray) {
         // Get shadowing stats for this line
         const stats = shadowingStats[roundTime(line.start)];
         const statsHtml = stats ? `
-            <div class="tline__shadow-stats" title="Best: ${stats.best}% | Avg: ${stats.avg}%">
-                🎯 ${stats.count} attempts · ${stats.best}%
+            <div class="tline__shadow-stats">
+                🎯 ${stats.count} attempts
             </div>
         ` : '';
 
@@ -283,8 +282,13 @@ function updateTranscriptHighlight(currentTime) {
  */
 function updateProgressCounter(activeIndex) {
     const progressLabel = document.getElementById('progressLabel');
-    if (progressLabel && mergedLines.length > 0) {
-        progressLabel.textContent = `${activeIndex + 1} / ${mergedLines.length} blocks`;
+    const progressBarFill = document.getElementById('progressBarFill');
+    if (mergedLines.length > 0) {
+        if (progressLabel) progressLabel.textContent = `${activeIndex + 1} / ${mergedLines.length} blocks`;
+        if (progressBarFill) {
+            const percent = ((activeIndex + 1) / mergedLines.length) * 100;
+            progressBarFill.style.width = percent + '%';
+        }
     }
 }
 

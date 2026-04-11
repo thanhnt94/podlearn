@@ -6,34 +6,41 @@
 <div class="player-layout">
     <!-- Universal Top bar (Sticky) -->
     <div class="player-topbar">
-        <a href="{{ url_for('dashboard.index') }}" class="brand-logo">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            <span class="desktop-only" style="letter-spacing: -0.5px;">Pod<span style="color:var(--accent);">Learn</span></span>
-        </a>
+        <div class="player-topbar__left">
+            <a href="{{ url_for('dashboard.index') }}" class="brand-logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span class="brand-name">Pod<span style="color:var(--accent);">Learn</span></span>
+            </a>
+            <div class="player-topbar__divider"></div>
+            <h2 class="player-topbar__title" title="{{ lesson.video.title }}">
+                {{ lesson.video.title }}
+            </h2>
+        </div>
         
-        <h2 class="player-topbar__title" title="{{ lesson.video.title }}">
-            | {{ lesson.video.title }}
-        </h2>
-        
-        <div class="ab-controls">
-            <button id="btn-shadowing" class="btn btn--ghost btn--sm" onclick="toggleShadowingMode()" title="Shadowing Mode">
-                <i data-lucide="mic" style="width:16px; height:16px;"></i>
-                <span class="desktop-only">Shadowing</span>
-            </button>
-            <button id="btn-dictation" class="btn btn--ghost btn--sm" onclick="toggleDictationMode()" title="Dictation Mode">
-                <i data-lucide="keyboard" style="width:16px; height:16px;"></i>
-                <span class="desktop-only">Dictation</span>
-            </button>
-            <button class="btn btn--ghost btn--sm mobile-only" onclick="handleAddNoteClick()" title="Add Note">
-                <i data-lucide="plus" style="width:18px; height:18px;"></i>
-            </button>
-            <button class="btn btn--ghost btn--sm" onclick="openOptionsModal()" title="Settings">
-                <i data-lucide="settings" style="width:18px; height:18px;"></i>
-            </button>
+        <div class="player-topbar__right">
+            <div class="ab-controls">
+                <button id="btn-shadowing" class="btn btn--ghost btn--sm" onclick="toggleShadowingMode()" title="Shadowing Mode">
+                    <i data-lucide="mic" style="width:16px; height:16px;"></i>
+                    <span class="desktop-only">Shadowing</span>
+                </button>
+                <button id="btn-dictation" class="btn btn--ghost btn--sm" onclick="toggleDictationMode()" title="Dictation Mode">
+                    <i data-lucide="keyboard" style="width:16px; height:16px;"></i>
+                    <span class="desktop-only">Dictation</span>
+                </button>
+                <button class="btn btn--ghost btn--sm mobile-only" onclick="handleAddNoteClick()" title="Add Note">
+                    <i data-lucide="plus" style="width:18px; height:18px;"></i>
+                </button>
+                <button class="btn btn--ghost btn--sm" onclick="openSubtitleManager()" title="Manage Subtitles">
+                    <i data-lucide="languages" style="width:18px; height:18px;"></i>
+                </button>
+                <button class="btn btn--ghost btn--sm" onclick="openOptionsModal()" title="Settings">
+                    <i data-lucide="settings" style="width:18px; height:18px;"></i>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -177,9 +184,9 @@
             <!-- Transcript Body -->
             <div class="transcript-body" id="transcriptBody" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0;">
                 <!-- Real-time Sentence Progress Counter -->
-                <div id="transcriptProgress" style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px;">
-                    <span style="text-transform: uppercase;">Progress</span>
-                    <span id="progressLabel" style="color: var(--accent);">0 / 0 sentences</span>
+                <!-- Subtitle Status Bar (at top) -->
+                <div id="transcriptStatus" style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase;">
+                    Ready
                 </div>
 
                 <div class="transcript-empty" id="transcriptEmpty" style="padding: 30px 20px;">
@@ -187,14 +194,17 @@
                 </div>
                 <div class="transcript-lines" id="transcriptLines" style="display: none;"></div>
             </div>
-            <!-- Transcript StatusBar & Upload -->
-            <div class="transcript-footer" style="display:flex; align-items:center; background:var(--bg-secondary); border-top:1px solid var(--border); padding:8px 15px; font-size:var(--font-size-xs); color:var(--text-muted); flex-shrink:0;">
-                <button class="btn btn--ghost btn--sm" onclick="openSubtitleManager()" title="Manage Subtitles" style="padding:4px; margin-right:15px; opacity:0.7;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                </button>
-
-                <div id="transcriptStatus" style="flex: 1; text-align: left; font-size: 10px;">Ready</div>
-                <button class="btn btn--accent btn--sm" id="loadSubsBtn" onclick="loadDisplaySubtitles()" style="margin-left: 0; padding: 4px 10px;">Show</button>
+            <!-- Transcript Progress Footer -->
+            <div class="transcript-footer" style="background:var(--bg-secondary); border-top:1px solid var(--border); padding:12px 15px; flex-shrink:0;">
+                <div id="transcriptProgress" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px;">
+                        <span style="opacity: 0.7; text-transform: uppercase;">Learning Progress</span>
+                        <span id="progressLabel" style="color: var(--accent); font-variant-numeric: tabular-nums;">0 / 0 blocks</span>
+                    </div>
+                    <div class="progress-bar-wrap" style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                        <div id="progressBarFill" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                    </div>
+                </div>
             </div>
 
         </div>
