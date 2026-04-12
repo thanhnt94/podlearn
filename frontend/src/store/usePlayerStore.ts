@@ -67,6 +67,7 @@ interface PlayerState {
     enabled: boolean;
   };
   lastSeekTime: number;
+  isSeeking: boolean; // NEW: Lock for navigation
   
   settings: {
       s1: TrackSettings;
@@ -90,9 +91,10 @@ interface PlayerState {
   setVolume: (volume: number) => void;
   setLessonData: (data: any) => void;
   setPlaybackRate: (rate: number) => void;
-  requestSeek: (time: number) => void;
+  requestSeek: (time: number, newIndex?: number) => void;
   setRecording: (isRecording: boolean) => void;
   setShadowingResult: (result: any) => void;
+  setSeeking: (isSeeking: boolean) => void;
   setTrackSettings: (track: 's1' | 's2' | 's3', settings: Partial<TrackSettings>) => void;
   setAvailableTracks: (tracks: any[]) => void;
   setTrackIds: (ids: Partial<PlayerState['trackIds']>) => void;
@@ -118,6 +120,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   volume: 100,
   isLockedPaused: false,
   lastSeekTime: 0,
+  isSeeking: false,
   
   lessonId: null,
   lessonTitle: null,
@@ -156,10 +159,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   setCurrentTime: (time) => {
-    const { subtitles, activeLineIndex, abLoop, requestSeek } = get();
+    const { subtitles, activeLineIndex, abLoop, requestSeek, isSeeking, lastSeekTime } = get();
     
-    // Safety: Ignore poller updates if we just manually seeked (prevent rubber-banding)
-    if (Date.now() - (get().lastSeekTime || 0) < 1000) {
+    // Safety 1: Strict Seeking Lock (Block Poller)
+    if (isSeeking || (Date.now() - lastSeekTime < 1000)) {
       set({ currentTime: time });
       return;
     }
@@ -193,17 +196,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setDuration: (duration) => set({ duration }),
   setVolume: (volume) => set({ volume }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
-  requestSeek: (time) => {
+  requestSeek: (time, newIndex) => {
     const { subtitles, activeLineIndex } = get();
-    // Force immediate UI update for the new position
-    const newIdx = subtitles.findIndex(l => time >= l.start && time <= l.end);
+    // Use directly provided index OR find it
+    const targetIndex = newIndex !== undefined ? newIndex : subtitles.findIndex(l => time >= l.start && time <= l.end);
+    
     set({ 
       seekToTime: time, 
       lastSeekTime: Date.now(),
       currentTime: time,
-      activeLineIndex: newIdx !== -1 ? newIdx : activeLineIndex
+      activeLineIndex: targetIndex !== -1 ? targetIndex : activeLineIndex,
+      isSeeking: true // Lock Poller during transport
     });
   },
+  setSeeking: (isSeeking) => set({ isSeeking }),
   setRecording: (isRecording) => set({ isRecording }),
   setShadowingResult: (result) => set({ shadowingResult: result }),
   

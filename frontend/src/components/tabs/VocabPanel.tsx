@@ -36,7 +36,7 @@ const DICT_OPTIONS: { value: DictPriority; label: string; desc: string }[] = [
 const generateId = (lemma: string, idx: number) => `${lemma}_${idx}_${Math.random().toString(36).substr(2, 9)}`;
 
 export const VocabPanel: React.FC = () => {
-    const { lessonId, s1Lines, activeLineIndex, requestSeek, setPlaying, setLockedPaused } = usePlayerStore();
+    const { lessonId, s1Lines, activeLineIndex, requestSeek, setPlaying, setLockedPaused, setSeeking } = usePlayerStore();
     
     // States
     const [savedVocab, setSavedVocab] = useState<SavedVocab[]>([]);
@@ -204,12 +204,13 @@ export const VocabPanel: React.FC = () => {
                 if (dictPriority === 'edit_segments') {
                     setLockedPaused(false); // Unblock
                     setPlaying(true); // Start playing
-                    requestSeek(nextLine.start); // Seek to new time
+                    requestSeek(nextLine.start, nextIdx); // Seek to new time WITH DIRECT INDEX
                     
                     // After 0.5s, auto-pause and re-lock
                     setTimeout(() => {
                         setPlaying(false);
                         setLockedPaused(true);
+                        setSeeking(false); // Release transport lock
                     }, 500);
                 } else {
                     requestSeek(nextLine.start);
@@ -226,11 +227,12 @@ export const VocabPanel: React.FC = () => {
                 if (dictPriority === 'edit_segments') {
                     setLockedPaused(false);
                     setPlaying(true);
-                    requestSeek(prevLine.start);
+                    requestSeek(prevLine.start, prevIdx);
                     
                     setTimeout(() => {
                         setPlaying(false);
                         setLockedPaused(true);
+                        setSeeking(false);
                     }, 500);
                 } else {
                     requestSeek(prevLine.start);
