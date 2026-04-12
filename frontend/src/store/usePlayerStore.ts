@@ -64,7 +64,9 @@ interface PlayerState {
   abLoop: {
     start: number | null;
     end: number | null;
+    enabled: boolean;
   };
+  lastSeekTime: number;
   
   settings: {
       s1: TrackSettings;
@@ -115,6 +117,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   playbackRate: 1,
   volume: 100,
   isLockedPaused: false,
+  lastSeekTime: 0,
   
   lessonId: null,
   lessonTitle: null,
@@ -136,7 +139,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   availableTracks: [],
   trackIds: { s1: null, s2: null, s3: null },
-  abLoop: { start: null, end: null },
+  abLoop: { start: null, end: null, enabled: false },
 
   settings: {
     s1: defaultTrackSettings(2.5, '#ffffff', 0.6, 12),
@@ -154,15 +157,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setCurrentTime: (time) => {
     const { subtitles, activeLineIndex, abLoop, requestSeek } = get();
-    set({ currentTime: time });
-
-    if (abLoop.start !== null && abLoop.end !== null && time >= abLoop.end) {
-        requestSeek(abLoop.start);
-        return;
+    
+    // Safety: Ignore poller updates if we just manually seeked (prevent rubber-banding)
+    if (Date.now() - (get().lastSeekTime || 0) < 1000) {
+      set({ currentTime: time });
+      return;
     }
 
+    set({ currentTime: time });
+    
+    if (abLoop.enabled) {
+      if (abLoop.start !== null && abLoop.end !== null && time >= abLoop.end) {
+        requestSeek(abLoop.start);
+      }
+    }
+    
     const newIndex = subtitles.findIndex(line => time >= line.start && time <= line.end);
-    if (newIndex !== activeLineIndex) {
+    if (newIndex !== -1 && newIndex !== activeLineIndex) {
       set({ activeLineIndex: newIndex });
     }
   },
@@ -182,7 +193,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setDuration: (duration) => set({ duration }),
   setVolume: (volume) => set({ volume }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
-  requestSeek: (time) => set({ seekToTime: time }),
+  requestSeek: (time) => {
+    const { subtitles, activeLineIndex } = get();
+    // Force immediate UI update for the new position
+    const newIdx = subtitles.findIndex(l => time >= l.start && time <= l.end);
+    set({ 
+      seekToTime: time, 
+      lastSeekTime: Date.now(),
+      currentTime: time,
+      activeLineIndex: newIdx !== -1 ? newIdx : activeLineIndex
+    });
+  },
   setRecording: (isRecording) => set({ isRecording }),
   setShadowingResult: (result) => set({ shadowingResult: result }),
   

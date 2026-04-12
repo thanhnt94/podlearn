@@ -86,7 +86,7 @@ def query_offline_dict(db_path, term):
         
     return None
 
-def get_definitions_for_terms(terms, priority='mazii_offline'):
+def get_definitions_for_terms(terms, priority='mazii_offline', strict=False):
     """
     Enrich a list of terms with definitions ONLY from the priority source.
     If not found in that specific source, it returns a 'none' source result.
@@ -111,6 +111,10 @@ def get_definitions_for_terms(terms, priority='mazii_offline'):
                 'source': priority
             })
         else:
+            # If strict mode is ON, we skip terms not found in the SELECTED dictionary
+            if strict:
+                continue
+
             # Term not found in the SELECTED dictionary
             results.append({
                 'term': term,
@@ -121,7 +125,7 @@ def get_definitions_for_terms(terms, priority='mazii_offline'):
     
     return results
 
-def analyze_japanese_text(text, priority='mazii_offline'):
+def analyze_japanese_text(text, priority='mazii_offline', strict=False):
     """Segment text using Sudachi and find definitions."""
     tk = get_tokenizer()
     if not tk: return []
@@ -133,9 +137,14 @@ def analyze_japanese_text(text, priority='mazii_offline'):
     tokens = tk.tokenize(text, _sudachi_mode)
     
     dict_paths = get_dict_paths()
-    order = [priority]
-    others = [k for k in dict_paths.keys() if k != priority]
-    order.extend(others)
+    
+    # STRICT FILTERING: Only use the requested dictionary if strict is True
+    if strict:
+        order = [priority]
+    else:
+        order = [priority]
+        others = [k for k in dict_paths.keys() if k != priority]
+        order.extend(others)
 
     for token in tokens:
         lemma = token.dictionary_form()
@@ -159,6 +168,10 @@ def analyze_japanese_text(text, priority='mazii_offline'):
                     source = src
                     break
         
+        # If strict mode is ON, and no result found in the PRIORITY dict, we skip this token
+        if not item_result and strict:
+            continue
+
         if item_result:
             results.append({
                 'original': token.surface(),

@@ -52,8 +52,9 @@ export const VocabPanel: React.FC = () => {
     const isReorderingRef = useRef(false);
     const currentTextRef = useRef<string>('');
     const hasPausedOnModeEntry = useRef(false);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
-    // FIX: Auto-pause only ONCE when entering Segmentation Editor
+    // Auto-pause only ONCE when entering Segmentation Editor
     useEffect(() => {
         if (dictPriority === 'edit_segments') {
             if (!hasPausedOnModeEntry.current) {
@@ -62,20 +63,32 @@ export const VocabPanel: React.FC = () => {
             }
         } else {
             hasPausedOnModeEntry.current = false;
-            setLockedPaused(false); // Ensure lock is released when leaving
+            setLockedPaused(false);
         }
     }, [dictPriority, setPlaying, setLockedPaused]);
 
     // Sync with Subtitles
     useEffect(() => {
         const line = s1Lines[activeLineIndex];
+        
+        // IMMEDIATE CLEANUP on Nav to prevent "stalling" visuals
+        setDynamicVocab([]);
+        if (!isReorderingRef.current) setLocalVocab([]);
+
         if (line && line.text) {
             analyzeSentence(line.text, dictPriority);
-        } else if (!line) {
+        } else {
             setDynamicVocab([]);
             setLocalVocab([]);
             currentTextRef.current = '';
         }
+
+        // Cleanup previous request if it's still running
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
     }, [activeLineIndex, s1Lines, dictPriority]);
 
     useEffect(() => {
@@ -97,6 +110,12 @@ export const VocabPanel: React.FC = () => {
     }, [localVocab]);
 
     const analyzeSentence = async (text: string, priority: string) => {
+        // Cancel any existing request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+
         currentTextRef.current = text;
         setIsAnalyzing(true);
 
@@ -106,7 +125,10 @@ export const VocabPanel: React.FC = () => {
                 priority: priority === 'edit_segments' ? 'mazii_offline' : priority,
                 lesson_id: lessonId,
                 line_index: activeLineIndex
+            }, {
+                signal: abortControllerRef.current.signal
             });
+            
             if (text !== currentTextRef.current) return;
             
             // Assign Stable IDs to Incoming Data
@@ -121,10 +143,17 @@ export const VocabPanel: React.FC = () => {
             if (!isReorderingRef.current) {
                 setLocalVocab(stableData);
             }
-        } catch (err) {
-            console.error("Analysis failed", err);
+        } catch (err: any) {
+            if (err.name === 'CanceledError' || axios.isCancel(err)) {
+                // Ignore cancelation
+            } else {
+                console.error("Analysis failed", err);
+            }
         } finally {
-            setIsAnalyzing(false);
+            // Only stop analyzing if this was the latest text
+            if (text === currentTextRef.current) {
+                setIsAnalyzing(false);
+            }
         }
     };
 
@@ -171,12 +200,17 @@ export const VocabPanel: React.FC = () => {
             const nextIdx = activeLineIndex + 1;
             const nextLine = s1Lines[nextIdx];
             if (nextLine) {
-                // FIXED: TRANSIENT LOCK for Navigation
+                // MODIFIED: "Buffered Preview" Nav (Play then Pause after 0.2s)
                 if (dictPriority === 'edit_segments') {
-                    setLockedPaused(true);
-                    requestSeek(nextLine.start);
-                    // Automatically unlock after 1 second
-                    setTimeout(() => setLockedPaused(false), 1000);
+                    setLockedPaused(false); // Unblock
+                    setPlaying(true); // Start playing
+                    requestSeek(nextLine.start); // Seek to new time
+                    
+                    // After 0.5s, auto-pause and re-lock
+                    setTimeout(() => {
+                        setPlaying(false);
+                        setLockedPaused(true);
+                    }, 500);
                 } else {
                     requestSeek(nextLine.start);
                 }
@@ -190,9 +224,14 @@ export const VocabPanel: React.FC = () => {
             const prevLine = s1Lines[prevIdx];
             if (prevLine) {
                 if (dictPriority === 'edit_segments') {
-                    setLockedPaused(true);
+                    setLockedPaused(false);
+                    setPlaying(true);
                     requestSeek(prevLine.start);
-                    setTimeout(() => setLockedPaused(false), 1000);
+                    
+                    setTimeout(() => {
+                        setPlaying(false);
+                        setLockedPaused(true);
+                    }, 500);
                 } else {
                     requestSeek(prevLine.start);
                 }
@@ -499,7 +538,7 @@ export const VocabPanel: React.FC = () => {
                                         })
                                         ) : !isAnalyzing && (
                                             <div className="text-[10px] text-slate-800 font-black uppercase tracking-[0.2em] text-center py-20 border-2 border-dashed border-white/5 rounded-3xl">
-                                                No words detected
+                                                No results in selected dictionary
                                             </div>
                                         )}
                                     </AnimatePresence>

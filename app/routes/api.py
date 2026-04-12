@@ -266,8 +266,8 @@ def analyze_vocab():
                 custom_tokens = [t.token for t in db_tokens]
 
         if custom_tokens:
-            # Enriched from offline dicts using the manual tokens
-            results = vocab_service.get_definitions_for_terms(custom_tokens, priority=priority)
+            # Enriched from offline dicts using the manual tokens (Strict filtering enabled)
+            results = vocab_service.get_definitions_for_terms(custom_tokens, priority=priority, strict=True)
             # Map back to the expected 'analyzed' format for frontend
             formatted = []
             for r in results:
@@ -281,8 +281,8 @@ def analyze_vocab():
                 })
             return jsonify(formatted)
 
-        # Fallback to automatic segmentation
-        results = vocab_service.analyze_japanese_text(text, priority=priority)
+        # Fallback to automatic segmentation (Strict filtering enabled for manual selection)
+        results = vocab_service.analyze_japanese_text(text, priority=priority, strict=True)
         return jsonify(results)
     except Exception as e:
         logger.error(f"[VOCAB ERROR] Analysis failed for text '{text[:20]}...': {e}")
