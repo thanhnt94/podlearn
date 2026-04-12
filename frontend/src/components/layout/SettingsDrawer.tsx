@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     X, Palette, Save, Check, Clock, StickyNote, 
     Globe, Download, Trash2, RefreshCw, Upload, ExternalLink, 
-    Layers, Info
+    Layers, Info, Lightbulb
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
@@ -13,7 +13,7 @@ interface YTTrack { lang_code: string; lang_name: string; is_auto: boolean; }
 
 export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
     const { 
-        settings, setTrackSettings, 
+        settings, setTrackSettings, setNoteSettings,
         availableTracks, trackIds, setTrackIds, setAvailableTracks,
         lessonId, videoId
     } = usePlayerStore();
@@ -237,37 +237,81 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                )}
 
                                {activeMainTab === 'notes' && (
-                                   <motion.div key="notes" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-8">
-                                       <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-6">
-                                           <div className="flex items-center justify-between">
-                                                <div className="space-y-1">
-                                                    <h3 className="text-sm font-bold text-white">Video Overlays</h3>
-                                                    <p className="text-[10px] text-slate-500 uppercase">Popups during playback</p>
-                                                </div>
-                                                <button onClick={() => usePlayerStore.setState({ settings: { ...settings, notes: { ...settings.notes, enabled: !settings.notes.enabled } } })}
-                                                        className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${settings.notes.enabled ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-500'}`}>
-                                                    {settings.notes.enabled ? 'ACTIVE' : 'MUTED'}
-                                                </button>
-                                           </div>
+                                   <motion.div key="notes" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-6 pb-20">
+                                       {/* Header Toggle */}
+                                       <div className="bg-white/5 rounded-3xl p-6 border border-white/5 flex items-center justify-between">
+                                            <div className="space-y-1">
+                                                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Lightbulb size={16} className="text-sky-400" /> Video Overlays</h3>
+                                                <p className="text-[10px] text-slate-500 uppercase tracking-widest">Toggle all notes visibility</p>
+                                            </div>
+                                            <button onClick={() => setNoteSettings({ enabled: !settings.notes.enabled })}
+                                                    className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${settings.notes.enabled ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-500'}`}>
+                                                {settings.notes.enabled ? 'ACTIVE' : 'MUTED'}
+                                            </button>
                                        </div>
 
-                                       <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-8">
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between items-center">
-                                                    <h4 className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2"><Clock size={12}/> Early Warning (Start Offset)</h4>
-                                                    <span className="text-xs font-mono text-sky-400">-{settings.notes.beforeSecs}s</span>
+                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {/* Alignment Grid */}
+                                            <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-4">
+                                                <div className="flex flex-col gap-1">
+                                                    <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">9-Grid Positioning</h4>
+                                                    <p className="text-[9px] text-slate-600">Choose where notes appear</p>
                                                 </div>
-                                                <input type="range" min="0" max="10" step="0.5" value={settings.notes.beforeSecs} onChange={(e) => usePlayerStore.setState({ settings: { ...settings, notes: { ...settings.notes, beforeSecs: parseFloat(e.target.value) } } })} 
-                                                       className="w-full accent-sky-500 h-1 bg-slate-800 rounded-full" />
-                                            </div>
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between items-center">
-                                                    <h4 className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2"><Clock size={12}/> Screen Duration</h4>
-                                                    <span className="text-xs font-mono text-sky-400">{settings.notes.duration}s</span>
+                                                <div className="grid grid-cols-3 gap-2 w-32 aspect-square mx-auto">
+                                                    {(['topLeft', 'topCenter', 'topRight', 'centerLeft', 'center', 'centerRight', 'bottomLeft', 'bottomCenter', 'bottomRight'] as const).map((pos) => (
+                                                        <button
+                                                            key={pos}
+                                                            onClick={() => setNoteSettings({ alignment: pos })}
+                                                            className={`w-full aspect-square rounded-lg border transition-all ${
+                                                                settings.notes.alignment === pos 
+                                                                ? 'bg-sky-500 border-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.4)]' 
+                                                                : 'bg-slate-800/50 border-white/5 hover:border-white/20'
+                                                            }`}
+                                                        />
+                                                    ))}
                                                 </div>
-                                                <input type="range" min="1" max="20" step="1" value={settings.notes.duration} onChange={(e) => usePlayerStore.setState({ settings: { ...settings, notes: { ...settings.notes, duration: parseFloat(e.target.value) } } })} 
-                                                       className="w-full accent-sky-500 h-1 bg-slate-800 rounded-full" />
                                             </div>
+
+                                            {/* Visual Theme & Duration */}
+                                            <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Visual Theme</label>
+                                                    <select 
+                                                        value={settings.notes.theme}
+                                                        onChange={(e) => setNoteSettings({ theme: e.target.value as any })}
+                                                        className="w-full bg-slate-800/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 appearance-none cursor-pointer"
+                                                    >
+                                                        <option value="classic">Classic Cinema</option>
+                                                        <option value="cyber">Cyber Blue</option>
+                                                        <option value="amber">Ancient Amber</option>
+                                                        <option value="ghost">Ghostly (Minimal)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between">
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Screen Duration</label>
+                                                        <span className="text-xs font-mono text-sky-400">{settings.notes.duration}s</span>
+                                                    </div>
+                                                    <input type="range" min="1" max="20" step="1" value={settings.notes.duration} 
+                                                           onChange={(e) => setNoteSettings({ duration: parseFloat(e.target.value) })} 
+                                                           className="w-full accent-sky-500 h-1 bg-slate-800 rounded-full" />
+                                                </div>
+                                            </div>
+                                       </div>
+
+                                       {/* Timing Settings */}
+                                       <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <div className="space-y-1">
+                                                    <h4 className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-2"><Clock size={12}/> Early Warning</h4>
+                                                    <p className="text-[9px] text-slate-600">Seconds before point of interest</p>
+                                                </div>
+                                                <span className="text-xs font-mono text-sky-400">-{settings.notes.beforeSecs}s</span>
+                                            </div>
+                                            <input type="range" min="0" max="10" step="0.5" value={settings.notes.beforeSecs} 
+                                                   onChange={(e) => setNoteSettings({ beforeSecs: parseFloat(e.target.value) })} 
+                                                   className="w-full accent-sky-500 h-1 bg-slate-800 rounded-full" />
                                        </div>
                                    </motion.div>
                                )}

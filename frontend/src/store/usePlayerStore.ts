@@ -74,6 +74,8 @@ interface PlayerState {
         beforeSecs: number;
         duration: number;
         position: number;
+        alignment: 'topLeft' | 'topCenter' | 'topRight' | 'centerLeft' | 'center' | 'centerRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight';
+        theme: 'classic' | 'cyber' | 'amber' | 'ghost';
       };
   };
   
@@ -92,6 +94,7 @@ interface PlayerState {
   setTrackIds: (ids: Partial<PlayerState['trackIds']>) => void;
   setAbLoop: (loop: Partial<PlayerState['abLoop']>) => void;
   setNotes: (notes: Note[]) => void;
+  setNoteSettings: (settings: Partial<PlayerState['settings']['notes']>) => void;
   addNote: (note: Note) => void;
   deleteNote: (id: number) => void;
   fetchLessonData: (id: number) => Promise<void>;
@@ -140,7 +143,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         enabled: true,
         beforeSecs: 2,
         duration: 5,
-        position: 75, // Vertical offset from bottom (0-100)
+        position: 75,
+        alignment: 'bottomCenter',
+        theme: 'classic'
     }
   },
 
@@ -209,6 +214,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   addNote: (note) => set((state) => ({ 
       notes: [...state.notes, note].sort((a,b) => a.timestamp - b.timestamp) 
   })),
+  setNoteSettings: (newSettings) => set((state) => ({
+    settings: {
+        ...state.settings,
+        notes: { ...state.settings.notes, ...newSettings }
+    }
+  })),
+
   deleteNote: (id) => set((state) => ({ 
       notes: state.notes.filter(n => n.id !== id) 
   })),
