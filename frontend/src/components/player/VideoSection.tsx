@@ -22,7 +22,7 @@ export const VideoSection: React.FC = () => {
   
   const { 
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
-    volume, playbackRate, isLoaded 
+    volume, playbackRate, isLoaded, isLockedPaused
   } = usePlayerStore();
 
   useEffect(() => {
@@ -58,12 +58,20 @@ export const VideoSection: React.FC = () => {
           },
           onStateChange: (event: any) => {
             const state = event.data;
+            
+            // CRITICAL FIX: If we are in a locked state (Curation), force pause
             if (state === window.YT.PlayerState.PLAYING) {
+              if (usePlayerStore.getState().isLockedPaused) {
+                event.target.pauseVideo();
+                return;
+              }
               setPlaying(true);
               startPolling();
-            } else {
+            } else if (state === window.YT.PlayerState.PAUSED || state === window.YT.PlayerState.ENDED) {
               setPlaying(false);
               stopPolling();
+            } else if (state === window.YT.PlayerState.BUFFERING) {
+               // Buffering is fine
             }
           },
         },
@@ -104,12 +112,21 @@ export const VideoSection: React.FC = () => {
   useEffect(() => {
     if (!ytPlayer.current || !ytPlayer.current.getPlayerState) return;
     const currentState = ytPlayer.current.getPlayerState();
+    
+    // Safety check for Locked State
+    if (isLockedPaused) {
+      if (currentState === window.YT.PlayerState.PLAYING) {
+        ytPlayer.current.pauseVideo();
+      }
+      return;
+    }
+
     if (isPlaying && currentState !== window.YT.PlayerState.PLAYING) {
       ytPlayer.current.playVideo();
     } else if (!isPlaying && currentState === window.YT.PlayerState.PLAYING) {
       ytPlayer.current.pauseVideo();
     }
-  }, [isPlaying]);
+  }, [isPlaying, isLockedPaused]);
 
   // Handle Seek Requests from Store
   useEffect(() => {

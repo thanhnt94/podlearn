@@ -28,6 +28,7 @@ from ..models.subtitle import SubtitleTrack
 from ..models.shadowing import ShadowingHistory
 from ..models.sentence import Sentence, SentenceSet
 from ..models.glossary import VideoGlossary, VocabEditHistory
+from ..models.sentence_token import SentenceToken
 from ..services.subtitle_service import (
     get_subtitle_track, 
     get_lines_as_dicts, 
@@ -236,21 +237,102 @@ def get_dashboard_init():
     })
 
 @api_bp.route('/vocab/analyze', methods=['POST'])
+@login_required
 def analyze_vocab():
+    """
+    Analyzes a sentence and returns tokens.
+    PRIORITY:
+    1. Check SentenceToken table for manual segmentation by user.
+    2. If missing, use Sudachi (vocab_service) for auto segmentation.
+    """
     try:
-        data = request.get_json(force=True, silent=True) or {}
+        data = request.json
         text = data.get('text', '')
-        priority = data.get('priority', 'jamdict') # mazii or jamdict
-        
+        priority = data.get('priority', 'mazii_online')
+        lesson_id = data.get('lesson_id')
+        line_index = data.get('line_index')
+
         if not text:
             return jsonify([])
-            
+
+        # Attempt to get manual tokens if coordinates are provided
+        custom_tokens = []
+        if lesson_id is not None and line_index is not None:
+            db_tokens = SentenceToken.query.filter_by(
+                lesson_id=lesson_id, 
+                line_index=line_index
+            ).all()
+            if db_tokens:
+                custom_tokens = [t.token for t in db_tokens]
+
+        if custom_tokens:
+            # Enriched from offline dicts using the manual tokens
+            results = vocab_service.get_definitions_for_terms(custom_tokens, priority=priority)
+            # Map back to the expected 'analyzed' format for frontend
+            formatted = []
+            for r in results:
+                formatted.append({
+                    "original": r['term'],
+                    "lemma": r['term'],
+                    "reading": r['reading'],
+                    "pos": "manual",
+                    "meanings": r['definition'].split(', '),
+                    "source": r['source']
+                })
+            return jsonify(formatted)
+
+        # Fallback to automatic segmentation
         results = vocab_service.analyze_japanese_text(text, priority=priority)
         return jsonify(results)
     except Exception as e:
-        logger.error(f"[VOCAB ERROR] Analysis failed for text '{text[:50]}...': {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[VOCAB ERROR] Analysis failed for text '{text[:20]}...': {e}")
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/tokens/save', methods=['POST'])
+@login_required
+def save_custom_tokens():
+    """
+    Saves a custom list of tokens (segmentation) for a specific line.
+    """
+    try:
+        data = request.json
+        lesson_id = data.get('lesson_id')
+        line_index = data.get('line_index')
+        tokens = data.get('tokens', []) 
+
+        if lesson_id is None or line_index is None:
+            return jsonify({"error": "Missing coordinates"}), 400
+
+        # Remove existing for this line
+        SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
+        
+        # Add new ones
+        for t in tokens:
+            if not t.strip(): continue
+            st = SentenceToken(lesson_id=lesson_id, line_index=line_index, token=t.strip())
+            db.session.add(st)
+        
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Tokens saved"})
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] Token save failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/tokens/clear', methods=['DELETE'])
+@login_required
+def clear_custom_tokens():
+    """
+    Reset segmentation to default for a line.
+    """
+    try:
+        data = request.json
+        lesson_id = data.get('lesson_id')
+        line_index = data.get('line_index')
+        
+        SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Reset to default"})
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/vocab/generate-all', methods=['POST'])
@@ -258,80 +340,183 @@ def generate_all_vocab():
     try:
         data = request.get_json(force=True, silent=True) or {}
         lesson_id = data.get('lesson_id')
-        priority = data.get('priority', 'mazii') # Default to mazii for batch generation as per request
+        priority = data.get('priority', 'mazii_online') 
         
         if not lesson_id:
             return jsonify({"error": "Missing lesson_id"}), 400
             
-        # 1. Fetch lesson and its primary subtitle track
-        lesson = Lesson.query.get_or_404(lesson_id)
-        # We usually use s1_track_id as the primary Japanese source
-        track = SubtitleTrack.query.get(lesson.s1_track_id)
-        
-        if not track or not track.content_json:
-            return jsonify({"status": "error", "message": "No subtitle track found for this lesson"})
+        track = SubtitleTrack.query.filter_by(lesson_id=lesson_id).first()
+        if not track:
+            return jsonify({"error": "No subtitles found"}), 404
             
-        # Extract all texts from the JSON structure
-        texts = [line['text'] for line in track.content_json if 'text' in line]
+        content = json.loads(track.content)
+        texts = [line.get('text', '') for line in content]
         
-        if not texts:
-            return jsonify({"status": "success", "message": "No subtitles to analyze"})
-            
-        # 2. Batch analyze with priority
         results = vocab_service.analyze_batch_japanese(texts, priority=priority)
         
-        # 3. Store or Update results in VideoGlossary
-        video_id = Lesson.query.get(lesson_id).video_id
-        for res in results:
-            existing = VideoGlossary.query.filter_by(video_id=video_id, term=res['lemma']).first()
-            definition_str = ", ".join(res['meanings'])
-            
-            if existing:
-                # Update existing definition with new priority dictionary and source
-                existing.definition = definition_str
-                existing.reading = res['reading']
-                existing.source = priority
-            else:
-                # Create new entry with source
-                new_entry = VideoGlossary(
-                    video_id=video_id,
-                    term=res['lemma'],
-                    definition=definition_str,
-                    reading=res['reading'],
-                    source=priority
-                )
-                db.session.add(new_entry)
+        lesson = Lesson.query.get(lesson_id)
+        video_id = lesson.video_id if lesson else None
         
+        for res in results:
+            item = VideoGlossary(
+                lesson_id=lesson_id,
+                video_id=video_id,
+                term=res['lemma'],
+                reading=res['reading'],
+                definition=", ".join(res['meanings']),
+                source=res['source']
+            )
+            db.session.add(item)
+            
         db.session.commit()
         return jsonify({"status": "success", "count": len(results), "source": priority})
     except Exception as e:
         logger.error(f"[VOCAB ERROR] Batch generation failed: {e}")
         return jsonify({"error": str(e)}), 500
 
-@api_bp.route('/vocab/list/<int:lesson_id>', methods=['GET'])
-@login_required
-def get_vocab_list(lesson_id):
-    lesson = Lesson.query.get_or_404(lesson_id)
-    # Fetch from VideoGlossary instead of personal sentence list for the "All Vocab" tab
-    items = VideoGlossary.query.filter_by(video_id=lesson.video_id).all()
-    
-    results = []
-    current_source = 'unknown'
-    if items:
-        current_source = items[0].source # Assume uniform source for now
+@api_bp.route('/vocab/sync-batch', methods=['POST'])
+def sync_vocab_batch():
+    """
+    Processes a specific list of texts and adds them to the glossary map.
+    Only stores the terms (lemmas) to keep DB small.
+    """
+    try:
+        data = request.json
+        lesson_id = data.get('lesson_id')
+        texts = data.get('texts', [])
+        is_first_batch = data.get('is_first_batch', False)
         
-    for item in items:
-        results.append({
-            'item_id': item.id,
-            'term': item.term,
-            'definition': item.definition,
-            'reading': item.reading,
-            'source': item.source
+        if not lesson_id or not texts:
+            return jsonify({"error": "Missing data"}), 400
+            
+        if is_first_batch:
+            # Clear old glossary mapping for this lesson
+            VideoGlossary.query.filter_by(lesson_id=lesson_id).delete()
+            db.session.commit()
+            
+        # Get unique terms from the segmented texts
+        results = vocab_service.analyze_batch_japanese(texts)
+        
+        lesson = Lesson.query.get(lesson_id)
+        video_id = lesson.video_id if lesson else None
+        
+        # Save only the terms
+        for res in results:
+            term = res['lemma']
+            # Check if term mapping already exists in this lesson
+            existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
+            if not existing:
+                item = VideoGlossary(
+                    lesson_id=lesson_id,
+                    video_id=video_id,
+                    term=term,
+                    definition="[LOOKUP_REQUIRED]", # Placeholder, meanings are fetched on-the-fly
+                    source="offline"
+                )
+                db.session.add(item)
+            
+        db.session.commit()
+        return jsonify({"status": "success", "count": len(results)})
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] sync-batch failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/list/<int:lesson_id>', methods=['GET'])
+def get_vocab_list(lesson_id):
+    """
+    Fetches the vocabulary list for a lesson and enriches it 
+    with real-time definitions from offline DBs.
+    """
+    try:
+        priority = request.args.get('priority', 'mazii_offline')
+        
+        # 1. Get unique terms recorded for this lesson
+        items = VideoGlossary.query.filter_by(lesson_id=lesson_id).all()
+        terms = [it.term for it in items]
+        
+        if not terms:
+            return jsonify({"vocab": [], "source": "none"})
+
+        # 2. Enrich with definitions from offline DBs
+        enriched_results = vocab_service.get_definitions_for_terms(terms, priority=priority)
+        
+        # Map to expected frontend format, but FILTER OUT items with no definition
+        vocab_list = []
+        for i, item in enumerate(enriched_results):
+            if not item['definition'] or item['definition'] == 'No definition found offline.':
+                continue
+                
+            vocab_list.append({
+                "item_id": i,
+                "term": item['term'],
+                "reading": item['reading'],
+                "definition": item['definition'],
+                "source": item['source']
+            })
+
+        return jsonify({
+            "vocab": vocab_list,
+            "source": priority 
         })
-    return jsonify({
-        'vocab': results,
-        'source': current_source
-    })
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] List fetch failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/manual-add', methods=['POST'])
+def manual_add_vocab():
+    """
+    Manually add a term to a lesson's glossary mapping.
+    """
+    try:
+        data = request.json
+        lesson_id = data.get('lesson_id')
+        term = data.get('term', '').strip()
+        
+        if not lesson_id or not term:
+            return jsonify({"error": "Missing data"}), 400
+            
+        lesson = Lesson.query.get(lesson_id)
+        if not lesson:
+            return jsonify({"error": "Lesson not found"}), 404
+            
+        # Check if already exists
+        existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
+        if not existing:
+            item = VideoGlossary(
+                lesson_id=lesson_id,
+                video_id=lesson.video_id,
+                term=term,
+                definition="[MANUAL_ENTRY]",
+                source="manual"
+            )
+            db.session.add(item)
+            db.session.commit()
+            return jsonify({"status": "success", "message": "Term added"})
+            
+        return jsonify({"status": "exists", "message": "Term already in glossary"})
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] Manual add failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/remove', methods=['DELETE'])
+def remove_vocab_item():
+    """
+    Removes a term mapping from a lesson's glossary.
+    """
+    try:
+        data = request.json
+        lesson_id = data.get('lesson_id')
+        term = data.get('term')
+        
+        if not lesson_id or not term:
+            return jsonify({"error": "Missing data"}), 400
+            
+        VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).delete()
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Term removed"})
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] Remove failed: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/vocab/add', methods=['POST'])
 @login_required

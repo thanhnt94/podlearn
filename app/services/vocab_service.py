@@ -1,291 +1,201 @@
-import logging
-from sudachipy import dictionary
-from jamdict import Jamdict
-import re
-
-import time
-import random
-import json
+import os
 import sqlite3
-import requests
+import json
 import logging
+import re
+from flask import current_app
+from sudachipy import dictionary, tokenizer
 
 logger = logging.getLogger(__name__)
 
-# Initialize Sudachi and Jamdict (Lazy loading)
-_tokenizer = None
-_jamdict = None
+# Global tokenizer instance
+_tokenizer_obj = None
+_sudachi_mode = tokenizer.Tokenizer.SplitMode.C
 
-# Constants
-ALLOWED_POS = ['名詞', '動詞', '形容詞', '副詞']
-
-def get_mazii_db_path():
-    from flask import current_app
-    import os
-    db_dir = os.path.abspath(os.path.join(current_app.root_path, '..', 'Storage', 'database'))
-    os.makedirs(db_dir, exist_ok=True)
-    return os.path.join(db_dir, 'mazii.db')
-
-def init_mazii_db():
-    db_path = get_mazii_db_path()
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS mazii_cache (
-            lemma TEXT PRIMARY KEY,
-            reading TEXT,
-            definition TEXT,
-            examples TEXT,
-            jlpt TEXT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-def fetch_mazii_from_api(lemma):
-    """
-    Calls Mazii API with a randomized delay to avoid blocking.
-    """
-    # Randomized delay between 1.0 and 2.5 seconds
-    delay = random.uniform(1.0, 2.5)
-    logger.info(f"Mazii API: Sleeping for {delay:.2f}s before fetching '{lemma}'...")
-    time.sleep(delay)
-
-    url = "https://mazii.net/api/search"
-    payload = {"dict": "javi", "query": lemma, "type": "word"}
-    headers = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
-
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if data and data.get('data'):
-                # Safely get the first entry
-                entries = data['data']
-                if not isinstance(entries, list) or len(entries) == 0:
-                    return None
-                    
-                entry = entries[0]
-                
-                # Robust extraction with fallbacks
-                means = entry.get('means') or []
-                level_list = entry.get('level') or ['']
-                
-                return {
-                    'lemma': lemma,
-                    'reading': entry.get('phonetic') or entry.get('word') or lemma,
-                    'definition': entry.get('short_mean') or '',
-                    'examples': json.dumps(means[:2]) if isinstance(means, list) else "[]",
-                    'jlpt': str(level_list[0]) if isinstance(level_list, list) and len(level_list) > 0 else ""
-                }
-    except Exception as e:
-        logger.error(f"Mazii API error for '{lemma}': {e}")
-    return None
-
-def get_mazii_definition(lemma):
-    """
-    Core Hybrid Logic: Local Cache -> Online API -> Fallback to None
-    """
-    init_mazii_db()
-    db_path = get_mazii_db_path()
-    
-    try:
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM mazii_cache WHERE lemma = ?", (lemma,))
-            row = cursor.fetchone()
-            
-            if row:
-                return {
-                    'lemma': row['lemma'],
-                    'reading': row['reading'],
-                    'meanings': [row['definition']],
-                    'source': 'mazii'
-                }
-            
-            # Not in cache, fetch from API
-            result = fetch_mazii_from_api(lemma)
-            if result:
-                cursor.execute('''
-                    INSERT INTO mazii_cache (lemma, reading, definition, examples, jlpt)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (result['lemma'], result['reading'], result['definition'], result['examples'], result['jlpt']))
-                conn.commit()
-                return {
-                    'lemma': result['lemma'],
-                    'reading': result['reading'],
-                    'meanings': [result['definition']],
-                    'source': 'mazii'
-                }
-    except Exception as e:
-        logger.error(f"Mazii cache error: {e}")
-        
-    return None
-
-# Keep Jamdict logic for fallback
 def get_tokenizer():
-    global _tokenizer
-    if _tokenizer is None:
+    global _tokenizer_obj
+    if _tokenizer_obj is None:
         try:
-            logger.info("Initializing Sudachi tokenizer...")
-            _tokenizer = dictionary.Dictionary().create()
+            sudachi_dict = dictionary.Dictionary()
+            _tokenizer_obj = sudachi_dict.create()
+            logger.info("Sudachi tokenizer initialized.")
         except Exception as e:
             logger.error(f"Failed to initialize Sudachi: {e}")
-            raise RuntimeError(f"Sudachi initialization failed: {e}")
-    return _tokenizer
+    return _tokenizer_obj
 
-def get_jamdict():
-    """
-    Returns a fresh Jamdict instance for thread safety on each call.
-    """
-    from jamdict import Jamdict
-    import os
-    from flask import current_app
+def get_dict_paths():
+    # We check multiple common locations for reliability
+    base_dirs = [
+        os.path.abspath(os.path.join(current_app.root_path, '..', '..', 'Storage', 'database')),
+        os.path.abspath(os.path.join(current_app.root_path, '..', 'Storage', 'database')),
+    ]
     
-    # Centralized path in Storage
-    storage_db_path = os.path.abspath(os.path.join(current_app.root_path, '..', 'Storage', 'database', 'jamdict.db'))
+    paths = {}
+    dict_names = ['javidict', 'suge', 'mazii_offline', 'jamdict']
     
-    if os.path.exists(storage_db_path):
-        # We create a new Jamdict object per call to ensure SQLite thread safety on Windows
-        return Jamdict(db_file=storage_db_path, check_same_thread=False)
-    return Jamdict()
+    for name in dict_names:
+        for b_dir in base_dirs:
+            p = os.path.join(b_dir, f"{name}.db")
+            if os.path.exists(p):
+                paths[name] = p
+                break
+    return paths
 
-def analyze_japanese_text(text: str, priority: str = 'jamdict'):
-    """
-    Tokenizes Japanese text and performs dictionary lookup with priority.
-    """
-    tokenizer = get_tokenizer()
-    jam = get_jamdict() # Static jamdict for fallback
+def query_offline_dict(db_path, term):
+    """Query a SQLite database for a term, handling both flat and complex schemas."""
+    if not os.path.exists(db_path):
+        return None
+        
+    is_jamdict = "jamdict.db" in db_path.lower()
     
-    from sudachipy import tokenizer as sudachi_tokenizer
-    mode = sudachi_tokenizer.Tokenizer.SplitMode.C
-    
-    tokens = tokenizer.tokenize(text, mode)
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        if is_jamdict:
+            # Specialized query for complex JAMDict schema using idseq and SenseGloss
+            sql = """
+                SELECT 
+                    (SELECT text FROM Kana WHERE idseq = Entry.idseq LIMIT 1) as reading,
+                    (SELECT group_concat(text, '\n') FROM SenseGloss WHERE sid IN (SELECT ID FROM Sense WHERE idseq = Entry.idseq)) as definition
+                FROM Entry
+                WHERE idseq IN (
+                    SELECT idseq FROM Kanji WHERE text = ?
+                    UNION
+                    SELECT idseq FROM Kana WHERE text = ?
+                )
+                LIMIT 1
+            """
+            cursor.execute(sql, (term, term))
+        else:
+            # Standard flat schema for VN dicts (Javidict, Suge, Mazii)
+            # These have ['id', 'term', 'reading', 'definition', 'sequence']
+            cursor.execute("SELECT reading, definition FROM entries WHERE term = ? LIMIT 1", (term,))
+            
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {
+                'reading': row[0],
+                'meanings': row[1].split('\n') if row[1] else [],
+                'source': os.path.basename(db_path).split('.')[0]
+            }
+    except Exception as e:
+        logger.error(f"Error querying offline dict {db_path}: {e}")
+        
+    return None
+
+def get_definitions_for_terms(terms, priority='mazii_offline'):
+    """
+    Enrich a list of terms with definitions ONLY from the priority source.
+    If not found in that specific source, it returns a 'none' source result.
+    """
     results = []
-    seen_lemmas = set()
+    dict_paths = get_dict_paths()
+    path = dict_paths.get(priority)
+
+    for term in terms:
+        found_data = None
+        
+        if path and os.path.exists(path):
+            data = query_offline_dict(path, term)
+            if data:
+                found_data = data
+        
+        if found_data:
+            results.append({
+                'term': term,
+                'reading': found_data.get('reading', ''),
+                'definition': ", ".join(found_data.get('meanings', [])),
+                'source': priority
+            })
+        else:
+            # Term not found in the SELECTED dictionary
+            results.append({
+                'term': term,
+                'reading': '',
+                'definition': 'No definition found offline.',
+                'source': 'none'
+            })
+    
+    return results
+
+def analyze_japanese_text(text, priority='mazii_offline'):
+    """Segment text using Sudachi and find definitions."""
+    tk = get_tokenizer()
+    if not tk: return []
+
+    if re.match(r'^[0-9\s.,!?;:()\[\]"\'\-+*/=<>]+$', text):
+        return []
+
+    results = []
+    tokens = tk.tokenize(text, _sudachi_mode)
+    
+    dict_paths = get_dict_paths()
+    order = [priority]
+    others = [k for k in dict_paths.keys() if k != priority]
+    order.extend(others)
 
     for token in tokens:
-        pos = token.part_of_speech()
-        main_pos = pos[0]
-        
-        if main_pos not in ALLOWED_POS:
-            continue
-            
         lemma = token.dictionary_form()
+        pos = token.part_of_speech()[0]
         
-        # Filter out numbers, single characters that are just digits, and punctuation
-        if main_pos in ['数', '数詞'] or lemma.isdigit() or re.match(r'^[0-9]+$', lemma):
+        if pos in ['補助記号', '空白', '助詞', '助動詞', '記号']:
+            continue
+        
+        if re.match(r'^\d+$', lemma):
             continue
 
-        if lemma in seen_lemmas:
-            continue
-        seen_lemmas.add(lemma)
-        
         item_result = None
         source = 'unknown'
-
-        # Priority Check
-        if priority == 'mazii':
-            item_result = get_mazii_definition(lemma)
-            if item_result:
-                source = 'mazii'
         
-        # Fallback to Jamdict if no result yet
-        if not item_result:
-            jm_result = jam.lookup(lemma)
-            if jm_result.entries:
-                entry = jm_result.entries[0]
-                reading = entry.kana_forms[0].text if entry.kana_forms else (entry.kanji_forms[0].text if entry.kanji_forms else lemma)
-                meanings = []
-                for sense in entry.senses:
-                    for gloss in sense.gloss:
-                        meanings.append(gloss.text)
-                        if len(meanings) >= 3: break
-                    if len(meanings) >= 3: break
-                
-                item_result = {
-                    'lemma': lemma,
-                    'reading': reading,
-                    'meanings': meanings,
-                }
-                source = 'jamdict'
-
+        for src in order:
+            path = dict_paths.get(src)
+            if path:
+                data = query_offline_dict(path, lemma)
+                if data:
+                    item_result = data
+                    source = src
+                    break
+        
         if item_result:
             results.append({
                 'original': token.surface(),
-                'lemma': item_result['lemma'],
-                'reading': item_result['reading'],
-                'pos': main_pos,
-                'meanings': item_result['meanings'],
+                'lemma': lemma,
+                'reading': item_result.get('reading', lemma),
+                'pos': pos,
+                'meanings': item_result.get('meanings', []),
                 'source': source
             })
-        
+            
     return results
 
-def analyze_batch_japanese(texts: list[str], priority: str = 'jamdict'):
-    """
-    Analyzes multiple sentences at once with dictionary priority and deduplication.
-    """
-    tokenizer = get_tokenizer()
-    jam = get_jamdict()
+def analyze_batch_japanese(texts, priority='mazii_offline'):
+    """Segment a batch of texts and return unique lemmas using Sudachi."""
+    unique_lemmas = set()
+    tk = get_tokenizer()
     
-    from sudachipy import tokenizer as sudachi_tokenizer
-    mode = sudachi_tokenizer.Tokenizer.SplitMode.C
-    
-    all_lemmas_map = {} 
-    
+    if not tk: return []
+
     for text in texts:
-        if not text: continue
-        tokens = tokenizer.tokenize(text, mode)
+        if not text or len(text.strip()) == 0: continue
+        if any(char.isdigit() for char in text):
+            if all(not char.isalpha() for char in text):
+                continue
+
+        tokens = tk.tokenize(text, _sudachi_mode)
         for token in tokens:
-            pos = token.part_of_speech()
-            if pos[0] in ALLOWED_POS:
-                lemma = token.dictionary_form()
-                if lemma not in all_lemmas_map:
-                    all_lemmas_map[lemma] = {
-                        'pos': pos[0],
-                        'original': token.surface()
-                    }
-    
-    results = []
-    for lemma, info in all_lemmas_map.items():
-        item_result = None
-        source = 'unknown'
-
-        if priority == 'mazii':
-            item_result = get_mazii_definition(lemma)
-            if item_result:
-                source = 'mazii'
-        
-        if not item_result:
-            jm_result = jam.lookup(lemma)
-            if jm_result.entries:
-                entry = jm_result.entries[0]
-                reading = entry.kana_forms[0].text if entry.kana_forms else (entry.kanji_forms[0].text if entry.kanji_forms else lemma)
-                meanings = []
-                for sense in entry.senses:
-                    for gloss in sense.gloss:
-                        meanings.append(gloss.text)
-                        if len(meanings) >= 3: break
-                    if len(meanings) >= 3: break
+            lemma = token.dictionary_form()
+            pos = token.part_of_speech()[0]
+            
+            if pos in ['補助記号', '空白', '助詞', '助動詞', '記号']:
+                continue
+            if any(char.isdigit() for char in lemma):
+                continue
+            if len(lemma) < 1:
+                continue
                 
-                item_result = {
-                    'lemma': lemma,
-                    'reading': reading,
-                    'meanings': meanings
-                }
-                source = 'jamdict'
-
-        if item_result:
-            results.append({
-                'original': info['original'],
-                'lemma': item_result['lemma'],
-                'reading': item_result['reading'],
-                'pos': info['pos'],
-                'meanings': item_result['meanings'],
-                'source': source
-            })
-        
-    return results
+            unique_lemmas.add(lemma)
+    
+    return [{'lemma': lemma, 'reading': '', 'meanings': [], 'source': 'offline'} for lemma in unique_lemmas]

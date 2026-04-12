@@ -32,6 +32,7 @@ interface PlayerState {
   isPlaying: boolean;
   playbackRate: number;
   volume: number;
+  isLockedPaused: boolean; // NEW: Lock to prevent auto-play during curation
   
   // Content
   lessonId: number | null;
@@ -82,6 +83,7 @@ interface PlayerState {
   // Actions
   setCurrentTime: (time: number) => void;
   setPlaying: (isPlaying: boolean) => void;
+  setLockedPaused: (isLocked: boolean) => void; // NEW
   setDuration: (duration: number) => void;
   setVolume: (volume: number) => void;
   setLessonData: (data: any) => void;
@@ -112,6 +114,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isPlaying: false,
   playbackRate: 1,
   volume: 100,
+  isLockedPaused: false,
   
   lessonId: null,
   lessonTitle: null,
@@ -164,7 +167,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  setPlaying: (isPlaying) => set({ isPlaying }),
+  setPlaying: (isPlaying) => {
+    const { isLockedPaused } = get();
+    // If locked, we force play state to false
+    if (isLockedPaused && isPlaying) return;
+    set({ isPlaying });
+  },
+
+  setLockedPaused: (isLocked) => {
+    set({ isLockedPaused: isLocked });
+    if (isLocked) set({ isPlaying: false });
+  },
+
   setDuration: (duration) => set({ duration }),
   setVolume: (volume) => set({ volume }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
@@ -185,7 +199,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const updatedIds = { ...state.trackIds, ...newIds };
     set({ trackIds: updatedIds });
 
-    // Internal helper to fetch a specific track
     const fetchTrack = async (tid: number | null, trackKey: 's1Lines' | 's2Lines' | 's3Lines') => {
         if (!tid || !state.lessonId) {
             set({ [trackKey]: [] } as any);
@@ -194,14 +207,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         try {
             const r = await axios.get(`/api/subtitles/fetch/${state.lessonId}`, { params: { track_id: tid } });
             set({ [trackKey]: r.data.lines || [] } as any);
-            // If updating S1, also update the main 'subtitles' array for general compatibility
             if (trackKey === 's1Lines') {
                 set({ subtitles: r.data.lines || [] });
             }
         } catch (e) { console.error(`Failed to fetch ${trackKey}`, e); }
     };
 
-    // Check what changed and fetch
     if (newIds.s1 !== undefined) fetchTrack(updatedIds.s1, 's1Lines');
     if (newIds.s2 !== undefined) fetchTrack(updatedIds.s2, 's2Lines');
     if (newIds.s3 !== undefined) fetchTrack(updatedIds.s3, 's3Lines');
@@ -233,7 +244,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             newSettings = {
                 ...state.settings,
                 ...saved,
-                // Ensure sub-objects are also merged correctly
                 s1: { ...state.settings.s1, ...(saved.s1 || {}) },
                 s2: { ...state.settings.s2, ...(saved.s2 || {}) },
                 s3: { ...state.settings.s3, ...(saved.s3 || {}) },
@@ -257,7 +267,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   fetchLessonData: async (id) => {
     const state = get();
-    // Only reset if navigating to a DIFFERENT lesson
     if (state.lessonId !== id) {
         set({ isLoaded: false, subtitles: [], videoId: null, lessonId: id, availableTracks: [] });
     }
@@ -272,7 +281,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             s3: m.metadata?.s3_track_id || null
         };
 
-        // Fetch tracks in parallel
         const fetchTrack = async (tid: number | null) => {
             if (!tid) return [];
             try {

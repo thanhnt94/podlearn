@@ -9,7 +9,8 @@ class VideoGlossary(db.Model):
     __tablename__ = 'video_glossaries'
 
     id = db.Column(db.Integer, primary_key=True)
-    video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=False)
+    video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=True) # Now optional
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=True, index=True)
     
     # The term being defined (usually the lemma/dictionary form)
     term = db.Column(db.String(255), nullable=False, index=True)
@@ -29,8 +30,8 @@ class VideoGlossary(db.Model):
     video = db.relationship('Video', backref=db.backref('glossary_items', lazy='dynamic'))
     updater = db.relationship('User', backref='wiki_edits')
     
-    # Unique constraint: One definition per term per video
-    __table_args__ = (db.UniqueConstraint('video_id', 'term', name='_video_term_uc'),)
+    # Unique constraint: One definition per term per lesson (if lesson exists) or video
+    __table_args__ = (db.UniqueConstraint('lesson_id', 'term', name='_lesson_term_uc'),)
 
     def __repr__(self):
         return f'<VideoGlossary {self.term} in Video {self.video_id}>'
