@@ -163,10 +163,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setCurrentTime: (time) => {
     const { subtitles, activeLineIndex, abLoop, requestSeek, isSeeking, lastSeekTime } = get();
     
-    // Safety 1: Strict Seeking Lock (Block Poller)
-    // We ignore the incoming 'time' from poller because it might be stale 
-    // and cause the UI to flicker or show the wrong line.
-    if (isSeeking || (Date.now() - lastSeekTime < 1000)) {
+    // Remove the heavy 1s delay and the isSeeking lock here, 
+    // because VideoSection will unlock isSeeking immediately.
+    // We use a tiny 200ms buffer to prevent poller from 
+    // overwriting the state before the player actually seeks.
+    if (isSeeking || (Date.now() - lastSeekTime < 200)) {
       return; 
     }
 
@@ -200,7 +201,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVolume: (volume) => set({ volume }),
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
   requestSeek: (time, newIndex) => {
-    const { subtitles, activeLineIndex } = get();
+    const { subtitles } = get();
     // Use directly provided index OR find it
     const targetIndex = newIndex !== undefined ? newIndex : subtitles.findIndex(l => time >= l.start && time <= l.end);
     
@@ -208,8 +209,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       seekToTime: time, 
       lastSeekTime: Date.now(),
       currentTime: time,
-      activeLineIndex: targetIndex !== -1 ? targetIndex : activeLineIndex,
-      isSeeking: true // Lock Poller during transport
+      activeLineIndex: targetIndex !== -1 ? targetIndex : get().activeLineIndex,
+      isSeeking: true 
     });
   },
   setSeeking: (isSeeking) => set({ isSeeking }),

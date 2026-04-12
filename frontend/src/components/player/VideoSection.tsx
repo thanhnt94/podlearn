@@ -132,8 +132,8 @@ export const VideoSection: React.FC = () => {
   useEffect(() => {
     if (seekToTime !== null && ytPlayer.current && ytPlayer.current.seekTo) {
       ytPlayer.current.seekTo(seekToTime, true);
-      // Reset seek request in store
-      usePlayerStore.setState({ seekToTime: null });
+      // Reset seek request in store AND unlock poller
+      usePlayerStore.setState({ seekToTime: null, isSeeking: false });
     }
   }, [seekToTime]);
 

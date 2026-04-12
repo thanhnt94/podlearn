@@ -52,7 +52,7 @@ export const TranscriptBody: React.FC = () => {
                                 ? 'bg-sky-500/10 border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.05)]' 
                                 : 'hover:border-white/5 hover:bg-white/5'
                             }`}
-                        onClick={() => requestSeek(line.start)}
+                        onClick={() => requestSeek(line.start, i)}
                     >
                         <div className="flex items-start gap-4">
                             <span className={`text-[10px] font-mono mt-1.5 w-10 shrink-0 ${isActive ? 'text-sky-400' : 'text-slate-600'}`}>
