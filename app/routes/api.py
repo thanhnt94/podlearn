@@ -272,11 +272,11 @@ def analyze_vocab():
             formatted = []
             for r in results:
                 formatted.append({
-                    "original": r['term'],
-                    "lemma": r['term'],
+                    "original": r['word'],
+                    "lemma": r['word'],
                     "reading": r['reading'],
                     "pos": "manual",
-                    "meanings": r['definition'].split(', '),
+                    "meanings": r['definition'].split('\n') if r['definition'] else [],
                     "source": r['source']
                 })
             return jsonify(formatted)
@@ -477,7 +477,7 @@ def get_vocab_list(lesson_id):
                 
             vocab_list.append({
                 "item_id": i,
-                "term": item['term'],
+                "term": item['word'],
                 "reading": item['reading'],
                 "definition": item['definition'],
                 "source": item['source']
@@ -553,16 +553,33 @@ def add_vocab_item():
     data = request.get_json()
     lesson_id = data.get('lesson_id')
     term = data.get('term')
+    reading = data.get('reading', '')
     definition = data.get('definition', '')
     example = data.get('example', '')
+    timestamp = data.get('timestamp', 0)
     
     if not lesson_id or not term:
         return jsonify({'success': False, 'error': 'Missing data'}), 400
         
     lesson = Lesson.query.get_or_404(lesson_id)
     from ..models.sentence import Sentence, SentenceSet
+    from ..models.note import Note
     
-    # 1. Find or create a default vocab set for this user
+    # 1. Add to Learning Notes (as requested by user)
+    note_content = f"**{term}**"
+    if reading:
+        note_content += f" [{reading}]"
+    note_content += f"\n{definition}"
+    
+    new_note = Note(
+        lesson_id=lesson.id,
+        user_id=current_user.id,
+        timestamp=float(timestamp),
+        content=note_content
+    )
+    db.session.add(new_note)
+    
+    # 2. Find or create a default flashcard set for this user
     vocab_set = SentenceSet.query.filter_by(user_id=current_user.id, set_type='mastery_vocab').first()
     if not vocab_set:
         vocab_set = SentenceSet(
@@ -574,7 +591,7 @@ def add_vocab_item():
         db.session.add(vocab_set)
         db.session.flush()
         
-    # 2. Check if already exists in this video context
+    # 3. Check if already exists in flashcards
     existing = Sentence.query.filter_by(
         user_id=current_user.id,
         set_id=vocab_set.id,
@@ -589,13 +606,14 @@ def add_vocab_item():
             original_text=term,
             translated_text=definition,
             source_video_id=lesson.video_id,
-            detailed_analysis={'original': example}
+            detailed_analysis={'original': example, 'reading': reading}
         )
         db.session.add(new_item)
         db.session.commit()
-        return jsonify({'success': True, 'id': new_item.id})
+        return jsonify({'success': True, 'id': new_item.id, 'note_id': new_note.id})
     
-    return jsonify({'success': True, 'id': existing.id, 'message': 'Already exists'})
+    db.session.commit()
+    return jsonify({'success': True, 'id': existing.id, 'note_id': new_note.id, 'message': 'Added to notes (Already in flashcards)'})
 
 @api_bp.route('/vocab/glossary/<int:video_id>', methods=['GET'])
 @login_required

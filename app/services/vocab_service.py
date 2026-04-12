@@ -24,109 +24,96 @@ def get_tokenizer():
     return _tokenizer_obj
 
 def get_dict_paths():
-    # We check multiple common locations for reliability
+    """Detect all available JSON dictionary files."""
     base_dirs = [
-        os.path.abspath(os.path.join(current_app.root_path, '..', '..', 'Storage', 'database')),
-        os.path.abspath(os.path.join(current_app.root_path, '..', 'Storage', 'database')),
+        os.path.abspath(os.path.join(current_app.root_path, '..', 'dictionaries', 'database')),
     ]
     
     paths = {}
-    dict_names = ['javidict', 'suge', 'mazii_offline', 'jamdict']
-    
-    for name in dict_names:
-        for b_dir in base_dirs:
-            p = os.path.join(b_dir, f"{name}.db")
-            if os.path.exists(p):
-                paths[name] = p
-                break
+    # Scan for any JSON file in the database directory
+    for b_dir in base_dirs:
+        if not os.path.exists(b_dir): continue
+        for f in os.listdir(b_dir):
+            if f.lower().endswith('.json'):
+                name = f.split('.')[0]
+                paths[name] = os.path.join(b_dir, f)
     return paths
 
-def query_offline_dict(db_path, term):
-    """Query a SQLite database for a term, handling both flat and complex schemas."""
-    if not os.path.exists(db_path):
+from functools import lru_cache
+
+@lru_cache(maxsize=4) # Cache up to 4 large JSON dictionaries in memory
+def load_json_dict(path):
+    """Load and cache a JSON dictionary."""
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            # Create a localized index for O(1) term lookup
+            index = {}
+            if 'data' in data:
+                for entry in data['data']:
+                    word = entry.get('word')
+                    if word:
+                        index[word] = entry
+            return index
+    except Exception as e:
+        logger.error(f"Failed to load JSON dict {path}: {e}")
+        return None
+
+def query_offline_dict(json_path, term):
+    """Query a JSON dictionary for a term."""
+    index = load_json_dict(json_path)
+    if not index or term not in index:
         return None
         
-    is_jamdict = "jamdict.db" in db_path.lower()
-    
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        if is_jamdict:
-            # Specialized query for complex JAMDict schema using idseq and SenseGloss
-            sql = """
-                SELECT 
-                    (SELECT text FROM Kana WHERE idseq = Entry.idseq LIMIT 1) as reading,
-                    (SELECT group_concat(text, '\n') FROM SenseGloss WHERE sid IN (SELECT ID FROM Sense WHERE idseq = Entry.idseq)) as definition
-                FROM Entry
-                WHERE idseq IN (
-                    SELECT idseq FROM Kanji WHERE text = ?
-                    UNION
-                    SELECT idseq FROM Kana WHERE text = ?
-                )
-                LIMIT 1
-            """
-            cursor.execute(sql, (term, term))
-        else:
-            # Standard flat schema for VN dicts (Javidict, Suge, Mazii)
-            # These have ['id', 'term', 'reading', 'definition', 'sequence']
-            cursor.execute("SELECT reading, definition FROM entries WHERE term = ? LIMIT 1", (term,))
-            
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            return {
-                'reading': row[0],
-                'meanings': row[1].split('\n') if row[1] else [],
-                'source': os.path.basename(db_path).split('.')[0]
-            }
-    except Exception as e:
-        logger.error(f"Error querying offline dict {db_path}: {e}")
-        
-    return None
+    entry = index[term]
+    means = [m.get('mean', '') for m in entry.get('means', [])]
+    return {
+        'reading': entry.get('phonetic', ''),
+        'meanings': means,
+        'source': os.path.basename(json_path).split('.')[0]
+    }
 
-def get_definitions_for_terms(terms, priority='mazii_offline', strict=False):
-    """
-    Enrich a list of terms with definitions ONLY from the priority source.
-    If not found in that specific source, it returns a 'none' source result.
-    """
-    results = []
+def get_definitions_for_terms(terms, priority='mazii_v2_results'):
+    """Bulk lookup using JSON dictionaries."""
     dict_paths = get_dict_paths()
-    path = dict_paths.get(priority)
+    results = []
+    
+    # Establish dictionary priority order
+    order = []
+    if priority in dict_paths:
+        order.append(priority)
+    
+    other_dicts = [k for k in dict_paths.keys() if k != priority]
+    order.extend(other_dicts)
 
     for term in terms:
-        found_data = None
+        found = False
+        for d_name in order:
+            res = query_offline_dict(dict_paths[d_name], term)
+            if res:
+                results.append({
+                    'word': term,
+                    'reading': res.get('reading', ''),
+                    'meanings': res.get('meanings', []),
+                    'definition': "\n".join(res.get('meanings', [])),
+                    'source': res.get('source', '')
+                })
+                found = True
+                break
         
-        if path and os.path.exists(path):
-            data = query_offline_dict(path, term)
-            if data:
-                found_data = data
-        
-        if found_data:
+        if not found:
             results.append({
-                'term': term,
-                'reading': found_data.get('reading', ''),
-                'definition': ", ".join(found_data.get('meanings', [])),
-                'source': priority
-            })
-        else:
-            # If strict mode is ON, we skip terms not found in the SELECTED dictionary
-            if strict:
-                continue
-
-            # Term not found in the SELECTED dictionary
-            results.append({
-                'term': term,
+                'word': term,
                 'reading': '',
-                'definition': 'No definition found offline.',
+                'meanings': [],
+                'definition': '',
                 'source': 'none'
             })
-    
+            
     return results
 
-def analyze_japanese_text(text, priority='mazii_offline', strict=False, include_all=False):
-    """Segment text using Sudachi and find definitions."""
+def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, include_all=False):
+    """Segment text using Sudachi and lookup definitions in JSON dicts."""
     tk = get_tokenizer()
     if not tk: return []
 
@@ -135,55 +122,51 @@ def analyze_japanese_text(text, priority='mazii_offline', strict=False, include_
 
     results = []
     tokens = tk.tokenize(text, _sudachi_mode)
-    
     dict_paths = get_dict_paths()
     
-    # STRICT FILTERING: Only use the requested dictionary if strict is True
-    if strict:
-        order = [priority]
-    else:
-        order = [priority]
-        others = [k for k in dict_paths.keys() if k != priority]
-        order.extend(others)
+    # Priority order
+    order = []
+    if priority in dict_paths:
+        order.append(priority)
+    other_dicts = [k for k in dict_paths.keys() if k != priority]
+    order.extend(other_dicts)
 
     for token in tokens:
         lemma = token.dictionary_form()
         pos_tuple = token.part_of_speech()
         pos = pos_tuple[0]
         
-        # Skip filtering if include_all is requested (for segmentation editor)
         if not include_all:
             if pos in ['補助記号', '空白', '助詞', '助動詞', '記号']:
                 continue
-            
             if re.match(r'^\d+$', lemma):
                 continue
 
         item_result = None
         source = 'unknown'
         
-        for src in order:
-            path = dict_paths.get(src)
-            if path:
-                data = query_offline_dict(path, lemma)
-                if data:
-                    item_result = data
-                    source = src
-                    break
+        for d_name in order:
+            res = query_offline_dict(dict_paths[d_name], lemma)
+            if res:
+                item_result = res
+                source = d_name
+                break
         
-        # If strict mode is ON, and no result found in the PRIORITY dict, we skip this token
-        if not item_result and strict:
-            continue
+        if not item_result:
+            if strict: continue
+            item_result = {'reading': '', 'meanings': []}
+            source = 'none'
 
-        if item_result:
-            results.append({
-                'original': token.surface(),
-                'lemma': lemma,
-                'reading': item_result.get('reading', lemma),
-                'pos': pos,
-                'meanings': item_result.get('meanings', []),
-                'source': source
-            })
+        results.append({
+            'original': token.surface(),
+            'lemma': lemma,
+            'word': lemma,
+            'reading': item_result.get('reading', ''),
+            'pos': pos,
+            'meanings': item_result.get('meanings', []),
+            'definition': "\n".join(item_result.get('meanings', [])),
+            'source': source
+        })
             
     return results
 

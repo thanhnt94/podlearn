@@ -186,10 +186,14 @@ export const VocabPanel: React.FC = () => {
             await axios.post(`/api/vocab/add`, {
                 lesson_id: lessonId,
                 term: item.lemma,
+                reading: item.reading,
                 definition: Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings,
-                example: item.original
+                example: item.original,
+                timestamp: usePlayerStore.getState().currentTime
             });
             fetchSavedVocab();
+            // Also refresh notes store since we added a new note
+            usePlayerStore.getState().fetchNotes();
         } catch (err) {
             console.error("Save failed");
         }
@@ -204,7 +208,7 @@ export const VocabPanel: React.FC = () => {
                 if (dictPriority === 'edit_segments') {
                     setLockedPaused(false); // Unblock
                     setPlaying(true); // Start playing
-                    requestSeek(nextLine.start, nextIdx); // Seek to new time WITH DIRECT INDEX
+                    requestSeek(nextLine.start + 0.1, nextIdx); // Seek to new time WITH 0.1s OFFSET
                     
                     // After 0.5s, auto-pause and re-lock
                     setTimeout(() => {
@@ -227,7 +231,7 @@ export const VocabPanel: React.FC = () => {
                 if (dictPriority === 'edit_segments') {
                     setLockedPaused(false);
                     setPlaying(true);
-                    requestSeek(prevLine.start, prevIdx);
+                    requestSeek(prevLine.start + 0.1, prevIdx);
                     
                     setTimeout(() => {
                         setPlaying(false);
