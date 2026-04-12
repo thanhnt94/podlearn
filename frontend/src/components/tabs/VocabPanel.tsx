@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Book, Plus, Search, Loader2, Activity, Globe, Languages, ChevronDown, Trash2, ChevronLeft, ChevronRight, Scissors, X, RotateCcw, GripVertical } from 'lucide-react';
+import { Book, Plus, Check, Search, Loader2, Activity, Globe, Languages, ChevronDown, Trash2, ChevronLeft, ChevronRight, Scissors, X, RotateCcw, GripVertical } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import axios from 'axios';
@@ -12,6 +12,7 @@ interface AnalyzedVocab {
     pos: string;
     meanings: string[];
     source?: string;
+    timestamp: number;
 }
 
 interface SavedVocab {
@@ -36,7 +37,11 @@ const DICT_OPTIONS: { value: DictPriority; label: string; desc: string }[] = [
 const generateId = (lemma: string, idx: number) => `${lemma}_${idx}_${Math.random().toString(36).substr(2, 9)}`;
 
 export const VocabPanel: React.FC = () => {
-    const { lessonId, s1Lines, activeLineIndex, requestSeek, setPlaying, setLockedPaused, setSeeking } = usePlayerStore();
+    const { 
+        lessonId, s1Lines, activeLineIndex, requestSeek, 
+        setPlaying, setLockedPaused, setSeeking,
+        addNote, fetchNotes
+    } = usePlayerStore();
     
     // States
     const [savedVocab, setSavedVocab] = useState<SavedVocab[]>([]);
@@ -46,6 +51,8 @@ export const VocabPanel: React.FC = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [dictPriority, setDictPriority] = useState<DictPriority>('mazii_offline');
     const [activeSubTab, setActiveSubTab] = useState<'live' | 'all'>('live');
+    const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
+    const currentLineStartRef = useRef<number>(0);
 
     // Drag-and-Drop Optimization
     const [localVocab, setLocalVocab] = useState<AnalyzedVocab[]>([]);
@@ -76,11 +83,13 @@ export const VocabPanel: React.FC = () => {
         if (!isReorderingRef.current) setLocalVocab([]);
 
         if (line && line.text) {
+            currentLineStartRef.current = line.start;
             analyzeSentence(line.text, dictPriority);
         } else {
             setDynamicVocab([]);
             setLocalVocab([]);
             currentTextRef.current = '';
+            // Don't reset ref if we're just analyzing
         }
 
         // Cleanup previous request if it's still running
@@ -124,17 +133,19 @@ export const VocabPanel: React.FC = () => {
                 text, 
                 priority: priority === 'edit_segments' ? 'mazii_offline' : priority,
                 lesson_id: lessonId,
-                line_index: activeLineIndex
+                line_index: activeLineIndex,
+                timestamp: currentLineStartRef.current // PASS THE TIME HERE
             }, {
                 signal: abortControllerRef.current.signal
             });
             
             if (text !== currentTextRef.current) return;
             
-            // Assign Stable IDs to Incoming Data
+            // Assign Stable IDs and TIMESTAMPS to Incoming Data
             const stableData: AnalyzedVocab[] = response.data.map((item: any, idx: number) => ({
                 ...item,
-                id: generateId(item.lemma, idx)
+                id: generateId(item.lemma, idx),
+                timestamp: currentLineStartRef.current
             }));
 
             setDynamicVocab(stableData);
@@ -182,20 +193,35 @@ export const VocabPanel: React.FC = () => {
     };
 
     const handleSaveToVocab = async (item: AnalyzedVocab) => {
+        const noteTimestamp = item.timestamp || 0;
+
         try {
-            await axios.post(`/api/vocab/add`, {
+            const response = await axios.post(`/api/vocab/add`, {
                 lesson_id: lessonId,
                 term: item.lemma,
                 reading: item.reading,
                 definition: Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings,
                 example: item.original,
-                timestamp: usePlayerStore.getState().currentTime
+                timestamp: noteTimestamp
             });
+            
             fetchSavedVocab();
-            // Also refresh notes store since we added a new note
-            usePlayerStore.getState().fetchNotes();
+            
+            if (response.data.note_id) {
+                const newNote = {
+                    id: response.data.note_id,
+                    timestamp: noteTimestamp,
+                    content: `**${item.lemma}**${item.reading ? ` [${item.reading}]` : ''}\n${Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}`,
+                    created_at: new Date().toISOString()
+                };
+                addNote(newNote); // Use hook function
+                
+                // Track locally that we added this to show the V icon
+                setJustAdded(prev => new Set(prev).add(item.id));
+            }
+            fetchNotes(); // Use hook function
         } catch (err) {
-            console.error("Save failed");
+            console.error("Save failed", err);
         }
     };
 
@@ -556,12 +582,21 @@ export const VocabPanel: React.FC = () => {
                                                             {Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}
                                                         </p>
                                                     </div>
-                                                    <button 
-                                                        onClick={() => handleSaveToVocab(item)}
-                                                        className="p-3 bg-slate-800/80 hover:bg-sky-500 hover:text-slate-950 rounded-xl text-slate-500 transition-all shadow-xl active:scale-90"
-                                                    >
-                                                        <Plus size={16} />
-                                                    </button>
+                                                    {(() => {
+                                                        const isJustAdded = justAdded.has(item.id);
+                                                        return (
+                                                            <button 
+                                                                onClick={() => handleSaveToVocab(item)}
+                                                                className={`p-3 rounded-xl transition-all shadow-xl active:scale-90 ${
+                                                                    isJustAdded 
+                                                                    ? 'bg-emerald-500/20 text-emerald-400' 
+                                                                    : 'bg-slate-800/80 hover:bg-sky-500 hover:text-slate-950 text-slate-500'
+                                                                }`}
+                                                            >
+                                                                {isJustAdded ? <Check size={16} strokeWidth={3} /> : <Plus size={16} />}
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </motion.div>
                                             );

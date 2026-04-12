@@ -103,6 +103,7 @@ interface PlayerState {
   setNoteSettings: (settings: Partial<PlayerState['settings']['notes']>) => void;
   addNote: (note: Note) => void;
   deleteNote: (id: number) => void;
+  updateNote: (id: number, content: string) => void;
   fetchLessonData: (id: number) => Promise<void>;
   completeLesson: () => Promise<void>;
   fetchNotes: () => Promise<void>;
@@ -263,6 +264,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   deleteNote: (id) => set((state) => ({ 
       notes: state.notes.filter(n => n.id !== id) 
+  })),
+  updateNote: (id, content) => set((state) => ({
+      notes: state.notes.map(n => n.id === id ? { ...n, content } : n)
   })),
 
   setLessonData: (data) => set((state) => {

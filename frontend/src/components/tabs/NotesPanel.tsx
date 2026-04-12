@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Clock, Send, X } from 'lucide-react';
+import { Plus, Trash2, Clock, Send, X, Edit2, Save } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
+import { AnimatePresence, motion } from 'framer-motion';
 
 export const NotesPanel: React.FC = () => {
-  const { notes, lessonId, requestSeek, addNote, deleteNote, setPlaying, currentTime } = usePlayerStore();
+  const { notes, lessonId, requestSeek, addNote, deleteNote, updateNote, setPlaying, currentTime } = usePlayerStore();
   const [isAdding, setIsAdding] = useState(false);
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Edit State
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState('');
 
   const handleAddClick = () => {
       setPlaying(false); // Pause as in legacy
@@ -32,6 +37,26 @@ export const NotesPanel: React.FC = () => {
       setPlaying(true);
     } catch (err) {
       console.error("Failed to add note", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (id: number) => {
+    if (!editContent.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const data = (window as any).__PODLEARN_DATA__;
+      await axios.patch(`/api/notes/${id}`, {
+        content: editContent
+      }, {
+        headers: { 'X-CSRF-Token': data.csrf_token }
+      });
+      
+      updateNote(id, editContent);
+      setEditingId(null);
+    } catch (err) {
+      console.error("Failed to update note", err);
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +105,12 @@ export const NotesPanel: React.FC = () => {
       {/* Add Form */}
       <AnimatePresence>
         {isAdding && (
-          <div className="p-4 bg-emerald-500/5 border-b border-white/10 space-y-3">
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="p-4 bg-emerald-500/5 border-b border-white/10 space-y-3 overflow-hidden"
+          >
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sky-400">
                     <Clock size={14} />
@@ -104,7 +134,7 @@ export const NotesPanel: React.FC = () => {
              >
                {isSubmitting ? 'Syncing...' : <><Send size={12} fill="currentColor" /> Save Note</>}
              </button>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -121,27 +151,64 @@ export const NotesPanel: React.FC = () => {
           notes.map((note) => (
             <div 
               key={note.id}
-              onClick={() => requestSeek(note.timestamp)}
-              className="group bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl p-4 transition-all cursor-pointer relative"
+              onClick={() => editingId === null && requestSeek(note.timestamp)}
+              className={`group bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl p-4 transition-all relative ${editingId === note.id ? 'border-sky-500/30' : 'cursor-pointer'}`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2 flex-1">
-                  <div className="flex items-center gap-2">
+              {editingId === note.id ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-black rounded-full tabular-nums">
                       {formatTime(note.timestamp)}
                     </span>
+                    <button onClick={() => setEditingId(null)} className="text-slate-500 hover:text-white p-1">
+                      <X size={14} />
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-300 leading-relaxed indent-0">
-                    {note.content}
-                  </p>
+                  <textarea 
+                    autoFocus
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-sky-500/50 min-h-[100px]"
+                  />
+                  <button 
+                    onClick={() => handleUpdate(note.id)}
+                    className="w-full py-1.5 bg-sky-500 text-slate-950 text-[9px] font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2"
+                  >
+                    <Save size={12} /> Update Note
+                  </button>
                 </div>
-                <button 
-                   onClick={(e) => handleDelete(e, note.id)}
-                   className="opacity-0 group-hover:opacity-100 p-2 text-slate-500 hover:text-red-400 transition-all"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
+              ) : (
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-black rounded-full tabular-nums">
+                        {formatTime(note.timestamp)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed indent-0 whitespace-pre-wrap">
+                      {note.content}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setEditingId(note.id);
+                         setEditContent(note.content);
+                       }}
+                       className="p-2 text-slate-500 hover:text-sky-400 transition-all"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button 
+                       onClick={(e) => handleDelete(e, note.id)}
+                       className="p-2 text-slate-500 hover:text-red-400 transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))
         )}
@@ -149,6 +216,3 @@ export const NotesPanel: React.FC = () => {
     </div>
   );
 };
-
-// Internal Import helper
-import { AnimatePresence } from 'framer-motion';

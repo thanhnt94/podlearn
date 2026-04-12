@@ -551,6 +551,7 @@ def remove_vocab_item():
 @login_required
 def add_vocab_item():
     data = request.get_json()
+    print(f"DEBUG VOCAB ADD: {data}") # THE TRUTH
     lesson_id = data.get('lesson_id')
     term = data.get('term')
     reading = data.get('reading', '')
@@ -614,6 +615,21 @@ def add_vocab_item():
     
     db.session.commit()
     return jsonify({'success': True, 'id': existing.id, 'note_id': new_note.id, 'message': 'Added to notes (Already in flashcards)'})
+
+@api_bp.route('/notes/<int:note_id>', methods=['PATCH'])
+@login_required
+def update_note(note_id):
+    """Update textual content of a lesson note."""
+    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+    new_content = data.get('content', '').strip()
+    
+    if not new_content:
+        return jsonify({'success': False, 'error': 'Content cannot be empty'}), 400
+        
+    note.content = new_content
+    db.session.commit()
+    return jsonify({'success': True})
 
 @api_bp.route('/vocab/glossary/<int:video_id>', methods=['GET'])
 @login_required
