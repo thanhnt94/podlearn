@@ -40,6 +40,28 @@ def dashboard():
     
     return render_template('admin/dashboard.html', stats=stats, recent_users=recent_users, recent_videos=recent_videos)
 
+@admin_bp.route('/modern')
+@login_required
+@admin_required
+def dashboard_modern():
+    """Modernized dashboard preview with Neon Sky Blue theme."""
+    # Basic statistics
+    stats = {
+        'users_count': User.query.count(),
+        'videos_count': Video.query.count(),
+        'lessons_count': Lesson.query.count(),
+        'notes_count': Note.query.count(),
+        'subtitles_count': SubtitleTrack.query.count()
+    }
+    
+    # Recent users
+    recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
+    
+    # Recent videos
+    recent_videos = Video.query.order_by(Video.created_at.desc()).limit(5).all()
+    
+    return render_template('admin/dashboard_modern.html', stats=stats, recent_users=recent_users, recent_videos=recent_videos)
+
 @admin_bp.route('/users')
 @login_required
 @admin_required

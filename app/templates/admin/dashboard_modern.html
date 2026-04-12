@@ -1,0 +1,294 @@
+{% extends "admin/base_admin_modern.html" %}
+
+{% block admin_title %}System Intel Dashboard{% endblock %}
+
+{% block admin_content %}
+<style>
+    .modern-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 3rem;
+    }
+
+    .modern-stat-card {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        border-radius: 2rem;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .modern-stat-card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, var(--accent-glow), transparent 70%);
+        opacity: 0;
+        transition: opacity 0.4s;
+    }
+
+    .modern-stat-card:hover {
+        transform: translateY(-5px);
+        border-color: rgba(14, 165, 233, 0.3);
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .modern-stat-card:hover::after {
+        opacity: 1;
+    }
+
+    .stat-icon-box {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--border);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: white;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+        text-shadow: 0 0 20px rgba(255,255,255,0.1);
+    }
+
+    .stat-label {
+        font-size: 0.7rem;
+        font-weight: 800;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+    }
+
+    /* Modern Table */
+    .table-container {
+        border-radius: 2rem;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.01);
+    }
+
+    .modern-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .modern-table th {
+        text-align: left;
+        padding: 1.25rem 1.5rem;
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text-muted);
+        font-size: 0.7rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .modern-table td {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        color: #cbd5e1;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+    }
+
+    .modern-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .modern-table tr:hover td {
+        background: rgba(14, 165, 233, 0.03);
+        color: white;
+    }
+
+    .user-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--bg-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        color: var(--accent);
+        border: 1px solid var(--border);
+        font-size: 0.8rem;
+    }
+
+    .neon-badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .badge-sky { background: rgba(14, 165, 233, 0.1); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.2); }
+    .badge-slate { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
+
+    /* Info Health Cards */
+    .health-card {
+        background: rgba(255, 255, 255, 0.01);
+        border: 1px solid var(--border);
+        border-radius: 1.5rem;
+        padding: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        transition: all 0.3s;
+    }
+
+    .health-card:hover {
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .health-pulse {
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #10b981;
+    }
+</style>
+
+<div class="modern-grid">
+    <!-- Stat: Users -->
+    <div class="modern-stat-card">
+        <div class="stat-decoration"></div>
+        <div class="stat-icon-box bg-sky-500/10 text-sky-500">
+            <i data-lucide="users" class="w-7 h-7"></i>
+        </div>
+        <div class="stat-value">{{ stats.users_count }}</div>
+        <div class="stat-label">Total Civilians</div>
+    </div>
+
+    <!-- Stat: Videos -->
+    <div class="modern-stat-card">
+        <div class="stat-decoration"></div>
+        <div class="stat-icon-box bg-purple-500/10 text-purple-400">
+            <i data-lucide="database" class="w-7 h-7"></i>
+        </div>
+        <div class="stat-value">{{ stats.videos_count }}</div>
+        <div class="stat-label">Source Intel</div>
+    </div>
+
+    <!-- Stat: Lessons -->
+    <div class="modern-stat-card">
+        <div class="stat-decoration"></div>
+        <div class="stat-icon-box bg-emerald-500/10 text-emerald-400">
+            <i data-lucide="graduation-cap" class="w-7 h-7"></i>
+        </div>
+        <div class="stat-value">{{ stats.lessons_count }}</div>
+        <div class="stat-label">Mastery Nodes</div>
+    </div>
+
+    <!-- Stat: Notes -->
+    <div class="modern-stat-card">
+        <div class="stat-decoration"></div>
+        <div class="stat-icon-box bg-amber-500/10 text-amber-500">
+            <i data-lucide="binary" class="w-7 h-7"></i>
+        </div>
+        <div class="stat-value">{{ stats.notes_count }}</div>
+        <div class="stat-label">Memory Fragments</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+    <!-- Recent Members -->
+    <div class="lg:col-span-2">
+        <div class="flex items-center justify-between px-4">
+            <h2 class="text-xl font-black text-white tracking-tight uppercase">Recent Registrations</h2>
+            <a href="{{ url_for('admin.users') }}" class="text-[10px] font-black text-sky-500 uppercase tracking-widest hover:text-sky-400">Access Directory &rarr;</a>
+        </div>
+        
+        <div class="table-container">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Identity</th>
+                        <th>Network Address</th>
+                        <th>Rank</th>
+                        <th>Enrolled</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in recent_users %}
+                    <tr>
+                        <td>
+                            <div class="flex items-center gap-4">
+                                <div class="user-avatar">{{ user.username[0].upper() }}</div>
+                                <span class="font-bold text-white">{{ user.username }}</span>
+                            </div>
+                        </td>
+                        <td class="text-slate-500 font-mono text-xs">{{ user.email }}</td>
+                        <td>
+                            <span class="neon-badge {% if user.is_admin %}badge-sky{% else %}badge-slate{% endif %}">
+                                {{ 'ADMIN' if user.is_admin else 'USER' }}
+                            </span>
+                        </td>
+                        <td class="text-slate-600 font-bold text-[10px] uppercase">{{ user.created_at.strftime('%b %d, %Y') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- System Status Sidebar -->
+    <div class="space-y-8">
+        <h2 class="text-xl font-black text-white tracking-tight uppercase px-4">Core Systems</h2>
+        
+        <div class="space-y-4">
+            <div class="health-card">
+                <div class="health-pulse"></div>
+                <div class="flex-1">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Database Sync</p>
+                    <p class="text-sm font-bold text-white">Nominal Operations</p>
+                </div>
+                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>
+            </div>
+
+            <div class="health-card">
+                <div class="health-pulse"></div>
+                <div class="flex-1">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Transcript AI</p>
+                    <p class="text-sm font-bold text-white">Operational (V2)</p>
+                </div>
+                <i data-lucide="zap" class="w-5 h-5 text-sky-500"></i>
+            </div>
+
+            <div class="p-8 bg-sky-500/5 border border-sky-500/10 rounded-[2rem] mt-8">
+                <div class="flex items-center gap-3 mb-4">
+                    <i data-lucide="info" class="w-5 h-5 text-sky-400"></i>
+                    <p class="text-xs font-black text-sky-400 uppercase tracking-widest">Protocol Sync</p>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed font-medium">
+                    CentralAuth V2 active. Handshake verified. All satellite applications are communicating via UUID-standardized identity schema.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Re-init lucide icons for components in this page
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}

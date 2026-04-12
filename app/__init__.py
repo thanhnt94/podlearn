@@ -2,7 +2,8 @@
 
 import os
 import time
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
+from flask_login import login_required
 from dotenv import load_dotenv
 
 from .config import config_by_name
@@ -218,6 +219,30 @@ def create_app(config_name: str | None = None) -> Flask:
     csrf.exempt(internal_user_list)
     csrf.exempt(internal_link_user)
     csrf.exempt(internal_delete_user)
+
+    # ── MODERN SPA ENTRY POINT ────────────────────────────────
+    # This serves the React SPA at the root / for authenticated users.
+    # We use a catch-all for any path that isn't handled by specific blueprints.
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def root(path):
+        from flask_login import current_user
+        from flask import redirect, url_for, render_template
+
+        # If it's an API route or another specific route, Flask's discovery
+        # logic will prioritize the specific blueprint-registered routes first.
+        # This catch-all serves as the "default" for UI navigation.
+
+        if current_user.is_authenticated:
+            # Serve the modern SPA entry point
+            return render_template('app_modern.html')
+        
+        # Public Landing Page handling
+        if not path or path == 'index':
+            return render_template('landing.html')
+            
+        # Fallback to login for any other non-authenticated attempt at UI routes
+        return redirect(url_for('auth.login'))
 
     # ── User loader for Flask-Login ────────────────────────────
     from .models import User

@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-bg: 15, 23, 42;
+    --brand-card: 30, 41, 59;
+    --brand-accent: 52, 211, 153;
+  }
+
+  body {
+    @apply bg-slate-900 text-slate-200 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .neon-glow {
+    box-shadow: 0 0 15px rgba(52, 211, 153, 0.3);
+  }
+  
+  .glass-panel {
+    @apply bg-slate-800/40 backdrop-blur-md border border-white/10;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-950;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-full hover:bg-sky-500/50 transition-colors;
+}

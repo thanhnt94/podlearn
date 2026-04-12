@@ -41,3 +41,23 @@ def update_study_progress_and_streak(user, lesson, seconds_added):
         'current_streak': user.current_streak or 0,
         'longest_streak': user.longest_streak or 0
     }
+
+def get_user_stats(user_id):
+    """
+    Get study statistics for a specific user.
+    """
+    from ..models.user import User
+    from ..models.lesson import Lesson
+    user = User.query.get(user_id)
+    if not user:
+        return {}
+    
+    completed_count = Lesson.query.filter_by(user_id=user_id, is_completed=True).count()
+    total_lessons = Lesson.query.filter_by(user_id=user_id).count()
+    
+    return {
+        'current_streak': user.current_streak or 0,
+        'longest_streak': user.longest_streak or 0,
+        'completed_count': completed_count,
+        'total_lessons': total_lessons
+    }

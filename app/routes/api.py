@@ -141,6 +141,96 @@ def track_time(lesson_id):
     })
 
 
+@api_bp.route('/dashboard/init', methods=['GET'])
+@login_required
+def get_dashboard_init():
+    """Unified endpoint to initialize the modern React dashboard."""
+    print(f"DEBUG: Initializing Dashboard for User ID: {current_user.id}")
+    # 1. My Lessons (with progress)
+    lessons = Lesson.query.filter_by(user_id=current_user.id).order_by(Lesson.last_accessed.desc()).all()
+    print(f"DEBUG: Found {len(lessons)} lessons for user.")
+    lessons_data = []
+    for l in lessons:
+        lessons_data.append({
+            'id': l.id,
+            'time_spent': l.time_spent or 0,
+            'is_completed': l.is_completed,
+            'last_accessed': l.last_accessed.isoformat() if l.last_accessed else None,
+            'video': {
+                'id': l.video.id,
+                'title': l.video.title,
+                'thumbnail_url': l.video.thumbnail_url,
+                'duration_seconds': l.video.duration_seconds or 1,
+                'owner_name': l.video.owner.username if l.video.owner else "System",
+                'visibility': l.video.visibility
+            }
+        })
+
+    # 2. Community Videos (Discovery)
+    from ..models.subtitle import SubtitleTrack # If needed for filtering
+    public_videos = Video.query.filter_by(visibility='public').limit(24).all()
+    discovery_data = []
+    for v in public_videos:
+        discovery_data.append({
+            'id': v.id,
+            'video': {
+                'id': v.id,
+                'title': v.title,
+                'thumbnail_url': v.thumbnail_url,
+                'duration_seconds': v.duration_seconds or 1,
+                'owner_name': v.owner.username if v.owner else "System",
+                'visibility': v.visibility
+            },
+            'time_spent': 0,
+            'is_completed': False,
+            'last_accessed': None
+        })
+
+    # 3. Pending Invites
+    from ..models.share import ShareRequest
+    pending_shares = ShareRequest.query.filter_by(receiver_id=current_user.id, status='pending').all()
+    notif_data = [{
+        'id': s.id,
+        'sender_name': s.sender.username,
+        'video_title': s.video.title,
+        'created_at': s.created_at.isoformat()
+    } for s in pending_shares]
+
+    # 4. Global Stats
+    from ..services.lesson_service import get_user_stats
+    stats = get_user_stats(current_user.id)
+
+    # 5. Sentence Sets (Mastery Decks)
+    from ..models.sentence import SentenceSet, Sentence
+    sets = SentenceSet.query.filter_by(user_id=current_user.id).order_by(SentenceSet.updated_at.desc()).all()
+    sets_data = []
+    for s in sets:
+        first = s.sentences.order_by(Sentence.created_at.asc()).first()
+        sets_data.append({
+            'id': s.id,
+            'title': s.title,
+            'set_type': s.set_type,
+            'visibility': s.visibility,
+            'count': s.sentences.count(),
+            'first_sentence_id': first.id if first else None,
+            'updated_at': s.updated_at.isoformat() if s.updated_at else None
+        })
+
+    return jsonify({
+        'lessons': lessons_data,
+        'community_videos': discovery_data,
+        'notifications': notif_data,
+        'sets': sets_data,
+        'stats': {
+            'current_streak': stats.get('current_streak', 0),
+            'longest_streak': stats.get('longest_streak', 0),
+            'completed_count': stats.get('completed_count', 0),
+            'total_lessons': len(lessons_data),
+            'total_time_seconds': stats.get('total_time_seconds', 0)
+        }
+    })
+
+
 @api_bp.route('/video/status/<int:video_id>', methods=['GET'])
 @login_required
 def get_video_status(video_id):
@@ -261,22 +351,52 @@ def download_youtube_sub(lesson_id):
 
 
 
-@api_bp.route('/subtitles/fetch/<int:lesson_id>', methods=['POST'])
+@api_bp.route('/subtitles/fetch/<int:lesson_id>', methods=['GET', 'POST'])
 @login_required
 def fetch_subtitles(lesson_id):
     lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    data = request.get_json(force=True) or {}
+    # Support both GET (params) and POST (JSON)
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.args
     track_id = data.get('track_id')
-    lang_code = data.get('language_code', '').strip()
-
-    if not track_id and not lang_code: 
-        return jsonify({'error': 'language_code or track_id required'}), 400
+    lang_code = (data.get('language_code') or '').strip()
     if track_id:
         track = SubtitleTrack.query.get(track_id)
-    else:
+    elif lang_code:
         # Fallback to most recent for that language
         track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code)\
                              .order_by(SubtitleTrack.fetched_at.desc()).first()
+    else:
+        # Ultimate fallback: Most recent track of ANY language for this video
+        track = SubtitleTrack.query.filter_by(video_id=lesson.video.id)\
+                             .order_by(SubtitleTrack.fetched_at.desc()).first()
+
+    # Always get available tracks for dropdowns
+    all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
+    available_tracks = [{
+        'id': t.id,
+        'language_code': t.language_code,
+        'uploader_name': t.uploader_name or 'System'
+    } for t in all_tracks]
+
+    response_data = {
+        'lesson_id': lesson.id,
+        'lesson_title': lesson.video.title,
+        'video_id': lesson.video.youtube_id,
+        'available_tracks': available_tracks,
+        'settings_json': lesson.settings_json,
+        'is_completed': lesson.is_completed,
+        'metadata': {
+            'original_lang': lesson.original_lang_code,
+            'target_lang': lesson.target_lang_code,
+            's1_track_id': lesson.s1_track_id,
+            's2_track_id': lesson.s2_track_id,
+            's3_track_id': lesson.s3_track_id
+        },
+        'lines': []
+    }
 
     if track:
         # Compatibility fix: Ensure 'end' is present for all lines
@@ -287,12 +407,14 @@ def fetch_subtitles(lesson_id):
             elif 'end' not in line:
                 line['end'] = line['start'] + 2.0 # Fallback
             lines.append(line)
-        return jsonify({
-            'language_code': track.language_code, 
+            
+        response_data.update({
             'track_id': track.id,
+            'language_code': track.language_code, 
             'lines': lines
         })
-    return jsonify({'error': 'Track not found'}), 404
+
+    return jsonify(response_data)
 
 @api_bp.route('/subtitles/upload/<int:lesson_id>', methods=['POST'])
 @login_required
@@ -384,6 +506,15 @@ def set_languages(lesson_id):
         
     db.session.commit()
 
+    return jsonify({'success': True})
+
+@api_bp.route('/lesson/<int:lesson_id>/complete', methods=['POST'])
+@login_required
+def complete_lesson(lesson_id):
+    """Mark a lesson as completed."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    lesson.is_completed = True
+    db.session.commit()
     return jsonify({'success': True})
 
 # Restore Note Routes

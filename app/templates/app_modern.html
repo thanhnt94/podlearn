@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" href="/static/img/logo_premium.png">
+    <title>
+        {% if lesson %}
+            PodLearn Modern Player - {{ lesson.lesson_title }}
+        {% else %}
+            PodLearn Studio - Dashboard
+        {% endif %}
+    </title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Pass backend data to React -->
+    <script>
+        window.__PODLEARN_DATA__ = {
+            lesson_id: {{ lesson.lesson_id if lesson else 'null' }},
+            video_id: "{{ lesson.video_id if lesson else '' }}",
+            user_id: {{ current_user.id }},
+            username: "{{ current_user.username }}",
+            csrf_token: "{{ csrf_token() }}",
+            initial_settings: {{ (lesson.settings_json or '{}')|safe if lesson else '{}' }}
+        };
+    </script>
+</head>
+<body class="bg-slate-950 overflow-hidden">
+    <div id="root"></div>
+
+    <!-- 
+        In development, we use the Vite server.
+        In production, we use the built assets.
+    -->
+    <!-- 
+        Using built assets by default for the transition.
+        To use dev server for HMR, run 'npm run dev' in frontend/ and uncomment the dev block.
+    -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/assets/index.css') }}">
+    <script type="module" src="{{ url_for('static', filename='dist/assets/index.js') }}"></script>
+    
+    {# 
+    {% if config.DEBUG %}
+    <script type="module" src="http://localhost:5173/@vite/client"></script>
+    <script type="module" src="http://localhost:5173/src/main.tsx"></script>
+    {% endif %}
+    #}
+</body>
+</html>
