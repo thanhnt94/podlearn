@@ -105,6 +105,7 @@ interface PlayerState {
   deleteNote: (id: number) => void;
   fetchLessonData: (id: number) => Promise<void>;
   completeLesson: () => Promise<void>;
+  fetchNotes: () => Promise<void>;
   setSidebarWidth: (width: number) => void;
 }
 
@@ -393,6 +394,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
     } catch (e) {
         console.error("Failed to complete lesson", e);
+    }
+  },
+
+  fetchNotes: async () => {
+    const { lessonId } = get();
+    if (!lessonId) return;
+    try {
+        const res = await axios.get(`/api/lesson/${lessonId}/notes`);
+        if (res.data.notes) {
+            set({ notes: res.data.notes });
+        }
+    } catch (e) {
+        console.error("Failed to fetch notes", e);
     }
   }
 }));

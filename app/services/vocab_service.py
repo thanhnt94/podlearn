@@ -24,54 +24,41 @@ def get_tokenizer():
     return _tokenizer_obj
 
 def get_dict_paths():
-    """Detect all available JSON dictionary files."""
-    base_dirs = [
-        os.path.abspath(os.path.join(current_app.root_path, '..', 'dictionaries', 'database')),
-    ]
-    
+    """Detect all available SQLite dictionary files (.db)."""
+    base_dir = r"c:\Code\Ecosystem\PodLearn\dictionaries\database"
     paths = {}
-    # Scan for any JSON file in the database directory
-    for b_dir in base_dirs:
-        if not os.path.exists(b_dir): continue
-        for f in os.listdir(b_dir):
-            if f.lower().endswith('.json'):
-                name = f.split('.')[0]
-                paths[name] = os.path.join(b_dir, f)
+    if os.path.exists(base_dir):
+        for f in os.listdir(base_dir):
+            if f.lower().endswith('.db'):
+                name = f.replace('.db', '')
+                paths[name] = os.path.join(base_dir, f)
     return paths
 
-from functools import lru_cache
-
-@lru_cache(maxsize=4) # Cache up to 4 large JSON dictionaries in memory
-def load_json_dict(path):
-    """Load and cache a JSON dictionary."""
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            # Create a localized index for O(1) term lookup
-            index = {}
-            if 'data' in data:
-                for entry in data['data']:
-                    word = entry.get('word')
-                    if word:
-                        index[word] = entry
-            return index
-    except Exception as e:
-        logger.error(f"Failed to load JSON dict {path}: {e}")
-        return None
-
-def query_offline_dict(json_path, term):
-    """Query a JSON dictionary for a term."""
-    index = load_json_dict(json_path)
-    if not index or term not in index:
+def query_offline_dict(db_path, term):
+    """Query a SQLite dictionary for a term with high-performance indexing."""
+    if not os.path.exists(db_path):
         return None
         
-    entry = index[term]
-    means = [m.get('mean', '') for m in entry.get('means', [])]
-    return {
-        'reading': entry.get('phonetic', ''),
-        'meanings': means,
-        'source': os.path.basename(json_path).split('.')[0]
-    }
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        # idx_word ensure this is lightning fast
+        cursor.execute("SELECT reading, meanings_json FROM dictionary WHERE word = ? LIMIT 1", (term,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            reading, meanings_json = row
+            means_list = json.loads(meanings_json)
+            meanings = [m.get('mean', '') for m in means_list]
+            return {
+                'reading': reading,
+                'meanings': meanings,
+                'source': os.path.basename(db_path).replace('.db', '')
+            }
+    except Exception as e:
+        logger.error(f"SQLite query error for {term} in {db_path}: {e}")
+    return None
 
 def get_definitions_for_terms(terms, priority='mazii_v2_results'):
     """Bulk lookup using JSON dictionaries."""
