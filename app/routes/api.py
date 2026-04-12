@@ -12,8 +12,11 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from ..extensions import db, csrf
 
+import logging
 import yt_dlp
 from deep_translator import GoogleTranslator
+
+logger = logging.getLogger(__name__)
 
 
 from ..services import subtitle_service, shadowing_service, audio_service, vocab_service
@@ -237,38 +240,98 @@ def analyze_vocab():
     try:
         data = request.get_json(force=True, silent=True) or {}
         text = data.get('text', '')
+        priority = data.get('priority', 'jamdict') # mazii or jamdict
+        
         if not text:
             return jsonify([])
-        
-        results = vocab_service.analyze_japanese_text(text)
+            
+        results = vocab_service.analyze_japanese_text(text, priority=priority)
         return jsonify(results)
     except Exception as e:
+        logger.error(f"[VOCAB ERROR] Analysis failed for text '{text[:50]}...': {e}")
         import traceback
-        print(f"[VOCAB ERROR] Analysis failed for text '{text[:20]}...': {str(e)}")
         traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/generate-all', methods=['POST'])
+def generate_all_vocab():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        lesson_id = data.get('lesson_id')
+        priority = data.get('priority', 'mazii') # Default to mazii for batch generation as per request
+        
+        if not lesson_id:
+            return jsonify({"error": "Missing lesson_id"}), 400
+            
+        # 1. Fetch lesson and its primary subtitle track
+        lesson = Lesson.query.get_or_404(lesson_id)
+        # We usually use s1_track_id as the primary Japanese source
+        track = SubtitleTrack.query.get(lesson.s1_track_id)
+        
+        if not track or not track.content_json:
+            return jsonify({"status": "error", "message": "No subtitle track found for this lesson"})
+            
+        # Extract all texts from the JSON structure
+        texts = [line['text'] for line in track.content_json if 'text' in line]
+        
+        if not texts:
+            return jsonify({"status": "success", "message": "No subtitles to analyze"})
+            
+        # 2. Batch analyze with priority
+        results = vocab_service.analyze_batch_japanese(texts, priority=priority)
+        
+        # 3. Store or Update results in VideoGlossary
+        video_id = Lesson.query.get(lesson_id).video_id
+        for res in results:
+            existing = VideoGlossary.query.filter_by(video_id=video_id, term=res['lemma']).first()
+            definition_str = ", ".join(res['meanings'])
+            
+            if existing:
+                # Update existing definition with new priority dictionary and source
+                existing.definition = definition_str
+                existing.reading = res['reading']
+                existing.source = priority
+            else:
+                # Create new entry with source
+                new_entry = VideoGlossary(
+                    video_id=video_id,
+                    term=res['lemma'],
+                    definition=definition_str,
+                    reading=res['reading'],
+                    source=priority
+                )
+                db.session.add(new_entry)
+        
+        db.session.commit()
+        return jsonify({"status": "success", "count": len(results), "source": priority})
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] Batch generation failed: {e}")
         return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/vocab/list/<int:lesson_id>', methods=['GET'])
 @login_required
 def get_vocab_list(lesson_id):
     lesson = Lesson.query.get_or_404(lesson_id)
-    # Find sentences associated with this video and user that are in a 'mastery_vocab' set
-    from ..models.sentence import Sentence, SentenceSet
-    vocab_items = Sentence.query.join(SentenceSet).filter(
-        Sentence.user_id == current_user.id,
-        Sentence.source_video_id == lesson.video_id,
-        SentenceSet.set_type == 'mastery_vocab'
-    ).all()
+    # Fetch from VideoGlossary instead of personal sentence list for the "All Vocab" tab
+    items = VideoGlossary.query.filter_by(video_id=lesson.video_id).all()
     
     results = []
-    for item in vocab_items:
+    current_source = 'unknown'
+    if items:
+        current_source = items[0].source # Assume uniform source for now
+        
+    for item in items:
         results.append({
-            'id': item.id,
-            'term': item.original_text,
-            'definition': item.translated_text,
-            'example': item.detailed_analysis.get('original') if item.detailed_analysis else ""
+            'item_id': item.id,
+            'term': item.term,
+            'definition': item.definition,
+            'reading': item.reading,
+            'source': item.source
         })
-    return jsonify(results)
+    return jsonify({
+        'vocab': results,
+        'source': current_source
+    })
 
 @api_bp.route('/vocab/add', methods=['POST'])
 @login_required
@@ -319,76 +382,6 @@ def add_vocab_item():
         return jsonify({'success': True, 'id': new_item.id})
     
     return jsonify({'success': True, 'id': existing.id, 'message': 'Already exists'})
-
-@api_bp.route('/vocab/generate-all', methods=['POST'])
-@login_required
-def generate_all_vocab():
-    data = request.get_json(force=True, silent=True) or {}
-    lesson_id = data.get('lesson_id')
-    
-    if not lesson_id:
-        return jsonify({'success': False, 'error': 'Lesson ID is required'}), 400
-        
-    lesson = Lesson.query.get_or_404(lesson_id)
-    
-    # 1. Fetch Subtitle Track (S1 is usually the source)
-    from ..models.subtitle import SubtitleTrack
-    track = SubtitleTrack.query.get(lesson.s1_track_id)
-    if not track or not track.content_json:
-        return jsonify({'success': False, 'error': 'No original transcript found'}), 404
-        
-    # 2. Extract all texts
-    texts = [line['text'] for line in track.content_json if 'text' in line]
-    
-    # 3. Analyze Batch
-    analyzed_items = vocab_service.analyze_batch_japanese(texts)
-    
-    # 4. Save to Database
-    from ..models.sentence import Sentence, SentenceSet
-    vocab_set = SentenceSet.query.filter_by(user_id=current_user.id, set_type='mastery_vocab').first()
-    if not vocab_set:
-        vocab_set = SentenceSet(
-            user_id=current_user.id,
-            title="My Vocabulary",
-            set_type='mastery_vocab',
-            visibility='private'
-        )
-        db.session.add(vocab_set)
-        db.session.flush()
-
-    new_count = 0
-    for item in analyzed_items:
-        # Check if already exists for this video
-        existing = Sentence.query.filter_by(
-            user_id=current_user.id,
-            set_id=vocab_set.id,
-            original_text=item['lemma'],
-            source_video_id=lesson.video_id
-        ).first()
-        
-        if not existing:
-            new_vocab = Sentence(
-                user_id=current_user.id,
-                set_id=vocab_set.id,
-                original_text=item['lemma'],
-                translated_text=item['meanings'][0] if item['meanings'] else "",
-                source_video_id=lesson.video_id,
-                detailed_analysis={
-                    'original': item['original'],
-                    'reading': item['reading'],
-                    'meanings': item['meanings'],
-                    'pos': item['pos']
-                }
-            )
-            db.session.add(new_vocab)
-            new_count += 1
-            
-    db.session.commit()
-    return jsonify({
-        'success': True, 
-        'message': f'Successfully generated {new_count} unique vocabulary items.',
-        'count': new_count
-    })
 
 @api_bp.route('/vocab/glossary/<int:video_id>', methods=['GET'])
 @login_required

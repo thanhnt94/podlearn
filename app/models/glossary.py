@@ -18,6 +18,9 @@ class VideoGlossary(db.Model):
     # Current "Wiki" definition
     definition = db.Column(db.Text, nullable=False)
     
+    # Track the source of the definition (mazii or jamdict)
+    source = db.Column(db.String(20), default='jamdict')
+    
     # Metadata
     last_updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
