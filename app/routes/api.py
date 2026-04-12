@@ -261,7 +261,7 @@ def analyze_vocab():
             db_tokens = SentenceToken.query.filter_by(
                 lesson_id=lesson_id, 
                 line_index=line_index
-            ).all()
+            ).order_by(SentenceToken.order_index.asc()).all()
             if db_tokens:
                 custom_tokens = [t.token for t in db_tokens]
 
@@ -281,8 +281,13 @@ def analyze_vocab():
                 })
             return jsonify(formatted)
 
-        # Fallback to automatic segmentation (Strict filtering enabled for manual selection)
-        results = vocab_service.analyze_japanese_text(text, priority=priority, strict=True)
+        # Fallback to automatic segmentation
+        results = vocab_service.analyze_japanese_text(
+            text, 
+            priority=priority if priority != 'edit_segments' else 'mazii_offline', 
+            strict=False, # DISABLING STRICT: Show all tokens even if not in dict
+            include_all=False # Respect user preference: Skip particles/punctuation
+        )
         return jsonify(results)
     except Exception as e:
         logger.error(f"[VOCAB ERROR] Analysis failed for text '{text[:20]}...': {e}")
@@ -306,10 +311,15 @@ def save_custom_tokens():
         # Remove existing for this line
         SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
         
-        # Add new ones
-        for t in tokens:
+        # Add new ones with sequence index
+        for i, t in enumerate(tokens):
             if not t.strip(): continue
-            st = SentenceToken(lesson_id=lesson_id, line_index=line_index, token=t.strip())
+            st = SentenceToken(
+                lesson_id=lesson_id, 
+                line_index=line_index, 
+                token=t.strip(),
+                order_index=i
+            )
             db.session.add(st)
         
         db.session.commit()
@@ -332,6 +342,25 @@ def clear_custom_tokens():
         SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
         db.session.commit()
         return jsonify({"status": "success", "message": "Reset to default"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/tokens/clear-all', methods=['DELETE'])
+@login_required
+def clear_all_custom_tokens():
+    """
+    Remove ALL custom segmentations for a lesson.
+    """
+    try:
+        data = request.json
+        lesson_id = data.get('lesson_id')
+        
+        if not lesson_id:
+            return jsonify({"error": "Missing lesson_id"}), 400
+
+        SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
+        db.session.commit()
+        return jsonify({"status": "success", "message": "All segmentations reset to default"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

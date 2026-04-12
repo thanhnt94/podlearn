@@ -162,9 +162,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const { subtitles, activeLineIndex, abLoop, requestSeek, isSeeking, lastSeekTime } = get();
     
     // Safety 1: Strict Seeking Lock (Block Poller)
+    // We ignore the incoming 'time' from poller because it might be stale 
+    // and cause the UI to flicker or show the wrong line.
     if (isSeeking || (Date.now() - lastSeekTime < 1000)) {
-      set({ currentTime: time });
-      return;
+      return; 
     }
 
     set({ currentTime: time });
@@ -293,13 +294,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
 
   fetchLessonData: async (id) => {
-    const state = get();
-    if (state.lessonId !== id) {
-        set({ isLoaded: false, subtitles: [], videoId: null, lessonId: id, availableTracks: [] });
-    }
+    // 1. IMMEDIATE SYNCHRONOUS RESET to show loader and clear old video
+    set({ 
+      isLoaded: false, 
+      lessonId: id, 
+      videoId: null, 
+      subtitles: [], 
+      s1Lines: [], 
+      s2Lines: [], 
+      s3Lines: [], 
+      activeLineIndex: -1,
+      availableTracks: [] 
+    });
     
     try {
         const metaRes = await axios.get(`/api/subtitles/fetch/${id}`);
+        // Safety: If lessonId changed during fetch, ignore this stale result
+        if (get().lessonId !== id) return;
+
         const m = metaRes.data;
         
         const trackIds = {
@@ -322,23 +334,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             fetchTrack(trackIds.s3)
         ]);
 
-        let finalSettings = state.settings;
+        // Safety again after long Promise.all
+        if (get().lessonId !== id) return;
+
+        let finalSettings = get().settings;
         if (m.settings_json) {
             try {
                 const saved = JSON.parse(m.settings_json);
                 finalSettings = {
-                    ...state.settings,
+                    ...get().settings,
                     ...saved,
-                    s1: { ...state.settings.s1, ...(saved.s1 || {}) },
-                    s2: { ...state.settings.s2, ...(saved.s2 || {}) },
-                    s3: { ...state.settings.s3, ...(saved.s3 || {}) },
-                    notes: { ...state.settings.notes, ...(saved.notes || {}) }
+                    s1: { ...get().settings.s1, ...(saved.s1 || {}) },
+                    s2: { ...get().settings.s2, ...(saved.s2 || {}) },
+                    s3: { ...get().settings.s3, ...(saved.s3 || {}) },
+                    notes: { ...get().settings.notes, ...(saved.notes || {}) }
                 };
             } catch (e) {}
         }
 
         set({ 
-            lessonId: id,
             lessonTitle: m.lesson_title,
             videoId: m.video_id,
             subtitles: l1,
@@ -349,13 +363,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             trackIds,
             settings: finalSettings,
             isCompleted: m.is_completed || false,
-            isLoaded: true
+            isLoaded: true // Success
         });
 
         const notesRes = await axios.get(`/api/lesson/${id}/notes`);
-        if (notesRes.data.notes) set({ notes: notesRes.data.notes });
+        if (notesRes.data.notes && get().lessonId === id) {
+            set({ notes: notesRes.data.notes });
+        }
     } catch (err) {
         console.error("Fetch lesson failed", err);
+        // On error, we still need to set isLoaded to true so the UI can show a fallback/error,
+        // but we'll have videoId = null which should be handled by the UI.
         set({ isLoaded: true }); 
     }
   },

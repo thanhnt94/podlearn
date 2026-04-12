@@ -125,7 +125,7 @@ def get_definitions_for_terms(terms, priority='mazii_offline', strict=False):
     
     return results
 
-def analyze_japanese_text(text, priority='mazii_offline', strict=False):
+def analyze_japanese_text(text, priority='mazii_offline', strict=False, include_all=False):
     """Segment text using Sudachi and find definitions."""
     tk = get_tokenizer()
     if not tk: return []
@@ -148,13 +148,16 @@ def analyze_japanese_text(text, priority='mazii_offline', strict=False):
 
     for token in tokens:
         lemma = token.dictionary_form()
-        pos = token.part_of_speech()[0]
+        pos_tuple = token.part_of_speech()
+        pos = pos_tuple[0]
         
-        if pos in ['補助記号', '空白', '助詞', '助動詞', '記号']:
-            continue
-        
-        if re.match(r'^\d+$', lemma):
-            continue
+        # Skip filtering if include_all is requested (for segmentation editor)
+        if not include_all:
+            if pos in ['補助記号', '空白', '助詞', '助動詞', '記号']:
+                continue
+            
+            if re.match(r'^\d+$', lemma):
+                continue
 
         item_result = None
         source = 'unknown'

@@ -263,6 +263,7 @@ export const VocabPanel: React.FC = () => {
 
     const handleResetSegments = async () => {
         if (!lessonId) return;
+        if (!confirm("Reset segmentation for this line to default?")) return;
         try {
             await axios.delete('/api/vocab/tokens/clear', {
                 data: { lesson_id: lessonId, line_index: activeLineIndex }
@@ -271,6 +272,20 @@ export const VocabPanel: React.FC = () => {
             if (line) analyzeSentence(line.text, dictPriority);
         } catch (err) {
             console.error("Reset failed");
+        }
+    };
+
+    const handleResetAllSegments = async () => {
+        if (!lessonId) return;
+        if (!confirm("Are you sure you want to reset ALL segments to default for this entire lesson? This cannot be undone.")) return;
+        
+        try {
+            await axios.delete('/api/vocab/tokens/clear-all', { data: { lesson_id: lessonId } });
+            // Re-fetch current line to reflect changes
+            const line = s1Lines[activeLineIndex];
+            if (line) analyzeSentence(line.text, dictPriority);
+        } catch (e) {
+            console.error("Reset all failed", e);
         }
     };
 
@@ -444,12 +459,22 @@ export const VocabPanel: React.FC = () => {
                                         <Scissors size={14} className="text-amber-500" />
                                         <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-500/70">Segmentation Editor</h3>
                                     </div>
-                                    <button 
-                                        onClick={handleResetSegments}
-                                        className="flex items-center gap-1.5 text-[9px] text-slate-600 hover:text-white font-black uppercase tracking-widest transition-colors"
-                                    >
-                                        <RotateCcw size={12} /> Reset to Auto
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <button 
+                                            onClick={handleResetAllSegments}
+                                            className="flex items-center gap-2 text-[9px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-red-950/40 text-slate-500 hover:text-red-400 transition-all border border-slate-800 hover:border-red-900 shadow-lg group"
+                                            title="Reset ALL segments to default for this entire lesson"
+                                        >
+                                            <RotateCcw size={10} className="group-hover:rotate-[-45deg] transition-transform" />
+                                            <span className="font-bold">RE-SYNC ALL</span>
+                                        </button>
+                                        <button 
+                                            onClick={handleResetSegments}
+                                            className="flex items-center gap-1.5 text-[9px] text-slate-600 hover:text-white font-black uppercase tracking-widest transition-colors"
+                                        >
+                                            <RotateCcw size={12} /> Reset to Auto
+                                        </button>
+                                    </div>
                                 </div>
                                 
                                 <Reorder.Group 
@@ -467,8 +492,7 @@ export const VocabPanel: React.FC = () => {
                                             >
                                                 <div className="flex items-center gap-3">
                                                     <GripVertical size={14} className="text-slate-700 group-hover:text-amber-500 transition-colors" />
-                                                    <span className="text-sm font-bold text-amber-200">{item.lemma}</span>
-                                                    {item.reading && <span className="text-[9px] text-slate-600 font-mono">({item.reading})</span>}
+                                                    <span className="text-sm font-bold text-amber-200">{item.original}</span>
                                                 </div>
                                                 <button 
                                                     onClick={(e) => {
