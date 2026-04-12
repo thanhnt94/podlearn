@@ -1,0 +1,5 @@
+ポッド (ポッド): ['pod']
+キャスト (キャスト): ['cast (play, film, etc.)', 'cast (e.g. type conversion)']
+友達 (ともだち): ['friend', 'companion']
+話す (はなす): ['to talk', 'to speak', 'to converse']
+感じ (かんじ): ['feeling', 'sense', 'impression']

@@ -216,6 +216,7 @@ def create_app(config_name: str | None = None) -> Flask:
         return jsonify({"status": "ok", "message": f"Deleted {user.username}"}), 200
 
     # Ensure CSRF exemption
+    csrf.exempt(api_bp)
     csrf.exempt(internal_user_list)
     csrf.exempt(internal_link_user)
     csrf.exempt(internal_delete_user)

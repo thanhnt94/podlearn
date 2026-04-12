@@ -10,12 +10,13 @@ from werkzeug.utils import secure_filename
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from ..extensions import db, csrf
 
 import yt_dlp
 from deep_translator import GoogleTranslator
 
 
-from ..extensions import db
+from ..services import subtitle_service, shadowing_service, audio_service, vocab_service
 from ..models.user import User
 from ..models.lesson import Lesson
 from ..models.video import Video
@@ -23,6 +24,7 @@ from ..models.note import Note
 from ..models.subtitle import SubtitleTrack
 from ..models.shadowing import ShadowingHistory
 from ..models.sentence import Sentence, SentenceSet
+from ..models.glossary import VideoGlossary, VocabEditHistory
 from ..services.subtitle_service import (
     get_subtitle_track, 
     get_lines_as_dicts, 
@@ -230,6 +232,233 @@ def get_dashboard_init():
         }
     })
 
+@api_bp.route('/vocab/analyze', methods=['POST'])
+def analyze_vocab():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        text = data.get('text', '')
+        if not text:
+            return jsonify([])
+        
+        results = vocab_service.analyze_japanese_text(text)
+        return jsonify(results)
+    except Exception as e:
+        import traceback
+        print(f"[VOCAB ERROR] Analysis failed for text '{text[:20]}...': {str(e)}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/vocab/list/<int:lesson_id>', methods=['GET'])
+@login_required
+def get_vocab_list(lesson_id):
+    lesson = Lesson.query.get_or_404(lesson_id)
+    # Find sentences associated with this video and user that are in a 'mastery_vocab' set
+    from ..models.sentence import Sentence, SentenceSet
+    vocab_items = Sentence.query.join(SentenceSet).filter(
+        Sentence.user_id == current_user.id,
+        Sentence.source_video_id == lesson.video_id,
+        SentenceSet.set_type == 'mastery_vocab'
+    ).all()
+    
+    results = []
+    for item in vocab_items:
+        results.append({
+            'id': item.id,
+            'term': item.original_text,
+            'definition': item.translated_text,
+            'example': item.detailed_analysis.get('original') if item.detailed_analysis else ""
+        })
+    return jsonify(results)
+
+@api_bp.route('/vocab/add', methods=['POST'])
+@login_required
+def add_vocab_item():
+    data = request.get_json()
+    lesson_id = data.get('lesson_id')
+    term = data.get('term')
+    definition = data.get('definition', '')
+    example = data.get('example', '')
+    
+    if not lesson_id or not term:
+        return jsonify({'success': False, 'error': 'Missing data'}), 400
+        
+    lesson = Lesson.query.get_or_404(lesson_id)
+    from ..models.sentence import Sentence, SentenceSet
+    
+    # 1. Find or create a default vocab set for this user
+    vocab_set = SentenceSet.query.filter_by(user_id=current_user.id, set_type='mastery_vocab').first()
+    if not vocab_set:
+        vocab_set = SentenceSet(
+            user_id=current_user.id,
+            title="My Vocabulary",
+            set_type='mastery_vocab',
+            visibility='private'
+        )
+        db.session.add(vocab_set)
+        db.session.flush()
+        
+    # 2. Check if already exists in this video context
+    existing = Sentence.query.filter_by(
+        user_id=current_user.id,
+        set_id=vocab_set.id,
+        original_text=term,
+        source_video_id=lesson.video_id
+    ).first()
+    
+    if not existing:
+        new_item = Sentence(
+            user_id=current_user.id,
+            set_id=vocab_set.id,
+            original_text=term,
+            translated_text=definition,
+            source_video_id=lesson.video_id,
+            detailed_analysis={'original': example}
+        )
+        db.session.add(new_item)
+        db.session.commit()
+        return jsonify({'success': True, 'id': new_item.id})
+    
+    return jsonify({'success': True, 'id': existing.id, 'message': 'Already exists'})
+
+@api_bp.route('/vocab/generate-all', methods=['POST'])
+@login_required
+def generate_all_vocab():
+    data = request.get_json(force=True, silent=True) or {}
+    lesson_id = data.get('lesson_id')
+    
+    if not lesson_id:
+        return jsonify({'success': False, 'error': 'Lesson ID is required'}), 400
+        
+    lesson = Lesson.query.get_or_404(lesson_id)
+    
+    # 1. Fetch Subtitle Track (S1 is usually the source)
+    from ..models.subtitle import SubtitleTrack
+    track = SubtitleTrack.query.get(lesson.s1_track_id)
+    if not track or not track.content_json:
+        return jsonify({'success': False, 'error': 'No original transcript found'}), 404
+        
+    # 2. Extract all texts
+    texts = [line['text'] for line in track.content_json if 'text' in line]
+    
+    # 3. Analyze Batch
+    analyzed_items = vocab_service.analyze_batch_japanese(texts)
+    
+    # 4. Save to Database
+    from ..models.sentence import Sentence, SentenceSet
+    vocab_set = SentenceSet.query.filter_by(user_id=current_user.id, set_type='mastery_vocab').first()
+    if not vocab_set:
+        vocab_set = SentenceSet(
+            user_id=current_user.id,
+            title="My Vocabulary",
+            set_type='mastery_vocab',
+            visibility='private'
+        )
+        db.session.add(vocab_set)
+        db.session.flush()
+
+    new_count = 0
+    for item in analyzed_items:
+        # Check if already exists for this video
+        existing = Sentence.query.filter_by(
+            user_id=current_user.id,
+            set_id=vocab_set.id,
+            original_text=item['lemma'],
+            source_video_id=lesson.video_id
+        ).first()
+        
+        if not existing:
+            new_vocab = Sentence(
+                user_id=current_user.id,
+                set_id=vocab_set.id,
+                original_text=item['lemma'],
+                translated_text=item['meanings'][0] if item['meanings'] else "",
+                source_video_id=lesson.video_id,
+                detailed_analysis={
+                    'original': item['original'],
+                    'reading': item['reading'],
+                    'meanings': item['meanings'],
+                    'pos': item['pos']
+                }
+            )
+            db.session.add(new_vocab)
+            new_count += 1
+            
+    db.session.commit()
+    return jsonify({
+        'success': True, 
+        'message': f'Successfully generated {new_count} unique vocabulary items.',
+        'count': new_count
+    })
+
+@api_bp.route('/vocab/glossary/<int:video_id>', methods=['GET'])
+@login_required
+def get_shared_glossary(video_id):
+    """Fetch the collaborative wiki glossary for this video."""
+    items = VideoGlossary.query.filter_by(video_id=video_id).all()
+    results = {}
+    for item in items:
+        results[item.term] = {
+            'id': item.id,
+            'definition': item.definition,
+            'reading': item.reading,
+            'updated_by': item.updater.username if item.updater else 'System',
+            'updated_at': item.updated_at.isoformat()
+        }
+    return jsonify(results)
+
+@api_bp.route('/vocab/update-wiki', methods=['POST'])
+@login_required
+def update_shared_glossary():
+    """Collaborative update: Adds history and updates current best definition."""
+    data = request.get_json()
+    video_id = data.get('video_id')
+    term = data.get('term')
+    new_def = data.get('definition')
+    reading = data.get('reading', '')
+    
+    if not all([video_id, term, new_def]):
+        return jsonify({'success': False, 'error': 'Missing fields'}), 400
+        
+    # 1. Check if it exists
+    item = VideoGlossary.query.filter_by(video_id=video_id, term=term).first()
+    old_def = None
+    
+    if item:
+        old_def = item.definition
+        item.definition = new_def
+        item.reading = reading or item.reading
+        item.last_updated_by = current_user.id
+    else:
+        item = VideoGlossary(
+            video_id=video_id,
+            term=term,
+            reading=reading,
+            definition=new_def,
+            last_updated_by=current_user.id
+        )
+        db.session.add(item)
+    
+    db.session.flush() # Get ID for history
+    
+    # 2. Add to History
+    history = VocabEditHistory(
+        glossary_id=item.id,
+        user_id=current_user.id,
+        old_definition=old_def,
+        new_definition=new_def,
+        change_reason=data.get('reason', 'Community contribution')
+    )
+    db.session.add(history)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True, 
+        'item': {
+            'term': term,
+            'definition': new_def,
+            'updated_by': current_user.username
+        }
+    })
 
 @api_bp.route('/video/status/<int:video_id>', methods=['GET'])
 @login_required

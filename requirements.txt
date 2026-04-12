@@ -7,10 +7,15 @@ SQLAlchemy==2.0.36
 yt-dlp
 python-dotenv==1.1.0
 webvtt-py==0.5.1
+# Japanese NLP
+sudachipy
+sudachidict_core
+jamdict
+jamdict-data
 deep-translator==1.11.4
 pykakasi
 Flask-WTF
 edge-tts
 gTTS
 pydub
-requests
+requests
