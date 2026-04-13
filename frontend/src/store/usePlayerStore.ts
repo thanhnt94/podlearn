@@ -38,6 +38,7 @@ interface PlayerState {
   lessonId: number | null;
   lessonTitle: string | null;
   videoId: string | null;
+  originalLang: string;
   subtitles: SubtitleLine[];
   s1Lines: SubtitleLine[];
   s2Lines: SubtitleLine[];
@@ -133,6 +134,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   lessonId: null,
   lessonTitle: null,
   videoId: null,
+  originalLang: 'ja',
   subtitles: [],
   s1Lines: [],
   s2Lines: [],
@@ -404,6 +406,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         set({ 
             lessonTitle: m.lesson_title,
             videoId: m.video_id,
+            originalLang: m.metadata?.original_lang || 'ja',
             subtitles: l1,
             s1Lines: l1,
             s2Lines: l2,

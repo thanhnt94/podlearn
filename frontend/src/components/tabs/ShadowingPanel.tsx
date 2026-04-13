@@ -19,7 +19,8 @@ export const ShadowingPanel: React.FC = () => {
         setAutoNext,
         shadowingStats,
         fetchShadowingStats,
-        setMode
+        setMode,
+        originalLang
     } = usePlayerStore();
 
     const [recordedText, setRecordedText] = useState('');
@@ -43,6 +44,8 @@ export const ShadowingPanel: React.FC = () => {
             recognitionRef.current = new SpeechRecognition();
             recognitionRef.current.continuous = true;
             recognitionRef.current.interimResults = true;
+            // Set recognition language from lesson's original language
+            recognitionRef.current.lang = originalLang || 'ja';
             
             recognitionRef.current.onresult = (event: any) => {
                 // Rebuild full transcript from all results
@@ -141,7 +144,8 @@ export const ShadowingPanel: React.FC = () => {
                 spoken_text: text,
                 lesson_id: state.lessonId,
                 start_time: line.start,
-                end_time: line.end
+                end_time: line.end,
+                lang_code: state.originalLang || 'ja'
             });
             setShadowingResult(response.data);
             fetchShadowingStats();
