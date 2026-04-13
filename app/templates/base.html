@@ -16,7 +16,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=171">
-    {% block head_extra %}{% endblock %}
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+{% block head_extra %}{% endblock %}
     <script>
         // CSRF Token Helper for AJAX - Move to top so early scripts can use it
         function getCsrfToken() {

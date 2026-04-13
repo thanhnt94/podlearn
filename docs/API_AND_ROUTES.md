@@ -1,43 +1,49 @@
-# PodLearn - API and Routes
+# API và Các Tuyến đường (Routes) của PodLearn
 
-PodLearn leverages a modular routing system via Flask Blueprints to handle requests for the dashboard, player, and background API services.
+PodLearn sử dụng hệ thống định tuyến (routing) dựa trên các Flask Blueprints để xử lý các yêu cầu từ dashboard, trình phát video, và các dịch vụ API ngầm.
 
-## Core Blueprints
+## 🛠️ Các Blueprints Chính
 
-| Blueprint | Path Prefix | Purpose |
+| Blueprint | Tiền tố (Prefix) | Mục đích |
 | :--- | :--- | :--- |
-| `auth` | `/auth` | Handles registration, login, and profile management. |
-| `dashboard` | `/` | Home page, library overview, and set management. |
-| `player` | `/player` | Core interactive video player environment. |
-| `practice` | `/practice` | Study sessions for sentences, grammar, and vocab. |
-| `api` | `/api` | JSON endpoints for XHR/Fetch communication. |
-| `admin` | `/admin` | Administrative dashboard for system management. |
+| `auth` | `/auth` | Quản lý đăng ký, đăng nhập và hồ sơ người dùng (SSR). |
+| `dashboard` | `/` | Trang chủ và container phục vụ React SPA. |
+| `api` | `/api` | Các JSON endpoints cho React SPA giao tiếp. |
+| `player` | `/player` | Môi trường trình phát video tương tác (SSR/Legacy). |
+| `practice` | `/practice` | Các phiên học Mastery (Sentences, Grammar, Vocab). |
+| `admin` | `/admin` | Trang quản trị hệ thống. |
+| `share` | `/share` | Quản lý chia sẻ video giữa các người dùng. |
 
-## Notable Endpoints
+## 🚀 Các Endpoints Quan trọng (JSON API)
 
-### Dashboard (`/`)
-- `GET /`: The main dashboard for librarians and study sets.
-- `GET /import`: UI for importing new videos or study materials.
+### 1. Dashboard & Khởi tạo
+- `GET /api/dashboard/init`: Tải dữ liệu ban đầu cho React SPA (Bài học, video công khai, thông báo, thống kê).
+- `POST /api/lesson/<int:lesson_id>/track-time`: Cập nhật thời gian học và tính toán Streak.
 
-### Player (`/player`)
-- `GET /player/lesson/<int:lesson_id>`: Opens the interactive player for a saved lesson.
-- `GET /player/lesson_by_video/<int:video_id>`: Finds or creates a lesson record for a specific video before playing.
+### 2. Phân tích Ngôn ngữ & Từ vựng
+- `POST /api/vocab/analyze`: Phân tích câu (tách từ, tra từ điển offline) bằng Sudachi.
+- `POST /api/vocab/tokens/save`: Lưu cấu hình tách từ (segmentation) tùy chỉnh của người dùng.
+- `GET /api/vocab/list/<int:lesson_id>`: Lấy danh sách từ vựng được trích xuất cho một bài học.
+- `POST /api/vocab/update-wiki`: Cập nhật định nghĩa cộng đồng cho một từ vựng trong video.
 
-### Practice (`/practice`)
-- `GET /practice/sentence/<int:sentence_id>`: Direct study link for a sentence pattern.
-- `GET /practice/grammar/<int:sentence_id>`: Practice mode focused on grammar points within a sentence.
-- `GET /practice/vocab/<int:sentence_id>`: Practice mode focused on vocabulary.
+### 3. Shadowing & Phát âm
+- `POST /api/score-pronunciation`: Gửi tệp âm thanh hoặc văn bản để AI chấm điểm phát âm.
+- `GET /api/lesson/<int:lesson_id>/shadowing-stats`: Lấy thống kê luyện nói cho từng dòng trong bài học.
 
-### API (`/api`)
-- `POST /api/note/add`: Save a timestamped note from the player.
-- `POST /api/note/edit`: Edit an existing note.
-- `GET /api/subtitles/<int:video_id>`: Fetch transcript data for the player.
-- `POST /api/set/create`: Create a new Sentence Set.
-- `POST /api/sentence/add`: Add a new sentence record from the transcript.
-- `POST /api/import/json`: Endpoint for batch-importing JSON data.
+### 4. Dịch thuật & Media
+- `POST /api/translate`: Proxy dịch thuật qua server để tránh lỗi CORS.
+- `GET /api/youtube/subtitles-list/<video_id>`: Lấy danh sách phụ đề có sẵn trên YouTube.
+- `POST /api/youtube/subtitles-download/<int:lesson_id>`: Tải và xử lý phụ đề từ YouTube về database.
 
-## Backend Services
-Logical operations are handled by services under `app/services/`:
-- `yt_service`: Handles communication with YouTube APIs and `yt-dlp`.
-- `auth_service`: Management of user accounts and permissions.
-- `analysis_service`: Parsing and structuring linguistic analysis of sentences.
+### 5. SSO & Đồng bộ Hệ sinh thái (Internal)
+Các route này được bảo vệ bởi `X-Client-Secret`:
+- `POST /api/sso-internal/user-list`: Danh sách người dùng để đồng bộ hóa.
+- `POST /api/sso-internal/link-user`: Liên kết tài khoản local với CentralAuth UUID.
+- `POST /api/sso-internal/delete-user`: Xóa người dùng theo yêu cầu từ CentralAuth.
+
+## 🧠 Các Dịch vụ Backend (Services)
+Các logic phức tạp được xử lý tại `app/services/`:
+- `subtitle_service`: Xử lý phân tích và định dạng phụ đề (VTT/JSON).
+- `vocab_service`: Tích hợp các bộ từ điển tiếng Nhật offline và online.
+- `shadowing_service`: Logic chấm điểm và quản lý lịch sử phát âm.
+- `audio_service`: Tạo và xử lý tệp âm thanh (TTS/Cắt ghép).

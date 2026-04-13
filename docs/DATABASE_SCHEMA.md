@@ -1,73 +1,69 @@
-# PodLearn Database Schema
+# Sơ đồ Cơ sở Dữ liệu PodLearn
 
-PodLearn uses a relational database structure (typically SQLite for development, PostgreSQL in production) to manage users, video content, and individual learning progress.
+PodLearn sử dụng cấu trúc cơ sở dữ liệu quan hệ (SQLite cho môi trường phát triển, PostgreSQL cho production) để quản lý người dùng, nội dung video, và tiến trình học tập cá nhân hóa.
 
-## Entity Relationship Diagram
+## 📊 Sơ đồ Quan hệ Thực thể (ERD)
 
 ```mermaid
 erDiagram
-    USERS ||--o{ LESSONS : "has"
-    USERS ||--o{ NOTES : "takes"
-    USERS ||--o{ SENTENCE_SETS : "owns"
+    USERS ||--o{ LESSONS : "có"
+    USERS ||--o{ NOTES : "ghi chép"
+    USERS ||--o{ SENTENCE_SETS : "sở hữu"
+    USERS ||--o{ SHADOWING_HISTORY : "thực hiện"
     
-    VIDEOS ||--o{ LESSONS : "contains"
-    VIDEOS ||--o{ SUBTITLE_TRACKS : "has"
-    VIDEOS ||--o{ SENTENCES : "source for"
+    VIDEOS ||--o{ LESSONS : "chứa"
+    VIDEOS ||--o{ SUBTITLE_TRACKS : "có"
+    VIDEOS ||--o{ SENTENCES : "nguồn cho"
+    VIDEOS ||--o{ VIDEO_GLOSSARY : "wiki"
     
-    LESSONS ||--o{ NOTES : "contains"
+    LESSONS ||--o{ NOTES : "chứa"
+    LESSONS ||--o{ SENTENCE_TOKENS : "phân tách câu"
     
-    SENTENCE_SETS ||--o{ SENTENCES : "contains"
+    SENTENCE_SETS ||--o{ SENTENCES : "chứa"
     
-    SENTENCES }|--o{ VOCABULARY : "linked to"
-    SENTENCES }|--o{ GRAMMAR : "linked to"
-    
-    SUBTITLE_TRACKS ||--o{ SUBTITLE_SEGMENTS : "has"
+    SENTENCES }|--o{ VOCABULARY : "liên kết"
+    SENTENCES }|--o{ GRAMMAR : "liên kết"
 ```
 
-## Core Tables
+## 📋 Các Bảng Chính
 
-### 1. `users`
-- **`id`**: Primary Key (Integer)
-- **`username`**: String (80), Unique
-- **`email`**: String (120), Unique
-- **`password_hash`**: String (256)
-- **`is_admin`**: Boolean (Default: False)
-- **`current_streak`**: Integer (Gamification)
-- **`longest_streak`**: Integer (Gamification)
+### 1. `users` (Người dùng)
+- **`id`**: Khóa chính (Integer).
+- **`username`**: Tên đăng nhập (Unique).
+- **`email`**: Email liên lạc (Unique).
+- **`central_auth_id`**: UUID từ hệ thống CentralAuth (Đồng bộ SSO).
+- **`current_streak` / `longest_streak`**: Dữ liệu Gamification.
+- **`last_study_date`**: Ngày học cuối cùng để tính Streak.
 
-### 2. `videos`
-- **`id`**: Primary Key (Integer)
-- **`youtube_id`**: String (20), Unique
-- **`title`**: String (500)
-- **`duration_seconds`**: Integer
-- **`status`**: String (pending, processing, completed, failed)
+### 2. `videos` (Video)
+- **`youtube_id`**: ID duy nhất từ YouTube (vd: `dQw4w9WgXcQ`).
+- **`title`**: Tiêu đề video.
+- **`status`**: Trạng thái xử lý (pending, processing, completed, failed).
+- **`visibility`**: Chế độ hiển thị (public, private).
 
-### 3. `lessons`
-*Links a user to a specific video and tracks their settings/progress.*
-- **`id`**: Primary Key (Integer)
-- **`user_id`**: Foreign Key (`users.id`)
-- **`video_id`**: Foreign Key (`videos.id`)
-- **`original_lang_code`**: String (10)
-- **`target_lang_code`**: String (10)
-- **`is_completed`**: Boolean
-- **`time_spent`**: Integer (Seconds)
-- **`settings_json`**: Text (UI customizations)
+### 3. `lessons` (Bài học)
+*Liên kết người dùng với một video cụ thể để theo dõi tiến độ.*
+- **`user_id`** / **`video_id`**: Khóa ngoại.
+- **`time_spent`**: Tổng thời gian đã học (giây).
+- **`is_completed`**: Đánh dấu hoàn thành bài học.
+- **`last_accessed`**: Lần cuối cùng mở bài học.
 
-### 4. `sentences` & `sentence_sets`
-*Used for the 'Mastery' features where users save specific patterns.*
-- **`sentence_sets`**: Groups of sentences (id, user_id, title, set_type).
-- **`sentences`**: Individual study records (id, user_id, set_id, original_text, translated_text, audio_url, detailed_analysis).
+### 4. `sentences` & `sentence_sets` (Bộ câu & Mastery)
+- **`sentence_sets`**: Các "bộ sưu tập" câu (Mastery Decks) của người dùng.
+- **`sentences`**: Các câu học tập cụ thể, lưu trữ văn bản gốc, dịch, âm thanh (audio_url) và phân tích ngôn ngữ sâu (JSON).
 
-### 5. `notes`
-- **`id`**: Primary Key (Integer)
-- **`user_id`**: Foreign Key (`users.id`)
-- **`lesson_id`**: Foreign Key (`lessons.id`)
-- **`timestamp`**: Float (Time in video)
-- **`vibe_level`**: Integer (Importance/Level)
-- **`content`**: Text
+### 5. `shadowing_history` (Lịch sử Luyện nói)
+- **`accuracy_score`**: Điểm độ chính xác (0-100).
+- **`spoken_text`**: Văn bản người dùng đã nói (từ speech-to-text).
+- **`start_time` / `end_time`**: Tọa độ thời gian trong video.
 
-### 6. Supporting Entities
-- **`subtitles`**: Storage for raw and translated transcript data.
-- **`grammar`**: Detailed grammar point definitions for mastery.
-- **`vocabulary`**: Detailed vocabulary word definitions.
-- **`settings`**: User-wide configuration flags and preferences.
+### 6. `video_glossary` (Wiki Từ vựng)
+- **`term`**: Từ vựng/Thuật ngữ.
+- **`definition`**: Định nghĩa cộng đồng.
+- **`last_updated_by`**: Người dùng cập nhật cuối cùng.
+
+### 7. Các bảng hỗ trợ khác
+- **`subtitles`**: Lưu trữ nội dung phụ đề (JSON).
+- **`notes`**: Ghi chú theo dòng thời gian trong player.
+- **`sentence_tokens`**: Lưu trữ cách phân tách từ (segmentation) tùy chỉnh của người dùng cho từng dòng.
+- **`share_requests`**: Quản lý việc chia sẻ workspace giữa các người dùng.

@@ -1,32 +1,39 @@
-# PodLearn Project Structure
+# Cấu trúc Dự án PodLearn
 
-PodLearn is a Modular Flask-based web application designed for language learners focusing on video-based learning (YouTube).
+PodLearn được tổ chức theo kiến trúc Modular Monolith, tách biệt rõ ràng giữa Backend (Flask) và Frontend (React) nhưng vẫn duy trì sự nhất quán trong cùng một repository.
 
-## Directory Layout
+## 📂 Sơ đồ Thư mục
 
 ```text
 PodLearn/
-├── app/                        # Main Application Code
-│   ├── models/                 # SQLAlchemy Models (Database Entities)
-│   ├── routes/                 # Flask Blueprints (Controllers)
-│   ├── services/               # Business Logic & External Integrations
-│   ├── static/                 # Frontend Assets
-│   ├── templates/              # Jinja2 HTML Templates
-│   ├── utils/                  # Helper functions (time, formatting)
-│   ├── __init__.py             # App Factory & configuration
-│   ├── config.py               # Environment configuration
-│   └── extensions.py           # Flask Extension initialization
-├── migrations/                 # Database Migration Files (Alembic)
-├── docs/                       # Project Documentation
-├── run_podlearn.py             # Main entry point (standardized port 5020)
-├── requirements.txt            # Python Dependency list
-├── app.db                      # Local SQLite Database (Development)
-└── .env                        # Environment Secrets (DB URI, API Keys)
+├── app/                        # Backend: Mã nguồn chính (Python/Flask)
+│   ├── models/                 # SQLAlchemy Models (Thực thể Database)
+│   ├── routes/                 # Flask Blueprints (Controllers & API)
+│   ├── services/               # Logic nghiệp vụ & Tích hợp bên ngoài
+│   ├── static/                 # Tài sản tĩnh cho SSR (Landing, Auth)
+│   ├── templates/              # Jinja2 Templates (Landing, Auth)
+│   ├── utils/                  # Hàm tiện ích (Time, Formatting)
+│   ├── __init__.py             # App Factory & Cấu hình Extensions
+│   ├── config.py               # Cấu hình môi trường
+│   └── extensions.py           # Khởi tạo Flask Extensions (DB, Migrate)
+├── docs/                       # Tài liệu kỹ thuật dự án
+├── frontend/                   # Frontend: Ứng dụng React SPA (Vite/TS)
+│   ├── src/                    # Mã nguồn React (Components, Store, Hooks)
+│   ├── public/                 # Tài sản công cộng cho Frontend
+│   ├── package.json            # Quản lý thư viện Node.js
+│   └── vite.config.ts          # Cấu hình công cụ build Vite
+├── migrations/                 # Các tệp Migration Database (Alembic)
+├── logs/                       # Tệp nhật ký hệ thống
+├── run_podlearn.py             # Điểm khởi chạy Backend (Port 5020)
+├── requirements.txt            # Danh sách thư viện Python
+├── .env                        # Chứa các biến môi trường (Secrets)
+└── README.md                   # Hướng dẫn tổng quan dự án
 ```
 
-## Key Components
+## 🏗️ Các Thành phần Chính
 
-- **App Factory**: Located in `app/__init__.py`, creates the Flask instance and registers blueprints.
-- **Database**: Handled by SQLAlchemy. Migrations are managed via Flask-Migrate.
-- **Routing**: Split into modular blueprints for better maintainability.
-- **Frontend**: Primarily Server-Side Rendering (SSR) with Jinja2, with dynamic interaction handled by Vanilla JavaScript components.
+- **App Factory (`app/__init__.py`)**: Khởi tạo Flask App, đăng ký Blueprints và thiết lập các API SSO với CentralAuth.
+- **Modern SPA Entry Point**: Flask đóng vai trò là container, phục vụ trang React hiện đại tại route gốc `/` cho những người dùng đã đăng nhập.
+- **Frontend SPA**: Nằm hoàn toàn trong thư mục `frontend/`, giao tiếp với Backend thông qua JSON API (Blueprint `api`).
+- **Media Services**: Xử lý tải video từ YouTube, trích xuất âm thanh và tạo tệp Shadowing thông qua các Service chuyên biệt trong `app/services/`.
+- **Ecosystem Sync**: Các route đặc biệt dành cho việc đồng bộ người dùng với hệ sinh thái chung của người dùng.

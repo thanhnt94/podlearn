@@ -61,6 +61,9 @@ interface PlayerState {
     s3: number | null;
   };
 
+  isAutoNext: boolean;
+  shadowingStats: Record<string, { count: number, avg: number, best: number }>;
+
   abLoop: {
     start: number | null;
     end: number | null;
@@ -107,6 +110,9 @@ interface PlayerState {
   fetchLessonData: (id: number) => Promise<void>;
   completeLesson: () => Promise<void>;
   fetchNotes: () => Promise<void>;
+  fetchShadowingStats: () => Promise<void>;
+  setAutoNext: (isAutoNext: boolean) => void;
+  setMode: (mode: 'watch' | 'shadowing' | 'loop') => void;
   setSidebarWidth: (width: number) => void;
 }
 
@@ -141,6 +147,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   seekToTime: null,
   isRecording: false,
   shadowingResult: null,
+  isAutoNext: false,
+  shadowingStats: {},
 
   availableTracks: [],
   trackIds: { s1: null, s2: null, s3: null },
@@ -180,6 +188,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
     
     const newIndex = subtitles.findIndex(line => time >= line.start && time <= line.end);
+    
+    // Auto-pause at end of sentence in shadowing mode
+    // Strategy: detect when the player LEAVES the current subtitle line
+    // (either into a gap or into the next line). This is 100% reliable
+    // regardless of polling interval, unlike a tiny time-window check.
+    const { mode, isPlaying } = get();
+    if (mode === 'shadowing' && isPlaying && activeLineIndex !== -1) {
+        if (newIndex !== activeLineIndex) {
+            // We left the active line — pause immediately
+            set({ isPlaying: false });
+            return;
+        }
+    }
+
     if (newIndex !== -1 && newIndex !== activeLineIndex) {
       set({ activeLineIndex: newIndex });
     }
@@ -433,6 +455,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
     } catch (e) {
         console.error("Failed to fetch notes", e);
+    }
+  },
+
+  setAutoNext: (isAutoNext) => set({ isAutoNext }),
+
+  setMode: (mode) => set({ mode }),
+
+  fetchShadowingStats: async () => {
+    const { lessonId } = get();
+    if (!lessonId) return;
+    try {
+        const res = await axios.get(`/api/lesson/${lessonId}/shadowing-stats`);
+        if (res.data.stats) {
+            set({ shadowingStats: res.data.stats });
+        }
+    } catch (e) {
+        console.error("Failed to fetch shadowing stats", e);
     }
   }
 }));
