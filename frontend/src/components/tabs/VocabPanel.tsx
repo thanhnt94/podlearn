@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Book, Plus, Check, Search, Loader2, Activity, Globe, Languages, ChevronDown, Trash2, ChevronLeft, ChevronRight, Scissors, X, RotateCcw, GripVertical } from 'lucide-react';
+import { Book, Plus, Check, Search, Loader2, Activity, Globe, Languages, ChevronDown, Trash2, ChevronLeft, ChevronRight, Scissors, X, RotateCcw, GripVertical, Zap } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import axios from 'axios';
@@ -21,6 +21,7 @@ interface SavedVocab {
     definition: string;
     reading: string;
     source: string;
+    frequency?: number;
 }
 
 type DictPriority = 'jamdict' | 'mazii_online' | 'mazii_offline' | 'javidict' | 'suge' | 'edit_segments';
@@ -52,6 +53,7 @@ export const VocabPanel: React.FC = () => {
     const [dictPriority, setDictPriority] = useState<DictPriority>('mazii_offline');
     const [activeSubTab, setActiveSubTab] = useState<'live' | 'all'>('live');
     const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
+    const [isScanning, setIsScanning] = useState(false);
     const currentLineStartRef = useRef<number>(0);
 
     // Drag-and-Drop Optimization
@@ -289,6 +291,19 @@ export const VocabPanel: React.FC = () => {
     const handleReorderSegments = (newVocabList: AnalyzedVocab[]) => {
         isReorderingRef.current = true;
         setLocalVocab(newVocabList);
+    };
+
+    const handleScanFullLesson = async () => {
+        if (!lessonId) return;
+        setIsScanning(true);
+        try {
+            await axios.post('/api/vocab/generate-all', { lesson_id: lessonId, priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority });
+            await fetchSavedVocab();
+        } catch (err) {
+            console.error("Scan failed", err);
+        } finally {
+            setIsScanning(false);
+        }
     };
 
     const handleResetSegments = async () => {
@@ -615,7 +630,30 @@ export const VocabPanel: React.FC = () => {
             ) : (
                 <section className="space-y-4 px-1">
                     {/* ALL VOCAB TAB */}
-                    <div className="flex items-center gap-2 px-1 sticky top-[130px] z-10 bg-slate-950/80 backdrop-blur pb-2">
+                    <div className="flex flex-col gap-3 px-1 sticky top-[130px] z-10 bg-slate-950/80 backdrop-blur pb-4">
+                        {/* Scan Button */}
+                        <button 
+                            onClick={handleScanFullLesson}
+                            disabled={isScanning}
+                            className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all border shadow-2xl ${
+                                isScanning 
+                                ? 'bg-slate-900 border-white/5 text-slate-600 cursor-not-allowed' 
+                                : 'bg-gradient-to-r from-sky-600 to-indigo-600 border-white/10 text-white hover:scale-[1.02] active:scale-[0.98] shadow-sky-500/20'
+                            }`}
+                        >
+                            {isScanning ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin" />
+                                    Analyzing Transcript...
+                                </>
+                            ) : (
+                                <>
+                                    <Zap size={16} fill="currentColor" />
+                                    Scan & Analyze Full Lesson
+                                </>
+                            )}
+                        </button>
+
                         <div className="flex-1 flex items-center px-4 gap-3 bg-slate-900/50 rounded-2xl border border-white/5 focus-within:border-sky-500/30 transition-all">
                             <Search size={16} className="text-slate-600" />
                             <input 
@@ -640,9 +678,14 @@ export const VocabPanel: React.FC = () => {
                                         </div>
                                         <div className="flex justify-between items-start">
                                             <div className="space-y-2">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-3">
                                                     <h4 className="text-white font-bold text-[15px]">{v.term}</h4>
                                                     <span className="text-[10px] text-slate-600 font-mono">[{v.reading}]</span>
+                                                    {v.frequency && v.frequency > 1 && (
+                                                        <span className="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full text-[9px] font-black border border-sky-500/20">
+                                                            x{v.frequency}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <p className="text-sm text-slate-500 leading-relaxed pr-12 font-medium italic">{v.definition}</p>
                                             </div>

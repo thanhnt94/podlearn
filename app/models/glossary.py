@@ -22,6 +22,9 @@ class VideoGlossary(db.Model):
     # Track the source of the definition (mazii or jamdict)
     source = db.Column(db.String(20), default='jamdict')
     
+    # Frequency: Number of times this term appears in the lesson/video
+    frequency = db.Column(db.Integer, default=1)
+    
     # Metadata
     last_updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

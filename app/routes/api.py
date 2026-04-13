@@ -374,11 +374,19 @@ def generate_all_vocab():
         if not lesson_id:
             return jsonify({"error": "Missing lesson_id"}), 400
             
-        track = SubtitleTrack.query.filter_by(lesson_id=lesson_id).first()
-        if not track:
-            return jsonify({"error": "No subtitles found"}), 404
+        lesson = Lesson.query.get(lesson_id)
+        if not lesson:
+            return jsonify({"error": "Lesson not found"}), 404
             
-        content = json.loads(track.content)
+        track = SubtitleTrack.query.filter_by(video_id=lesson.video_id).first()
+        if not track:
+            return jsonify({"error": "No subtitles found for this video"}), 404
+            
+        # Access content directly from content_json (no need to json.loads if it's already list/dict)
+        content = track.content_json
+        if not content:
+            return jsonify({"error": "Subtitle content is empty"}), 400
+            
         texts = [line.get('text', '') for line in content]
         
         results = vocab_service.analyze_batch_japanese(texts, priority=priority)
@@ -387,15 +395,23 @@ def generate_all_vocab():
         video_id = lesson.video_id if lesson else None
         
         for res in results:
-            item = VideoGlossary(
-                lesson_id=lesson_id,
-                video_id=video_id,
-                term=res['lemma'],
-                reading=res['reading'],
-                definition=", ".join(res['meanings']),
-                source=res['source']
-            )
-            db.session.add(item)
+            term = res['lemma']
+            # Check for existing
+            existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
+            if existing:
+                existing.frequency = res.get('count', 1)
+                # Keep existing definition/reading if already set
+            else:
+                item = VideoGlossary(
+                    lesson_id=lesson_id,
+                    video_id=video_id,
+                    term=term,
+                    reading=res.get('reading', ''),
+                    definition=", ".join(res.get('meanings', [])),
+                    source=res.get('source', 'offline'),
+                    frequency=res.get('count', 1)
+                )
+                db.session.add(item)
             
         db.session.commit()
         return jsonify({"status": "success", "count": len(results), "source": priority})
@@ -459,9 +475,10 @@ def get_vocab_list(lesson_id):
     try:
         priority = request.args.get('priority', 'mazii_offline')
         
-        # 1. Get unique terms recorded for this lesson
-        items = VideoGlossary.query.filter_by(lesson_id=lesson_id).all()
-        terms = [it.term for it in items]
+        # 1. Get unique terms recorded for this lesson, sorted by frequency
+        items = VideoGlossary.query.filter_by(lesson_id=lesson_id).order_by(VideoGlossary.frequency.desc()).all()
+        terms_map = {it.term: it.frequency for it in items}
+        terms = list(terms_map.keys())
         
         if not terms:
             return jsonify({"vocab": [], "source": "none"})
@@ -480,7 +497,8 @@ def get_vocab_list(lesson_id):
                 "term": item['word'],
                 "reading": item['reading'],
                 "definition": item['definition'],
-                "source": item['source']
+                "source": item['source'],
+                "frequency": terms_map.get(item['word'], 1)
             })
 
         return jsonify({

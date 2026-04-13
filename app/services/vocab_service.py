@@ -3,6 +3,7 @@ import sqlite3
 import json
 import logging
 import re
+from collections import Counter
 from flask import current_app
 from sudachipy import dictionary, tokenizer
 
@@ -162,18 +163,14 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
     return results
 
 def analyze_batch_japanese(texts, priority='mazii_offline'):
-    """Segment a batch of texts and return unique lemmas using Sudachi."""
-    unique_lemmas = set()
+    """Segment a batch of texts and count lemma frequencies using Sudachi."""
+    counts = Counter()
     tk = get_tokenizer()
     
     if not tk: return []
 
     for text in texts:
         if not text or len(text.strip()) == 0: continue
-        if any(char.isdigit() for char in text):
-            if all(not char.isalpha() for char in text):
-                continue
-
         tokens = tk.tokenize(text, _sudachi_mode)
         for token in tokens:
             lemma = token.dictionary_form()
@@ -186,6 +183,8 @@ def analyze_batch_japanese(texts, priority='mazii_offline'):
             if len(lemma) < 1:
                 continue
                 
-            unique_lemmas.add(lemma)
+            counts[lemma] += 1
     
-    return [{'lemma': lemma, 'reading': '', 'meanings': [], 'source': 'offline'} for lemma in unique_lemmas]
+    # Return as list of dicts with count
+    return [{'lemma': lemma, 'count': count, 'reading': '', 'meanings': [], 'source': 'offline'} 
+            for lemma, count in counts.items()]
