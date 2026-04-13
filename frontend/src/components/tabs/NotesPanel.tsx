@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Clock, Send, X, Edit2, Save } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export const NotesPanel: React.FC = () => {
-  const { notes, lessonId, requestSeek, addNote, deleteNote, updateNote, setPlaying, currentTime } = usePlayerStore();
+  const { 
+    notes, lessonId, requestSeek, addNote, deleteNote, 
+    updateNote, setPlaying, currentTime, settings 
+  } = usePlayerStore();
   const [isAdding, setIsAdding] = useState(false);
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -13,6 +16,26 @@ export const NotesPanel: React.FC = () => {
   // Edit State
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editContent, setEditContent] = useState('');
+
+  // Auto-scroll refs
+  const noteRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  // Auto-scroll logic
+  useEffect(() => {
+    const activeNote = notes.find(note => {
+      const showAt = note.timestamp;
+      const endAt = showAt + settings.notes.duration;
+      const startAt = showAt - settings.notes.beforeSecs;
+      return currentTime >= startAt && currentTime <= endAt;
+    });
+
+    if (activeNote && noteRefs.current[activeNote.id]) {
+      noteRefs.current[activeNote.id]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [currentTime, notes, settings.notes.duration, settings.notes.beforeSecs]);
 
   const handleAddClick = () => {
       setPlaying(false); // Pause as in legacy
@@ -148,12 +171,23 @@ export const NotesPanel: React.FC = () => {
             <p className="text-[10px] font-bold uppercase tracking-widest">No notes yet.<br/>Annotate your wisdom.</p>
           </div>
         ) : (
-          notes.map((note) => (
-            <div 
-              key={note.id}
-              onClick={() => editingId === null && requestSeek(note.timestamp)}
-              className={`group bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl p-4 transition-all relative ${editingId === note.id ? 'border-sky-500/30' : 'cursor-pointer'}`}
-            >
+          notes.map((note) => {
+            const showAt = note.timestamp;
+            const endAt = showAt + settings.notes.duration;
+            const startAt = showAt - settings.notes.beforeSecs;
+            const isActive = currentTime >= startAt && currentTime <= endAt;
+            
+            return (
+                <div 
+                key={note.id}
+                ref={(el) => { noteRefs.current[note.id] = el; }}
+                onClick={() => editingId === null && requestSeek(note.timestamp)}
+                className={`group bg-white/5 hover:bg-white/10 border transition-all relative rounded-2xl p-4 ${
+                    isActive 
+                        ? 'border-sky-500 bg-sky-500/5 shadow-[0_0_30px_rgba(14,165,233,0.1)] z-10' 
+                        : editingId === note.id ? 'border-sky-500/30' : 'border-white/5 cursor-pointer'
+                }`}
+                >
               {editingId === note.id ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -210,7 +244,8 @@ export const NotesPanel: React.FC = () => {
                 </div>
               )}
             </div>
-          ))
+          );
+        })
         )}
       </div>
     </div>
