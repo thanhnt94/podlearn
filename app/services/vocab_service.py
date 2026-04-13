@@ -25,7 +25,11 @@ def get_tokenizer():
 
 def get_dict_paths():
     """Detect all available SQLite dictionary files (.db)."""
-    base_dir = r"c:\Code\Ecosystem\PodLearn\dictionaries\database"
+    # Fix: Use dynamic relative path instead of hardcoded Windows path
+    current_dir = os.path.dirname(__file__) # app/services
+    root_dir = os.path.dirname(os.path.dirname(current_dir)) # PodLearn root
+    base_dir = os.path.join(root_dir, 'dictionaries', 'database')
+    
     paths = {}
     if os.path.exists(base_dir):
         for f in os.listdir(base_dir):
