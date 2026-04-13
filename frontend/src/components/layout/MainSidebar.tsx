@@ -3,11 +3,12 @@ import {
     Home, Compass, BookOpen, User, 
     PlusCircle, Flame, LogOut, ChevronRight, Headphones
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [isExpanded, setIsExpanded] = useState(false);
 
     const menuItems = [
@@ -100,7 +101,9 @@ export const MainSidebar: React.FC = () => {
                         )}
                      </AnimatePresence>
                      
-                     <button className={`flex items-center bg-gradient-to-br from-sky-500 to-cyan-600 text-slate-950 rounded-2xl font-black transition-all active:scale-95 shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20 ${
+                     <button 
+                        onClick={() => navigate('/import')}
+                        className={`flex items-center bg-gradient-to-br from-sky-500 to-cyan-600 text-slate-950 rounded-2xl font-black transition-all active:scale-95 shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20 ${
                          isExpanded ? 'w-full gap-4 px-4 py-4 text-[11px] uppercase tracking-widest' : 'w-12 h-12 justify-center p-0'
                      }`}>
                         <PlusCircle size={20} />

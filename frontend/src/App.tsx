@@ -7,6 +7,9 @@ import { DashboardView } from './components/dashboard/DashboardView';
 import { ExploreView } from './components/explore/ExploreView';
 import { StatsView } from './components/profile/StatsView';
 import { MasteryView } from './components/mastery/MasteryView';
+import { ImportView } from './components/dashboard/ImportView';
+
+import { PlayerErrorBoundary } from './components/common/PlayerErrorBoundary';
 
 // Wrapper for Player to handle fetching data from URL params
 const PlayerRouteWrapper: React.FC = () => {
@@ -14,22 +17,28 @@ const PlayerRouteWrapper: React.FC = () => {
   const { fetchLessonData, setLessonData, lessonId } = usePlayerStore();
 
   useEffect(() => {
-    if (id) {
-      const numericId = parseInt(id);
-      const data = (window as any).__PODLEARN_DATA__;
-      
-      // If we have data from server for THIS specific lesson, hydrate the store immediately
-      // This fix ensures videoId is set before the player component renders.
-      if (data && data.lesson_id === numericId && lessonId !== numericId) {
-         setLessonData(data);
-         fetchLessonData(numericId);
-      } else if (lessonId !== numericId) {
-         fetchLessonData(numericId);
-      }
-    }
-  }, [id, fetchLessonData, setLessonData, lessonId]);
+    if (!id) return;
+    const numericId = parseInt(id);
+    if (isNaN(numericId)) return;
 
-  return <PlayerView />;
+    const serverData = (window as any).__PODLEARN_DATA__;
+    
+    // CASE 1: Full Page Reload / First Visit to specific lesson
+    if (serverData && serverData.lesson_id === numericId && lessonId !== numericId) {
+      setLessonData(serverData);
+      fetchLessonData(numericId);
+    } 
+    // CASE 2: Client-side Navigation
+    else if (lessonId !== numericId) {
+      fetchLessonData(numericId);
+    }
+  }, [id, lessonId]);
+
+  return (
+    <PlayerErrorBoundary key={id}>
+        <PlayerView />
+    </PlayerErrorBoundary>
+  );
 };
 
 const App: React.FC = () => {
@@ -48,6 +57,9 @@ const App: React.FC = () => {
           
           {/* Profile / Stats */}
           <Route path="/profile" element={<StatsView />} />
+          
+          {/* Import New Video */}
+          <Route path="/import" element={<ImportView />} />
           
           {/* Player View */}
           <Route path="/player/lesson/:id" element={<PlayerRouteWrapper />} />

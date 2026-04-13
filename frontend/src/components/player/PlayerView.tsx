@@ -29,6 +29,12 @@ export const PlayerView: React.FC = () => {
     sidebarWidth, setSidebarWidth
   } = usePlayerStore();
 
+  // Expose control to window for child components (e.g. TranscriptBody empty state)
+  useEffect(() => {
+    (window as any).openSettings = () => setIsSettingsOpen(true);
+    return () => { delete (window as any).openSettings; };
+  }, []);
+
   const progressLine = activeLineIndex !== -1 ? activeLineIndex + 1 : 0;
   const totalLines = subtitles.length;
   const progressPercent = totalLines > 0 ? Math.floor((progressLine / totalLines) * 100) : 0;
@@ -78,11 +84,29 @@ export const PlayerView: React.FC = () => {
 
   if (!isLoaded || !videoId) {
       return (
-          <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 gap-6">
-              <div className="w-16 h-16 border-4 border-sky-500/20 border-t-sky-500 rounded-full animate-spin shadow-[0_0_30px_rgba(14,165,233,0.1)]" />
-              <div className="text-center space-y-2">
-                  <h3 className="text-lg font-black text-white uppercase tracking-widest opacity-50">Initializing Session</h3>
-                  <p className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.3em]">AuraFlow v2.0</p>
+          <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#020617] overflow-hidden">
+              {/* Subtle background grain/noise for premium feel */}
+              <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-50" />
+              
+              <div className="relative z-10 flex flex-col items-center gap-8">
+                  <div className="relative">
+                      <div className="w-24 h-24 border-4 border-sky-500/10 border-t-sky-500 rounded-full animate-spin shadow-[0_0_60px_rgba(14,165,233,0.1)]" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-3 h-3 bg-sky-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(14,165,233,1)]" />
+                      </div>
+                  </div>
+                  
+                  <div className="text-center space-y-4">
+                      <div className="flex flex-col items-center">
+                         <h3 className="text-2xl font-black text-white uppercase tracking-[0.5em] animate-pulse">Initializing</h3>
+                         <div className="h-1 w-12 bg-sky-500 rounded-full mt-1" />
+                      </div>
+                      <div className="flex items-center justify-center gap-3">
+                          <span className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em]">Neural Link Stable</span>
+                          <div className="w-1 h-1 bg-slate-800 rounded-full" />
+                          <span className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em]">AuraFlow v2.5</span>
+                      </div>
+                  </div>
               </div>
           </div>
       );

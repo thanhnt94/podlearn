@@ -30,9 +30,21 @@ export const TranscriptBody: React.FC = () => {
 
     if (subtitles.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-64 text-slate-500 gap-3">
-                <div className="w-8 h-8 border-2 border-slate-700 border-t-sky-500 rounded-full animate-spin" />
-                <p className="text-sm font-medium tracking-tight uppercase">Calibrating Transcript Channels...</p>
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-6">
+                <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
+                    <div className="w-12 h-12 border-2 border-slate-700 border-t-sky-500 rounded-full animate-spin" />
+                </div>
+                <h3 className="text-lg font-black text-white uppercase tracking-tight mb-2">Transcript Empty</h3>
+                <p className="text-slate-500 text-sm max-w-[240px] leading-relaxed mb-8">
+                    No subtitle channels detected for this session. Connect a YouTube caption track to start learning.
+                </p>
+                
+                <button 
+                    onClick={() => (window as any).openSettings?.()}
+                    className="px-6 py-3 bg-white text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-sky-500 transition-all active:scale-95 shadow-xl"
+                >
+                    Open Settings
+                </button>
             </div>
         );
     }

@@ -274,16 +274,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     let newSettings = state.settings;
     if (data.settings_json) {
         try {
-            const saved = JSON.parse(data.settings_json);
-            newSettings = {
-                ...state.settings,
-                ...saved,
-                s1: { ...state.settings.s1, ...(saved.s1 || {}) },
-                s2: { ...state.settings.s2, ...(saved.s2 || {}) },
-                s3: { ...state.settings.s3, ...(saved.s3 || {}) },
-                notes: { ...state.settings.notes, ...(saved.notes || {}) }
-            };
-        } catch (e) { console.error("Failed to parse settings_json", e); }
+            // ROBUST PARSE: Never trust server-side strings
+            const saved = typeof data.settings_json === 'string' 
+                ? JSON.parse(data.settings_json) 
+                : data.settings_json;
+            
+            if (saved && typeof saved === 'object') {
+                newSettings = {
+                    ...state.settings,
+                    ...saved,
+                    s1: { ...state.settings.s1, ...(saved.s1 || {}) },
+                    s2: { ...state.settings.s2, ...(saved.s2 || {}) },
+                    s3: { ...state.settings.s3, ...(saved.s3 || {}) },
+                    notes: { ...state.settings.notes, ...(saved.notes || {}) }
+                };
+            }
+        } catch (e) { 
+            console.warn("Recovered from malformed settings_json in setLessonData", e); 
+        }
     }
 
     return { 
@@ -300,18 +308,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
 
   fetchLessonData: async (id) => {
-    // 1. IMMEDIATE SYNCHRONOUS RESET to show loader and clear old video
-    set({ 
-      isLoaded: false, 
-      lessonId: id, 
-      videoId: null, 
-      subtitles: [], 
-      s1Lines: [], 
-      s2Lines: [], 
-      s3Lines: [], 
-      activeLineIndex: -1,
-      availableTracks: [] 
-    });
+    const state = get();
+    // 1. If we ALREADY have this lesson and it's loaded, don't reset. 
+    // This prevents the 'black screen' flicker when hydrating from window data.
+    if (state.lessonId === id && state.isLoaded && state.videoId) {
+        // Just refresh notes/status in background if needed, but don't show loader
+    } else {
+        set({ 
+          isLoaded: false, 
+          lessonId: id, 
+          videoId: null, 
+          subtitles: [], 
+          s1Lines: [], 
+          s2Lines: [], 
+          s3Lines: [], 
+          activeLineIndex: -1,
+          availableTracks: [] 
+        });
+    }
     
     try {
         const metaRes = await axios.get(`/api/subtitles/fetch/${id}`);
@@ -346,16 +360,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         let finalSettings = get().settings;
         if (m.settings_json) {
             try {
-                const saved = JSON.parse(m.settings_json);
-                finalSettings = {
-                    ...get().settings,
-                    ...saved,
-                    s1: { ...get().settings.s1, ...(saved.s1 || {}) },
-                    s2: { ...get().settings.s2, ...(saved.s2 || {}) },
-                    s3: { ...get().settings.s3, ...(saved.s3 || {}) },
-                    notes: { ...get().settings.notes, ...(saved.notes || {}) }
-                };
-            } catch (e) {}
+                const saved = typeof m.settings_json === 'string' 
+                    ? JSON.parse(m.settings_json) 
+                    : m.settings_json;
+
+                if (saved && typeof saved === 'object') {
+                    finalSettings = {
+                        ...get().settings,
+                        ...saved,
+                        s1: { ...get().settings.s1, ...(saved.s1 || {}) },
+                        s2: { ...get().settings.s2, ...(saved.s2 || {}) },
+                        s3: { ...get().settings.s3, ...(saved.s3 || {}) },
+                        notes: { ...get().settings.notes, ...(saved.notes || {}) }
+                    };
+                }
+            } catch (e) {
+                console.warn("Recovered from malformed settings_json in fetchLessonData", e);
+            }
         }
 
         set({ 

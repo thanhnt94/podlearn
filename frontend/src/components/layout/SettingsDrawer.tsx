@@ -9,7 +9,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
 
 type MainTab = 'display' | 'notes' | 'library';
-interface YTTrack { lang_code: string; lang_name: string; is_auto: boolean; }
+interface YTTrack { lang_code: string; name: string; is_auto: boolean; }
 
 export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
     const { 
@@ -381,7 +381,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                     const isImported = availableTracks.some(at => at.language_code === t.lang_code && at.is_auto_generated === t.is_auto);
                                                     return (
                                                         <div key={t.lang_code + t.is_auto} className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                                            <div><div className="text-xs font-bold text-white flex items-center gap-2 uppercase">{t.lang_name} {t.is_auto && <span className="text-[8px] opacity-40">AUTO</span>}</div></div>
+                                                            <div><div className="text-xs font-bold text-white flex items-center gap-2 uppercase">{t.name} {t.is_auto && <span className="text-[8px] opacity-40">AUTO</span>}</div></div>
                                                             {isImported ? <Check size={16} className="text-sky-500 mr-2" /> : (
                                                                 <button onClick={() => handleImport(t.lang_code, t.is_auto)} disabled={importingLang === t.lang_code}
                                                                         className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-50">

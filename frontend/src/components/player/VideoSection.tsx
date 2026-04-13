@@ -22,14 +22,16 @@ export const VideoSection: React.FC = () => {
   
   const { 
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
-    volume, playbackRate, isLoaded, isLockedPaused
+    volume, playbackRate, isLockedPaused
   } = usePlayerStore();
 
+  const [isReady, setIsReady] = React.useState(false);
+
   useEffect(() => {
-    if (ytPlayer.current && ytPlayer.current.setPlaybackRate && isLoaded) {
+    if (ytPlayer.current && isReady && ytPlayer.current.setPlaybackRate) {
       ytPlayer.current.setPlaybackRate(playbackRate);
     }
-  }, [playbackRate, isLoaded]);
+  }, [playbackRate, isReady]);
 
   useEffect(() => {
     // Load YT API if not present
@@ -39,9 +41,17 @@ export const VideoSection: React.FC = () => {
       const firstScriptTag = document.getElementsByTagName('script')[0];
       firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
     }
-
     const initPlayer = () => {
+      setIsReady(false); // Reset on new video
       if (!videoId || !playerRef.current) return;
+      
+      // Safety: If there is an existing player, destroy it first
+      if (ytPlayer.current) {
+        try {
+            ytPlayer.current.destroy();
+            ytPlayer.current = null;
+        } catch (e) {}
+      }
 
       ytPlayer.current = new window.YT.Player(playerRef.current, {
         videoId: videoId,
@@ -54,9 +64,14 @@ export const VideoSection: React.FC = () => {
         },
         events: {
           onReady: (event: any) => {
-            setDuration(event.target.getDuration());
+            if (ytPlayer.current) {
+                setDuration(event.target.getDuration());
+                setIsReady(true); // MARK AS READY
+            }
           },
+          // ... onStateChange and onError ...
           onStateChange: (event: any) => {
+            if (!ytPlayer.current) return;
             const state = event.data;
             
             // CRITICAL FIX: If we are in a locked state (Curation), force pause
@@ -70,10 +85,11 @@ export const VideoSection: React.FC = () => {
             } else if (state === window.YT.PlayerState.PAUSED || state === window.YT.PlayerState.ENDED) {
               setPlaying(false);
               stopPolling();
-            } else if (state === window.YT.PlayerState.BUFFERING) {
-               // Buffering is fine
             }
           },
+          onError: (e: any) => {
+              console.error("YouTube Player Error", e.data);
+          }
         },
       });
     };
@@ -87,7 +103,11 @@ export const VideoSection: React.FC = () => {
     return () => {
       stopPolling();
       if (ytPlayer.current) {
-        ytPlayer.current.destroy();
+        try {
+            const temp = ytPlayer.current;
+            ytPlayer.current = null;
+            temp.destroy();
+        } catch (e) {}
       }
     };
   }, [videoId]);
@@ -110,7 +130,7 @@ export const VideoSection: React.FC = () => {
 
   // Sync isPlaying state from Store to Player (manual control)
   useEffect(() => {
-    if (!ytPlayer.current || !ytPlayer.current.getPlayerState) return;
+    if (!ytPlayer.current || !isReady || !ytPlayer.current.getPlayerState) return;
     const currentState = ytPlayer.current.getPlayerState();
     
     // Safety check for Locked State
@@ -130,19 +150,19 @@ export const VideoSection: React.FC = () => {
 
   // Handle Seek Requests from Store
   useEffect(() => {
-    if (seekToTime !== null && ytPlayer.current && ytPlayer.current.seekTo) {
+    if (seekToTime !== null && ytPlayer.current && isReady && ytPlayer.current.seekTo) {
       ytPlayer.current.seekTo(seekToTime, true);
       // Reset seek request in store AND unlock poller
       usePlayerStore.setState({ seekToTime: null, isSeeking: false });
     }
-  }, [seekToTime]);
+  }, [seekToTime, isReady]);
 
   // 5. Volume Sync
   useEffect(() => {
-    if (ytPlayer.current && isLoaded) {
+    if (ytPlayer.current && isReady && ytPlayer.current.setVolume) {
       ytPlayer.current.setVolume(volume);
     }
-  }, [volume, isLoaded]);
+  }, [volume, isReady]);
 
   return (
     <div id="player-container" className="relative w-full aspect-video bg-black group overflow-hidden">
