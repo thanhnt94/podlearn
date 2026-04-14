@@ -13,10 +13,21 @@ Giao diện tập trung để quản lý lộ trình học tập của bạn.
 Môi trường cốt lõi nơi việc học diễn ra.
 - **Phụ đề Thông minh**: Hỗ trợ hiển thị đồng thời phụ đề gốc, phụ đề dịch và phụ đề ngôn ngữ thứ ba.
 - **Tra cứu Tức thì**: Click vào bất kỳ từ nào trong phụ đề để tạm dừng video, nghe phát âm và xem định nghĩa chi tiết.
-- **Chế độ Shadowing (Luyện nói)**: 
+- **Shadowing (Luyện nói ngắt quãng)**: 
     - Tự động tạm dừng sau mỗi câu để người học lặp lại.
     - Chấm điểm phát âm bằng AI và lưu lại lịch sử độ chính xác.
-    - Tùy chỉnh "Extra Time" cho các câu dài.
+- **AI Insights & Deep Analysis (Phân tích chuyên sâu 8 lớp)**:
+    - **On-demand Analysis**: Phân tích từng câu riêng lẻ theo yêu cầu người dùng để tối ưu hiệu suất và dung lượng.
+    - **8-Card Carousel**: Giao diện thẻ lật cung cấp 8 khía cạnh kiến trúc ngôn ngữ:
+        1. **Dịch nghĩa**: Bản dịch tự nhiên kèm tóm tắt ý nghĩa.
+        2. **Ngữ pháp**: Giải thích chi tiết cấu trúc và các điểm ngữ pháp quan trọng.
+        3. **Từ vựng**: Liệt kê 3-5 từ khóa kèm ý nghĩa và cách dùng trong câu.
+        4. **Sắc thái**: Giải thích tông giọng (lịch sự/thân mật), phong cách (văn nói/viết).
+        5. **Câu tương tự**: Đề xuất 3-4 biến thể khác để mở rộng vốn câu.
+        6. **Văn hóa**: Bối cảnh sử dụng, phép lịch sự hoặc các lưu ý văn hóa liên quan.
+        7. **Mẹo nhớ**: Các phương pháp ghi nhớ nhanh và sáng tạo.
+        8. **Lỗi thường gặp**: Cảnh báo các sai lầm phổ biến khi dùng cấu trúc này.
+    - **Shadowing Flow Sync**: Tự động tạm dừng video để người học lật thẻ nghiên cứu trước khi qua câu tiếp theo.
 - **Ghi chú Dòng thời gian**: Chụp lại các ý tưởng hoặc cấu trúc hay ngay tại thời điểm xuất hiện trong video.
 
 ## 3. Các Chế độ Học Mastery (Ôn tập)

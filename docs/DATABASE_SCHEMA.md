@@ -67,3 +67,14 @@ erDiagram
 - **`notes`**: Ghi chú theo dòng thời gian trong player.
 - **`sentence_tokens`**: Lưu trữ cách phân tách từ (segmentation) tùy chỉnh của người dùng cho từng dòng.
 - **`share_requests`**: Quản lý việc chia sẻ workspace giữa các người dùng.
+
+### 8. AI Insights (Phân tích Chuyên sâu)
+- **`ai_insight_tracks`**: Theo dõi trạng thái phân tích cho toàn bộ video.
+    - **`video_id`**: Khóa ngoại liên kết bảng `videos`.
+    - **`status`**: Trạng thái (pending, processing, completed).
+    - **`language_code`**: Ngôn ngữ mục tiêu của phân tích.
+- **`ai_insight_items`**: Lưu trữ nội dung phân tích chi tiết cho từng câu (line).
+    - **`track_id`**: Liên kết với `ai_insight_tracks`.
+    - **`subtitle_index`**: Chỉ mục của dòng phụ đề trong video.
+    - **`short_explanation`**, **`grammar_analysis`**, **`nuance_style`**, **`context_notes`**: Các cột dữ liệu phân tích cố định.
+    - **`data_json`**: Chứa các thẻ kiến thức mở rộng (Vocabulary, Similar Sentences, Culture, Mnemonic, v.v.) dưới dạng JSON.

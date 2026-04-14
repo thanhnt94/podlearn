@@ -30,6 +30,10 @@ PodLearn sử dụng hệ thống định tuyến (routing) dựa trên các Fla
 - `POST /api/score-pronunciation`: Gửi tệp âm thanh hoặc văn bản để AI chấm điểm phát âm.
 - `GET /api/lesson/<int:lesson_id>/shadowing-stats`: Lấy thống kê luyện nói cho từng dòng trong bài học.
 
+### 4. AI Insights & Deep Analysis (On-demand)
+- `GET /api/ai/insights/<video_id>`: Lấy danh sách tất cả các phân tích AI đã lưu cho một video.
+- `POST /api/ai/insights/<video_id>/line/<int:line_index>`: Kích hoạt AI (Gemini) để phân tích sâu một câu thoại cụ thể (8 thẻ kiến thức).
+
 ### 4. Dịch thuật & Media
 - `POST /api/translate`: Proxy dịch thuật qua server để tránh lỗi CORS.
 - `GET /api/youtube/subtitles-list/<video_id>`: Lấy danh sách phụ đề có sẵn trên YouTube.
