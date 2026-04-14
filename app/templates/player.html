@@ -147,6 +147,7 @@
 
             <div class="mobile-tabs" id="mobileTabsContainer">
                 <div class="mobile-tab active" onclick="switchRightTab('transcript', this)">Transcript</div>
+                <div class="mobile-tab" onclick="switchRightTab('ai', this)">AI</div>
                 <div class="mobile-tab" onclick="switchRightTab('notes', this)">My Notes</div>
             </div>
         </div>
@@ -157,6 +158,7 @@
         <div class="right-pane-tabs" style="display: flex; justify-content: space-between; align-items: center; padding-right: 10px;">
             <div style="display: flex; flex: 1;">
                 <button class="pane-tab active" onclick="switchRightTab('transcript')" id="tabBtn-transcript">Transcript</button>
+                <button class="pane-tab" onclick="switchRightTab('ai')" id="tabBtn-ai">AI</button>
                 <button class="pane-tab" onclick="switchRightTab('notes')" id="tabBtn-notes">My Notes</button>
             </div>
         </div>
@@ -237,8 +239,20 @@
                     <span>Mark Complete</span>
                 </button>
             </div>
+        <!-- AI INSIGHTS TAB CONTENT -->
+        <div id="pane-ai" class="pane-content" style="display: none;">
+            <div class="ai-insights-area" style="height: 100%; padding: 0; display: flex; flex-direction: column;">
+                <div class="notes-header">
+                    <h3>✨ AI Insights</h3>
+                    <span id="aiInsightCount" class="notes-count">0 items</span>
+                </div>
+                <div id="aiInsightsList" class="insights-list" style="flex: 1; overflow-y: auto; padding: 20px;">
+                    <div class="loading-state">Initializing AI Insights...</div>
+                </div>
+            </div>
         </div>
-    </div> <!-- close player-content-wrap -->
+    </div> <!-- close player-right -->
+</div> <!-- close player-content-wrap -->
 </div> <!-- close player-layout -->
 
 
@@ -769,6 +783,7 @@
 <script>
     // ── Global config passed from server ──
     var LESSON_ID = Number('{{ lesson.id }}');
+    var VIDEO_ID = Number('{{ lesson.video.id }}');
     var YOUTUBE_ID = '{{ lesson.video.youtube_id }}';
     var SAVED_ORIGINAL = '{{ lesson.original_lang_code or "" }}';
     var SAVED_TARGET = '{{ lesson.target_lang_code or "" }}';
@@ -793,6 +808,7 @@
 
 </script>
 <script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ai_insights.js') }}"></script>
 <script src="{{ url_for('static', filename='js/transcript.js') }}"></script>
 <script src="{{ url_for('static', filename='js/notes.js') }}"></script>
 {% endblock %}

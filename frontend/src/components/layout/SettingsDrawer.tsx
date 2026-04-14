@@ -15,7 +15,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const { 
         settings, setTrackSettings, setNoteSettings,
         availableTracks, trackIds, setTrackIds, setAvailableTracks,
-        lessonId, videoId
+        lessonId, videoId, aiInsights
     } = usePlayerStore();
 
     const [activeMainTab, setActiveMainTab] = useState<MainTab>('display');
@@ -189,10 +189,21 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                             </div>
                                                             <div className="space-y-2">
                                                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Source Language</label>
-                                                                <select value={trackIds[activeDisplayTrack] || ''} onChange={(e) => setTrackIds({ [activeDisplayTrack]: parseInt(e.target.value) || null })}
+                                                                <select value={trackIds[activeDisplayTrack] || ''} 
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            setTrackIds({ [activeDisplayTrack]: val === 'ai-track' ? 'ai' : (parseInt(val) || null) });
+                                                                        }}
                                                                         className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-sky-500/50 outline-none">
                                                                     <option value="">(Click to assign...)</option>
-                                                                    {availableTracks.map(t => <option key={t.id} value={t.id}>{t.language_code.toUpperCase()} ({t.uploader_name})</option>)}
+                                                                    {aiInsights.length > 0 && (
+                                                                        <optgroup label="✨ AI Intelligence">
+                                                                            <option value="ai-track">🔹 AI Linguistic Insight (VN)</option>
+                                                                        </optgroup>
+                                                                    )}
+                                                                    <optgroup label="Standard Tracks">
+                                                                        {availableTracks.map(t => <option key={t.id} value={t.id}>{t.language_code.toUpperCase()} ({t.uploader_name})</option>)}
+                                                                    </optgroup>
                                                                 </select>
                                                             </div>
                                                         </div>

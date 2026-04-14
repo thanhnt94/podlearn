@@ -1427,3 +1427,162 @@ def update_sentence(sentence_id):
 
     db.session.commit()
     return jsonify({'success': True})
+
+@api_bp.route('/ai/insights/<string:video_id>/analyze', methods=['GET', 'POST'])
+@csrf.exempt
+@login_required
+def generate_ai_insights(video_id):
+    from flask import request
+    from sqlalchemy import func
+    from ..models.video import Video
+    
+    # Dual lookup: try primary key first, then youtube_id (case-insensitive)
+    video = None
+    if video_id.isdigit():
+        video = Video.query.get(int(video_id))
+    if not video:
+        video = Video.query.filter(func.lower(Video.youtube_id) == video_id.lower()).first()
+        
+    print(f"DEBUG: Analyze requested for {video_id}. Found Video: {video.id if video else 'None'}")
+    
+    if not video:
+        return jsonify({"error": f"Video {video_id} not found"}), 404
+    
+    from ..models.ai_insight import AIInsightTrack
+    from ..services.ai_service import start_background_analysis
+    from flask import current_app
+
+    # Verify transcript existence
+    first_track = video.subtitle_tracks.first()
+    if not first_track:
+        return jsonify({"error": "Video must have at least one subtitle track before generating AI insights."}), 400
+        
+    # Check if a track is already processing
+    existing_processing = AIInsightTrack.query.filter_by(video_id=video.id, status='processing').first()
+    if existing_processing:
+        return jsonify({"message": "Analysis already in progress", "track_id": existing_processing.id}), 202
+
+    # Get transcript lines from the first available track
+    transcript_lines = first_track.content_json
+    
+    # Spawn background thread
+    start_background_analysis(current_app._get_current_object(), video.id, transcript_lines, lang='vi')
+    
+    return jsonify({"message": "AI analysis started in background"}), 202
+
+@api_bp.route('/ai/insights/<string:video_id>')
+@login_required
+def get_ai_insights(video_id):
+    from ..models.ai_insight import AIInsightTrack, AIInsightItem
+    from ..models.video import Video
+    from sqlalchemy import func
+    
+    # Dual lookup: try primary key first, then youtube_id (case-insensitive)
+    video = None
+    if video_id.isdigit():
+        video = Video.query.get(int(video_id))
+    if not video:
+        video = Video.query.filter(func.lower(Video.youtube_id) == video_id.lower()).first()
+
+    if not video:
+        print(f"DEBUG: Get insights failed - Video {video_id} not found")
+        return jsonify({"status": "empty", "insights": []})
+
+    # Get the latest track (regardless of status for polling)
+    track = AIInsightTrack.query.filter_by(video_id=video.id).order_by(AIInsightTrack.created_at.desc()).first()
+
+    if not track:
+        return jsonify({
+            "status": "empty",
+            "insights": [], 
+            "message": "No AI insights found for this video."
+        })
+        
+    items = AIInsightItem.query.filter_by(track_id=track.id).all()
+    
+    insight_list = [{
+        "index": it.subtitle_index,
+        "start": it.start_time,
+        "end": it.end_time,
+        "short": it.short_explanation,
+        "grammar": it.grammar_analysis,
+        "nuance": it.nuance_style,
+        "context": it.context_notes,
+        "similar": (it.data_json or {}).get('similar_sentences', '')
+    } for it in items]
+    
+    return jsonify({
+        "track_id": track.id,
+        "status": track.status,
+        "processed_lines": track.processed_lines,
+        "total_lines": track.total_lines,
+        "overall_summary": track.overall_summary,
+        "model": track.model_name,
+        "language": track.language_code,
+        "insights": insight_list
+    })
+
+@api_bp.route('/ai/insights/<string:video_id>/line/<int:line_index>', methods=['POST'])
+@csrf.exempt
+@login_required
+def analyze_ai_line(video_id, line_index):
+    from ..models.video import Video
+    from ..models.ai_insight import AIInsightTrack
+    from ..services.ai_service import analyze_single_line
+    from sqlalchemy import func
+    
+    # Dual lookup
+    video = None
+    if video_id.isdigit():
+        video = Video.query.get(int(video_id))
+    if not video:
+        video = Video.query.filter(func.lower(Video.youtube_id) == video_id.lower()).first()
+    
+    if not video:
+        return jsonify({"error": "Video not found"}), 404
+        
+    # Get text for this index
+    first_track = video.subtitle_tracks.filter_by(language_code='vi').first()
+    if not first_track:
+        first_track = video.subtitle_tracks.first()
+    if not first_track:
+        return jsonify({"error": "No transcript available."}), 400
+
+    # Auto-create track if it doesn't exist
+    track = AIInsightTrack.query.filter_by(video_id=video.id).order_by(AIInsightTrack.created_at.desc()).first()
+    if not track:
+        track = AIInsightTrack(
+            video_id=video.id,
+            language_code='vi',
+            status='completed',
+            total_lines=len(first_track.content_json)
+        )
+        db.session.add(track)
+        db.session.commit()
+        
+    transcript = first_track.content_json
+    if line_index < 0 or line_index >= len(transcript):
+        return jsonify({"error": "Invalid line index."}), 400
+        
+    line_data = transcript[line_index]
+    line_text = line_data.get('text', '')
+    start_time = line_data.get('start', 0)
+    end_time = line_data.get('end', 0)
+    
+    # Call service
+    result = analyze_single_line(track.id, line_index, line_text, start_time=start_time, end_time=end_time, target_lang='vi')
+    
+    if result:
+        return jsonify({
+            "success": True,
+            "insight": {
+                "index": line_index,
+                "grammar": result.get('grammar_analysis', ''),
+                "nuance": result.get('nuance_style', ''),
+                "context": result.get('context_notes', ''),
+                "short": result.get('short_explanation', ''),
+                "similar": result.get('similar_sentences', '')
+            }
+        })
+    else:
+        return jsonify({"error": "AI analysis failed."}), 500

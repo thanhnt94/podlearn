@@ -39,3 +39,29 @@
 ::-webkit-scrollbar-thumb {
   @apply bg-slate-700 rounded-full hover:bg-sky-500/50 transition-colors;
 }
+
+/* AI Insight Markdown Styling */
+.ai-markdown p {
+  @apply mb-3 last:mb-0;
+}
+.ai-markdown strong {
+  @apply text-white font-bold;
+}
+.ai-markdown ul {
+  @apply list-disc pl-5 mb-3 space-y-1;
+}
+.ai-markdown ol {
+  @apply list-decimal pl-5 mb-3 space-y-1.5;
+}
+.ai-markdown li {
+  @apply text-slate-300;
+}
+.ai-markdown li strong {
+  @apply text-sky-400;
+}
+.ai-markdown h1, .ai-markdown h2, .ai-markdown h3 {
+  @apply text-white font-bold mb-2 mt-3;
+}
+.ai-markdown code {
+  @apply bg-white/10 px-1.5 py-0.5 rounded text-sky-300 text-xs font-mono;
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     BookOpen, Mic2, FileText, MessageSquare, 
-    ArrowLeft, Settings, Check
+    ArrowLeft, Settings, Check, Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,8 +12,9 @@ import { NotesPanel } from '../tabs/NotesPanel';
 import { VocabPanel } from '../tabs/VocabPanel';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { SettingsDrawer } from '../layout/SettingsDrawer';
+import { InsightsPanel } from '../tabs/InsightsPanel';
 
-type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab';
+type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights';
 
 export const PlayerView: React.FC = () => {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ export const PlayerView: React.FC = () => {
       case 'shadowing': return <ShadowingPanel />;
       case 'notes': return <NotesPanel />;
       case 'vocab': return <VocabPanel />;
+      case 'insights': return <InsightsPanel />;
       default: return <TranscriptBody />;
     }
   };
@@ -54,6 +56,7 @@ export const PlayerView: React.FC = () => {
     { id: 'shadowing', label: 'Shadowing', icon: Mic2 },
     { id: 'notes', label: 'Notes', icon: MessageSquare },
     { id: 'vocab', label: 'Vocab', icon: BookOpen },
+    { id: 'insights', label: 'AI', icon: Sparkles },
   ];
 
   // Resize Logic

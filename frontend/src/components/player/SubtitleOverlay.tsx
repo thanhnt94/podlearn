@@ -2,16 +2,25 @@ import React from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 
 export const SubtitleOverlay: React.FC = () => {
-    const { s1Lines, s2Lines, s3Lines, currentTime, settings } = usePlayerStore();
+    const { s1Lines, s2Lines, s3Lines, aiInsights, currentTime, settings, trackIds } = usePlayerStore();
     
     // Find active lines for each track independently
     const findActiveLine = (lines: any[]) => {
         return lines.find(line => (currentTime >= line.start - 0.2) && (currentTime <= line.end + 0.2));
     };
 
-    const l1 = settings.s1.enabled ? findActiveLine(s1Lines) : null;
-    const l2 = settings.s2.enabled ? findActiveLine(s2Lines) : null;
-    const l3 = settings.s3.enabled ? findActiveLine(s3Lines) : null;
+    const getLineForTrack = (sid: 's1' | 's2' | 's3', lines: any[]) => {
+        if (!settings[sid].enabled) return null;
+        if (trackIds[sid] === 'ai') {
+            const ai = aiInsights.find(i => (currentTime >= i.start - 0.2) && (currentTime <= i.end + 0.2));
+            return ai ? { text: ai.short, isAi: true } : null;
+        }
+        return findActiveLine(lines);
+    };
+
+    const l1 = getLineForTrack('s1', s1Lines);
+    const l2 = getLineForTrack('s2', s2Lines);
+    const l3 = getLineForTrack('s3', s3Lines);
 
     if (!l1 && !l2 && !l3) return null;
 

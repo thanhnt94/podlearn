@@ -2734,3 +2734,90 @@ input[type="range"].premium-slider::-moz-range-thumb {
 #mainPlayerContainer:fullscreen .custom-controls {
     padding-bottom: 40px;
 }
+
+/* AI Insights Tab Styles */
+.insight-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.insight-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.insight-card.active {
+    background: rgba(108, 92, 231, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(108, 92, 231, 0.2);
+}
+
+.insight-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.insight-card__time {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--accent);
+    background: rgba(108, 92, 231, 0.1);
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    letter-spacing: 0.05em;
+}
+
+.insight-card__index {
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.insight-section {
+    margin-bottom: 1rem;
+}
+
+.insight-section:last-child {
+    margin-bottom: 0;
+}
+
+.insight-label {
+    font-size: 0.65rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.4rem;
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.4rem;
+}
+
+.insight-label.blue { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
+.insight-label.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+.insight-label.emerald { background: rgba(16, 185, 129, 0.1); color: #10b881; }
+.insight-label.amber { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+.insight-section p {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.active-pane {
+    display: block !important;
+}
+

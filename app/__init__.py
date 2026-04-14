@@ -61,6 +61,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes.player import player_bp
     from .routes.api import api_bp
     from .routes.admin import admin_bp
+    from .routes.admin_api import admin_api_bp
     from .routes.auth_center import auth_center_bp
     from .routes.practice import practice_bp
     from .routes.import_handler import import_bp
@@ -69,6 +70,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(admin_api_bp)
     app.register_blueprint(auth_center_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(player_bp, url_prefix='/player')

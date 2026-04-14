@@ -182,6 +182,10 @@ function onTimeUpdate(currentTime) {
     }
     // 3. Update Custom Player UI
     updateCustomPlayerUI(currentTime);
+    // 4. Update AI Insights Highlight
+    if (typeof updateAIHighlight === 'function') {
+        updateAIHighlight(currentTime);
+    }
 
     // ── Shadowing Mode Logic ─────────────────────────────────
     if (isShadowingMode && typeof mergedLines !== 'undefined' && mergedLines.length > 0) {

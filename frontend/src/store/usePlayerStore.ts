@@ -57,11 +57,18 @@ interface PlayerState {
   
   availableTracks: any[];
   trackIds: {
-    s1: number | null;
-    s2: number | null;
-    s3: number | null;
+    s1: number | string | null;
+    s2: number | string | null;
+    s3: number | string | null;
+    ai: number | null;
   };
-
+  aiInsights: any[];
+  aiStatus: string;
+  aiProgress: {
+    processed: number;
+    total: number;
+  };
+  aiSummary: string | null;
   isAutoNext: boolean;
   shadowingStats: Record<string, { count: number, avg: number, best: number }>;
 
@@ -115,6 +122,9 @@ interface PlayerState {
   setAutoNext: (isAutoNext: boolean) => void;
   setMode: (mode: 'watch' | 'shadowing' | 'loop') => void;
   setSidebarWidth: (width: number) => void;
+  setAIInsights: (data: any) => void;
+  fetchAIInsights: () => Promise<void>;
+  analyzeLine: (index: number) => Promise<void>;
 }
 
 const defaultTrackSettings = (fontSize: number, color: string, opacity: number, position: number): TrackSettings => ({
@@ -153,7 +163,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   shadowingStats: {},
 
   availableTracks: [],
-  trackIds: { s1: null, s2: null, s3: null },
+  trackIds: { s1: null, s2: null, s3: null, ai: null },
+  aiInsights: [],
+  aiStatus: 'empty',
+  aiProgress: { processed: 0, total: 0 },
+  aiSummary: null,
   abLoop: { start: null, end: null, enabled: false },
 
   settings: {
@@ -254,7 +268,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const updatedIds = { ...state.trackIds, ...newIds };
     set({ trackIds: updatedIds });
 
-    const fetchTrack = async (tid: number | null, trackKey: 's1Lines' | 's2Lines' | 's3Lines') => {
+    const fetchTrack = async (tid: number | string | null, trackKey: 's1Lines' | 's2Lines' | 's3Lines') => {
         if (!tid || !state.lessonId) {
             set({ [trackKey]: [] } as any);
             return;
@@ -361,10 +375,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         const trackIds = {
             s1: m.metadata?.s1_track_id || m.track_id,
             s2: m.metadata?.s2_track_id || null,
-            s3: m.metadata?.s3_track_id || null
+            s3: m.metadata?.s3_track_id || null,
+            ai: m.metadata?.ai_track_id || null
         };
 
-        const fetchTrack = async (tid: number | null) => {
+        const fetchTrack = async (tid: number | string | null) => {
             if (!tid) return [];
             try {
                 const r = await axios.get(`/api/subtitles/fetch/${id}`, { params: { track_id: tid } });
@@ -372,10 +387,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             } catch (e) { return []; }
         };
 
-        const [l1, l2, l3] = await Promise.all([
+        const [l1, l2, l3, aiRes] = await Promise.all([
             fetchTrack(trackIds.s1),
             fetchTrack(trackIds.s2),
-            fetchTrack(trackIds.s3)
+            fetchTrack(trackIds.s3),
+            axios.get(`/api/ai/insights/${m.video_id}`).catch(() => ({ data: { insights: [] } }))
         ]);
 
         // Safety again after long Promise.all
@@ -417,6 +433,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             isCompleted: m.is_completed || false,
             isLoaded: true // Success
         });
+
+        if (aiRes.data) {
+            set({
+                aiInsights: aiRes.data.insights || [],
+                aiStatus: aiRes.data.status || 'empty',
+                aiProgress: {
+                    processed: aiRes.data.processed_lines || 0,
+                    total: aiRes.data.total_lines || 0
+                },
+                aiSummary: aiRes.data.overall_summary || null
+            });
+        }
 
         const notesRes = await axios.get(`/api/lesson/${id}/notes`);
         if (notesRes.data.notes && get().lessonId === id) {
@@ -475,6 +503,46 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
     } catch (e) {
         console.error("Failed to fetch shadowing stats", e);
+    }
+  },
+
+  setAIInsights: (data: any) => set({
+    aiInsights: data.insights || [],
+    aiStatus: data.status || 'empty',
+    aiProgress: {
+        processed: data.processed_lines || 0,
+        total: data.total_lines || 0
+    },
+    aiSummary: data.overall_summary || null
+  }),
+
+  fetchAIInsights: async () => {
+    const { videoId } = get();
+    if (!videoId) return;
+    try {
+        const res = await axios.get(`/api/ai/insights/${videoId}`);
+        get().setAIInsights(res.data);
+    } catch (e) { console.error("Failed to fetch AI insights", e); }
+  },
+
+  analyzeLine: async (index: number) => {
+    const { videoId, aiInsights } = get();
+    if (!videoId) return;
+    try {
+        const res = await axios.post(`/api/ai/insights/${videoId}/line/${index}`, {}, { withCredentials: true });
+        if (res.data.success && res.data.insight) {
+            const newInsights = [...aiInsights];
+            const existingIdx = newInsights.findIndex(it => it.index === index);
+            if (existingIdx !== -1) {
+                newInsights[existingIdx] = res.data.insight;
+            } else {
+                newInsights.push(res.data.insight);
+            }
+            set({ aiInsights: newInsights });
+        }
+    } catch (e) { 
+        console.error("Failed to analyze line", e);
+        throw e;
     }
   }
 }));

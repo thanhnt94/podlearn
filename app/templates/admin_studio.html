@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link rel="icon" type="image/png" href="/static/img/logo_premium.png">
+    <title>PodLearn Admin Studio</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Pass backend data to React -->
+    <script>
+        window.__PODLEARN_ADMIN_DATA__ = {
+            user_id: {{ current_user.id }},
+            username: "{{ current_user.username }}",
+            csrf_token: "{{ csrf_token() }}",
+            api_base: "/api/admin"
+        };
+    </script>
+</head>
+<body class="bg-slate-950 overflow-hidden">
+    <div id="root"></div>
+
+    <!-- 
+        In development, we use the Vite server at localhost:5174.
+        In production, we use the built assets in /static/admin-dist/.
+    -->
+    {% if config.DEBUG %}
+    <script type="module">
+        // Small check to see if Vite is reachable
+        fetch('http://localhost:5174/@vite/client', { mode: 'no-cors' })
+            .catch(err => {
+                console.error('Vite Dev Server (Port 5174) is not reachable.');
+                document.getElementById('root').innerHTML = `
+                    <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #020617; color: #38bdf8; font-family: sans-serif; text-align: center; padding: 20px;">
+                        <h1 style="font-size: 24px; font-weight: 900; margin-bottom: 20px;">VITE SERVER DISCONNECTED</h1>
+                        <p style="color: #64748b; font-size: 14px; margin-bottom: 30px;">The Admin Studio requires the Vite development server to be running.</p>
+                        <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); font-family: monospace; font-size: 12px; color: #94a3b8;">
+                            cd admin-studio<br/>
+                            npm run dev
+                        </div>
+                    </div>
+                `;
+            });
+    </script>
+    <script type="module">
+        import { injectIntoGlobalHook } from "http://localhost:5174/@react-refresh";
+        injectIntoGlobalHook(window);
+        window.$RefreshReg$ = () => {};
+        window.$RefreshSig$ = () => (type) => type;
+        window.__vite_plugin_react_preamble_installed__ = true;
+    </script>
+    <script type="module" src="http://localhost:5174/@vite/client"></script>
+    <script type="module" src="http://localhost:5174/src/main.tsx"></script>
+    {% else %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin-dist/assets/index.css') }}">
+    <script type="module" src="{{ url_for('static', filename='admin-dist/assets/index.js') }}"></script>
+    {% endif %}
+</body>
+</html>
