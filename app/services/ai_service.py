@@ -164,15 +164,18 @@ def analyze_single_line(track_id, subtitle_index, text, start_time=0, end_time=0
 
     DEFAULT_SENTENCE_PROMPT = """You are a language learning assistant. Analyze the following sentence for a learner.
 
-Use **Markdown formatting** in your analysis (bold for key terms, bullet points for lists, numbered lists for steps, etc.)
+Use **Markdown formatting** in your analysis (bold for key terms, bullet points for lists, numbered lists for steps, etc.).
 
 Respond ONLY with a valid JSON object using this exact schema:
 {
-  "short_explanation": "A brief 1-line summary of the sentence meaning",
-  "grammar_analysis": "Detailed grammatical breakdown using markdown:\n- Sentence structure\n- Key grammar points with **bold** highlights\n- Verb forms, particles, conjugations explained",
-  "nuance_style": "Is this formal/informal/spoken/written? Cultural nuance. Use markdown for clarity.",
-  "context_notes": "When and how would a native speaker use this? Situational context with markdown.",
-  "similar_sentences": "Provide 3-4 **similar sentences** a learner can practice with. Format as a numbered markdown list:\n1. [sentence] — [brief meaning]\n2. [sentence] — [brief meaning]\n..."
+  "short_explanation": "A clear, natural translation and brief summary of the sentence meaning in [TARGET_LANG].",
+  "grammar_analysis": "Detailed grammatical breakdown using markdown. Explain structure, parts of speech, and key patterns.",
+  "key_vocabulary": "List 3-5 key words/phrases with: [Word] — [Meaning] — [Usage note]. Use markdown lists.",
+  "nuance_style": "Explain the tone (formal/casual), level of politeness, and style (spoken/written).",
+  "similar_sentences": "Provide 3-4 similar sentences with their translations in [TARGET_LANG] to help the learner expand.",
+  "cultural_context": "Any cultural background, etiquette, or specific situations where this is used (or avoided).",
+  "memory_hack": "A creative mnemonic or tip to remember this sentence or its main parts.",
+  "common_mistakes": "Highlight common errors learners make with this structure or vocabulary and how to avoid them."
 }
 
 Do NOT include any text outside the JSON. Do NOT wrap it in markdown code blocks."""
@@ -192,27 +195,47 @@ Do NOT include any text outside the JSON. Do NOT wrap it in markdown code blocks
         )
         
         raw_text = response.text.strip()
-        logger.info(f"Gemini raw response for line {subtitle_index}: {raw_text[:200]}")
-        
+        # Helper to find keys case-insensitively or with variations
+        def get_v(d, keys, default=''):
+            if not isinstance(d, dict): return default
+            for k in keys:
+                # Check case-insensitive
+                for dk in d.keys():
+                    if dk.lower() == k.lower():
+                        return d[dk]
+            return default
+
         # Try parsing JSON, with fallback for markdown-wrapped responses
         try:
             analysis = json.loads(raw_text)
         except json.JSONDecodeError:
-            # Gemini sometimes wraps JSON in ```json ... ```
             import re
             match = re.search(r'\{.*\}', raw_text, re.DOTALL)
             if match:
-                analysis = json.loads(match.group())
+                try:
+                    analysis = json.loads(match.group())
+                except:
+                    analysis = {}
             else:
-                # Last resort: treat entire response as a plain explanation
-                logger.warning(f"Could not parse JSON from Gemini. Using raw text as explanation.")
-                analysis = {
-                    'short_explanation': raw_text[:200],
-                    'grammar_analysis': raw_text,
-                    'nuance_style': '',
-                    'context_notes': ''
-                }
+                analysis = {}
         
+        # Robustly extract fields
+        final_analysis = {
+            'short_explanation': get_v(analysis, ['short_explanation', 'translation', 'meaning', 'summary']),
+            'grammar_analysis': get_v(analysis, ['grammar_analysis', 'grammar', 'structure']),
+            'key_vocabulary': get_v(analysis, ['key_vocabulary', 'vocabulary', 'words', 'vocab']),
+            'nuance_style': get_v(analysis, ['nuance_style', 'nuance', 'style', 'tone']),
+            'similar_sentences': get_v(analysis, ['similar_sentences', 'similar', 'examples']),
+            'cultural_context': get_v(analysis, ['cultural_context', 'culture', 'etiquette', 'context']),
+            'memory_hack': get_v(analysis, ['memory_hack', 'hack', 'mnemonic', 'tip']),
+            'common_mistakes': get_v(analysis, ['common_mistakes', 'mistakes', 'errors'])
+        }
+
+        # If it's completely empty but we have raw text, put raw text in explanation/grammar
+        if not final_analysis['short_explanation'] and raw_text:
+            final_analysis['short_explanation'] = raw_text[:200]
+            final_analysis['grammar_analysis'] = raw_text
+
         # Save to DB
         item = AIInsightItem.query.filter_by(track_id=track_id, subtitle_index=subtitle_index).first()
         if not item:
@@ -224,14 +247,21 @@ Do NOT include any text outside the JSON. Do NOT wrap it in markdown code blocks
             )
             db.session.add(item)
             
-        item.short_explanation = analysis.get('short_explanation', '')
-        item.grammar_analysis = analysis.get('grammar_analysis', '')
-        item.nuance_style = analysis.get('nuance_style', '')
-        item.context_notes = analysis.get('context_notes', '')
-        item.data_json = {'similar_sentences': analysis.get('similar_sentences', '')}
+        item.short_explanation = final_analysis['short_explanation']
+        item.grammar_analysis = final_analysis['grammar_analysis']
+        item.nuance_style = final_analysis['nuance_style']
+        item.context_notes = final_analysis['cultural_context']
+        
+        item.data_json = {
+            'key_vocabulary': final_analysis['key_vocabulary'],
+            'similar_sentences': final_analysis['similar_sentences'],
+            'cultural_context': final_analysis['cultural_context'],
+            'memory_hack': final_analysis['memory_hack'],
+            'common_mistakes': final_analysis['common_mistakes']
+        }
         
         db.session.commit()
-        return analysis
+        return final_analysis
     except Exception as e:
         logger.error(f"Gemini single-line analysis failed: {e}")
         return None

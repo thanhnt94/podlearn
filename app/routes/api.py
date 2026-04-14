@@ -1508,7 +1508,11 @@ def get_ai_insights(video_id):
         "grammar": it.grammar_analysis,
         "nuance": it.nuance_style,
         "context": it.context_notes,
-        "similar": (it.data_json or {}).get('similar_sentences', '')
+        "vocabulary": (it.data_json or {}).get('key_vocabulary', ''),
+        "similar": (it.data_json or {}).get('similar_sentences', ''),
+        "culture": (it.data_json or {}).get('cultural_context', ''),
+        "hack": (it.data_json or {}).get('memory_hack', ''),
+        "mistakes": (it.data_json or {}).get('common_mistakes', '')
     } for it in items]
     
     return jsonify({
@@ -1577,11 +1581,14 @@ def analyze_ai_line(video_id, line_index):
             "success": True,
             "insight": {
                 "index": line_index,
-                "grammar": result.get('grammar_analysis', ''),
-                "nuance": result.get('nuance_style', ''),
-                "context": result.get('context_notes', ''),
                 "short": result.get('short_explanation', ''),
-                "similar": result.get('similar_sentences', '')
+                "grammar": result.get('grammar_analysis', ''),
+                "vocabulary": result.get('key_vocabulary', ''),
+                "nuance": result.get('nuance_style', ''),
+                "similar": result.get('similar_sentences', ''),
+                "culture": result.get('cultural_context', ''),
+                "hack": result.get('memory_hack', ''),
+                "mistakes": result.get('common_mistakes', '')
             }
         })
     else:

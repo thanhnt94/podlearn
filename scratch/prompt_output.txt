@@ -1,0 +1,13 @@
+DEBUG_PROMPT_START
+Hãy phân tích các câu sau dành cho người đang học ngôn ngữ. 
+Giải thích bằng tiếng Việt.
+Với mỗi câu, hãy trả về một đối tượng JSON trong mảng kết quả với cấu trúc:
+- short_explanation: Tóm tắt cực ngắn (dưới 80 ký tự) để hiển thị đè lên sub.
+- grammar_analysis: Phân tích chi tiết cấu trúc ngữ pháp và các trợ từ/từ vựng quan trọng.
+- nuance_style: Giải thích sắc thái (lịch sự, thân mật, văn viết/văn nói, v.v.).
+- context_notes: Giải thích ngữ cảnh sử dụng hoặc lưu ý văn hóa liên quan.
+
+Nếu trong bảng có cột "Cách nói khác", hãy gợi ý thêm các cách diễn đạt tương đương.
+Dưới đây là danh sách các câu cần phân tích:
+
+DEBUG_PROMPT_END
