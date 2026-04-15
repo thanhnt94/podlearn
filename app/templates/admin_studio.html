@@ -28,7 +28,7 @@
         In development, we use the Vite server at localhost:5174.
         In production, we use the built assets in /static/admin-dist/.
     -->
-    {% if config.DEBUG %}
+    {% if config.USE_VITE_DEV_SERVER %}
     <script type="module">
         // Small check to see if Vite is reachable
         fetch('http://localhost:5174/@vite/client', { mode: 'no-cors' })
