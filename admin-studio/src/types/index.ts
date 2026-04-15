@@ -20,6 +20,7 @@ export interface AdminSettings {
   AUTH_PROVIDER: 'local' | 'central';
   CENTRAL_AUTH_SERVER_ADDRESS: string;
   CENTRAL_AUTH_CLIENT_ID: string;
+  CENTRAL_AUTH_CLIENT_SECRET: string;
 }
 
 export interface AdminVideo {

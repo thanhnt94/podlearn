@@ -19,3 +19,4 @@ edge-tts
 gTTS
 pydub
 requests
+google-generativeai

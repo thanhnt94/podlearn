@@ -53,12 +53,16 @@ def list_users():
 @admin_required
 def get_settings():
     """Fetch AI and Auth settings."""
+    secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
+    masked_secret = f"{secret[:4]}...{secret[-4:]}" if len(secret) > 8 else "********" if secret else ""
+    
     return jsonify({
         'GEMINI_API_KEY': AppSetting.get('GEMINI_API_KEY', ''),
         'GEMINI_MODEL': AppSetting.get('GEMINI_MODEL', 'gemini-2.0-flash'),
         'AUTH_PROVIDER': AppSetting.get('AUTH_PROVIDER', 'local'),
         'CENTRAL_AUTH_SERVER_ADDRESS': AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', ''),
         'CENTRAL_AUTH_CLIENT_ID': AppSetting.get('CENTRAL_AUTH_CLIENT_ID', ''),
+        'CENTRAL_AUTH_CLIENT_SECRET': masked_secret
     })
 
 @admin_api_bp.route('/settings/gemini', methods=['POST'])
@@ -118,6 +122,12 @@ def test_auth_connection():
     client_id = data.get('client_id', '')
     client_secret = data.get('client_secret', '')
 
+    # If the user didn't change the secret (it's the masked version or '(Unchanged)'),
+    # we don't want to save the mask.
+    current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
+    if client_secret == '(Unchanged)' or (client_secret and '*' in client_secret and len(client_secret) < 15):
+        client_secret = current_secret
+
     try:
         discovery_response = requests.get(f"{base_url}/api/auth/discovery", timeout=5)
         if discovery_response.status_code != 200:
@@ -128,7 +138,8 @@ def test_auth_connection():
         # Save config
         AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
         AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
-        AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
+        if client_secret:
+            AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
         
         return jsonify({'success': True, 'message': 'Kết nối thành công!', 'discovery': discovery_data})
     except Exception as e:

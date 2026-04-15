@@ -33,7 +33,7 @@ export const SSOSettings: React.FC = () => {
       body: JSON.stringify({ 
         base_url: settings.CENTRAL_AUTH_SERVER_ADDRESS,
         client_id: settings.CENTRAL_AUTH_CLIENT_ID,
-        client_secret: '(Unchanged)' // Handle correctly in backend if real secret needed
+        client_secret: settings.CENTRAL_AUTH_CLIENT_SECRET
       })
     })
     .then(r => r.json())
@@ -118,6 +118,17 @@ export const SSOSettings: React.FC = () => {
                    value={settings.CENTRAL_AUTH_CLIENT_ID}
                    onChange={(e) => setSettings({...settings, CENTRAL_AUTH_CLIENT_ID: e.target.value})}
                    placeholder="Enter Client ID..."
+                   className="w-full bg-slate-950/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-mono focus:border-sky-500/30 transition-all outline-none"
+                 />
+              </div>
+
+              <div className="space-y-3">
+                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Studio Client Secret</label>
+                 <input 
+                   type="password"
+                   value={settings.CENTRAL_AUTH_CLIENT_SECRET}
+                   onChange={(e) => setSettings({...settings, CENTRAL_AUTH_CLIENT_SECRET: e.target.value})}
+                   placeholder="Enter Client Secret..."
                    className="w-full bg-slate-950/40 border border-white/5 rounded-2xl px-8 py-5 text-sm font-mono focus:border-sky-500/30 transition-all outline-none"
                  />
               </div>
