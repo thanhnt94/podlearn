@@ -18,11 +18,13 @@ def _get_ytdlp_opts(extra_opts=None):
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     cookie_path = os.path.join(base_dir, 'youtube_cookies.txt')
 
+    print(f"\n>>> [PODLEARN DEBUG] Checking YouTube cookies at: {cookie_path} <<<")
+
     opts = {
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'format': 'ba/b', # Best audio or best available, avoids strict format matching errors
+        'format': 'ba/b',
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -32,24 +34,21 @@ def _get_ytdlp_opts(extra_opts=None):
     }
 
     if os.path.exists(cookie_path):
-        # 1. Check if the file is readable by the current process
         if not os.access(cookie_path, os.R_OK):
-            logger.error(f"YouTube cookies FOUND but NOT READABLE. Please run: chmod 644 {cookie_path}")
+            print(f">>> [PODLEARN ERROR] Cookie file FOUND but NOT READABLE (Permissions issue) <<<")
         else:
-            # 2. Check for Netscape format header
             try:
                 with open(cookie_path, 'r', encoding='utf-8') as f:
                     first_line = f.readline()
                     if "# Netscape HTTP Cookie File" not in first_line:
-                        logger.error(f"YouTube cookies FOUND but INVALID FORMAT. Header missing. First line: {first_line[:50]}")
+                        print(f">>> [PODLEARN ERROR] Cookie file FOUND but INVALID FORMAT (Not Netscape) <<<")
                     else:
-                        # logger.info(f"YouTube cookies loaded successfully from {cookie_path}")
+                        print(f">>> [PODLEARN SUCCESS] Cookie file LOADED correctly <<<")
                         opts['cookiefile'] = cookie_path
             except Exception as e:
-                logger.error(f"Error reading YouTube cookies: {e}")
+                print(f">>> [PODLEARN ERROR] Exception reading cookies: {e} <<<")
     else:
-        if extra_opts:
-            logger.warning(f"YouTube cookie file NOT FOUND at: {cookie_path}. Using guest mode.")
+        print(f">>> [PODLEARN WARN] Cookie file NOT FOUND at {cookie_path} <<<")
     
     if extra_opts:
         opts.update(extra_opts)
