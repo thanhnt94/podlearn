@@ -24,15 +24,14 @@ def _get_ytdlp_opts(extra_opts=None):
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'format': 'ba/b',
+        'skip_download': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android', 'web_embedded'],
-                'player_skip': ['webvtt-subtitle', 'dash', 'hls'],
+                'player_client': ['web', 'android'],
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.youtube.com/',
             'Origin': 'https://www.youtube.com/',
