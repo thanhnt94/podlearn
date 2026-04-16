@@ -21,7 +21,8 @@ def _get_ytdlp_opts(extra_opts=None):
     opts = {
         'quiet': True,
         'no_warnings': True,
-        'skip_download': True,
+        'nocheckcertificate': True,
+        'format': 'ba/b', # Best audio or best available, avoids strict format matching errors
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -33,7 +34,6 @@ def _get_ytdlp_opts(extra_opts=None):
     if os.path.exists(cookie_path):
         opts['cookiefile'] = cookie_path
     else:
-        # Only log if we have extra_opts (meaning we are actually trying a task)
         if extra_opts:
             logger.warning(f"YouTube cookie file NOT FOUND at: {cookie_path}. Using guest mode.")
     
@@ -44,7 +44,7 @@ def _get_ytdlp_opts(extra_opts=None):
 def get_available_subs_from_youtube(video_id: str):
     """Fetch available subtitle languages from YouTube using yt-dlp."""
     url = f"https://www.youtube.com/watch?v={video_id}"
-    ydl_opts = _get_ytdlp_opts()
+    ydl_opts = _get_ytdlp_opts({'skip_download': True})
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
