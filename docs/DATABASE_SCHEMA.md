@@ -9,9 +9,12 @@ erDiagram
     USERS ||--o{ LESSONS : "có"
     USERS ||--o{ NOTES : "ghi chép"
     USERS ||--o{ SENTENCE_SETS : "sở hữu"
+    USERS ||--o{ PLAYLISTS : "tạo"
     USERS ||--o{ SHADOWING_HISTORY : "thực hiện"
     
     VIDEOS ||--o{ LESSONS : "chứa"
+    VIDEOS ||--o{ PLAYLIST_VIDEO : "thuộc về"
+    PLAYLISTS ||--o{ PLAYLIST_VIDEO : "chứa"
     VIDEOS ||--o{ SUBTITLE_TRACKS : "có"
     VIDEOS ||--o{ SENTENCES : "nguồn cho"
     VIDEOS ||--o{ VIDEO_GLOSSARY : "wiki"
@@ -38,6 +41,11 @@ erDiagram
 ### 2. `videos` (Video)
 - **`youtube_id`**: ID duy nhất từ YouTube (vd: `dQw4w9WgXcQ`).
 - **`title`**: Tiêu đề video.
+- **`channel_title`**: Tên kênh YouTube.
+- **`channel_id`**: ID của kênh.
+- **`description`**: Mô tả từ YouTube.
+- **`thumbnail_url`**: Ảnh đại diện video.
+- **`duration_seconds`**: Độ dài video (giây).
 - **`status`**: Trạng thái xử lý (pending, processing, completed, failed).
 - **`visibility`**: Chế độ hiển thị (public, private).
 
@@ -48,9 +56,18 @@ erDiagram
 - **`is_completed`**: Đánh dấu hoàn thành bài học.
 - **`last_accessed`**: Lần cuối cùng mở bài học.
 
-### 4. `sentences` & `sentence_sets` (Bộ câu & Mastery)
-- **`sentence_sets`**: Các "bộ sưu tập" câu (Mastery Decks) của người dùng.
 - **`sentences`**: Các câu học tập cụ thể, lưu trữ văn bản gốc, dịch, âm thanh (audio_url) và phân tích ngôn ngữ sâu (JSON).
+
+### 5. `playlists` (Bộ sưu tập/Sets)
+- **`id`**: Khóa chính.
+- **`name`**: Tên bộ sưu tập.
+- **`description`**: Mô tả bộ sưu tập.
+- **`owner_id`**: Người tạo (Khóa ngoại `users.id`).
+- **`created_at`**: Thời gian tạo.
+
+### 6. `playlist_video` (Bảng trung gian)
+- **`playlist_id`**: Liên kết `playlists`.
+- **`video_id`**: Liên kết `videos`.
 
 ### 5. `shadowing_history` (Lịch sử Luyện nói)
 - **`accuracy_score`**: Điểm độ chính xác (0-100).

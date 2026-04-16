@@ -16,9 +16,22 @@ PodLearn sử dụng hệ thống định tuyến (routing) dựa trên các Fla
 
 ## 🚀 Các Endpoints Quan trọng (JSON API)
 
-### 1. Dashboard & Khởi tạo
-- `GET /api/dashboard/init`: Tải dữ liệu ban đầu cho React SPA (Bài học, video công khai, thông báo, thống kê).
+### 1. Dashboard & Khởi tạo (SPA)
+- `GET /api/dashboard/init`: Endpoint hợp nhất để khởi tạo toàn bộ Dashboard. Trả về:
+    - `lessons`: Danh sách bài học của người dùng.
+    - `community_videos`: Video công khai gợi ý.
+    - `notifications`: Lời mời chia sẻ/học nhóm.
+    - `sets`: Các bộ Mastery (Ngữ pháp, Từ vựng).
+    - `stats`: Thống kê Streak và tiến độ.
 - `POST /api/lesson/<int:lesson_id>/track-time`: Cập nhật thời gian học và tính toán Streak.
+
+### 2. Bộ sưu tập & Playlists (Library Sets)
+- `GET /api/playlists`: Liệt kê tất cả danh sách phát của người dùng.
+- `POST /api/playlists`: Tạo danh sách phát mới.
+- `DELETE /api/playlists/<int:id>`: Xóa danh sách phát.
+- `GET /api/playlists/<int:id>/details`: Lấy danh sách video bên trong một Playlist cụ thể.
+- `POST /api/playlists/<int:id>/videos`: Thêm một video vào Playlist.
+- `DELETE /api/playlists/<int:id>/videos/<int:video_id>`: Xóa video khỏi Playlist.
 
 ### 2. Phân tích Ngôn ngữ & Từ vựng
 - `POST /api/vocab/analyze`: Phân tích câu (tách từ, tra từ điển offline) bằng Sudachi.

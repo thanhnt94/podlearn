@@ -28,15 +28,24 @@ PodLearn là một ứng dụng web hiện đại được thiết kế để gi
 
 ## ✨ Tính năng Nổi bật
 
-1.  **Trình phát Video Thông minh:** Hỗ trợ phụ đề đa ngôn ngữ, click-to-lookup và ghi chú theo mốc thời gian.
+1.  **Trình phát Video Thông minh:** Hỗ trợ phụ đề đa ngôn ngữ, click-to-lookup, ghi chú dòng thời gian và **Điều hướng Câu chính xác** (Smart Skip).
 2.  **Shadowing Studio & AI Insights:** Chế độ luyện nói ngắt quãng tích hợp phân tích ngôn ngữ 8 lớp (Ngữ pháp, Từ vựng, Sắc thái, Văn hóa, Mẹo nhớ...) cho từng câu thoại.
 3.  **Hành trình Mastery:** Lưu trữ và luyện tập các mẫu câu, ngữ pháp và từ vựng thông qua hệ thống thẻ học (Flashcards) với thuật toán SRS Adaptive Flow.
-4.  **Phân tích ngôn ngữ chuyên sâu:** Tự động tách từ, tra từ điển offline và giải thích ngữ cảnh chuyên sâu bằng AI (Gemini 2.0 Flash).
-5.  **Dashboard V3 Hybrid:** Giao diện điều khiển trung tâm tối ưu cho mọi thiết bị, quản lý lộ trình học tập và chuỗi ngày học (Streak) hiệu quả.
+4.  **Bộ sưu tập & Library Sets:** Quản lý video theo danh sách phát (Playlists) cá nhân, phân loại nội dung học tập thông minh.
+5.  **Phân tích ngôn ngữ chuyên sâu:** Tự động tách từ, tra từ điển offline và giải thích ngữ cảnh chuyên sâu bằng AI (Gemini 2.0 Flash).
+6.  **Dashboard V3 Hybrid:** Giao diện điều khiển tập trung, tối ưu hóa cho việc quản lý tiến độ và Streak.
 
 ---
 
 ## 🛠️ Hướng dẫn Cài đặt & Chạy ứng dụng
+
+### ⚡ Lưu ý Quan trọng cho Phát triển (CRITICAL)
+Dự án sử dụng cơ chế **Hybrid SPA**. Khi thay đổi code tại thư mục `frontend/`, bạn **PHẢI** chạy lệnh build để cập nhật các file tĩnh mà Flask server sử dụng:
+```bash
+cd frontend
+npm run build
+```
+Nếu không chạy lệnh này, các thay đổi giao diện sẽ không xuất hiện khi truy cập qua cổng của Flask (5020).
 
 ### 1. Cài đặt Backend
 Yêu cầu Python 3.10+.
