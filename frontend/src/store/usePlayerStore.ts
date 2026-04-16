@@ -149,6 +149,10 @@ interface PlayerState {
   setAIInsights: (data: any) => void;
   fetchAIInsights: () => Promise<void>;
   analyzeLine: (index: number) => Promise<void>;
+  
+  // Navigation
+  skipNextSentence: () => void;
+  skipPrevSentence: () => void;
 }
 
 const defaultTrackSettings = (fontSize: number, color: string, opacity: number, position: number): TrackSettings => ({
@@ -665,6 +669,40 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     } catch (e) { 
         console.error("Failed to analyze line", e);
         throw e;
+    }
+  },
+
+  skipNextSentence: () => {
+    const { subtitles, currentTime, requestSeek } = get();
+    // Find the first subtitle that starts AFTER the current time
+    const nextLine = subtitles.find(line => line.start > currentTime + 0.1);
+    if (nextLine) {
+      requestSeek(nextLine.start);
+    }
+  },
+
+  skipPrevSentence: () => {
+    const { subtitles, currentTime, requestSeek } = get();
+    // 1. Find the current/last subtitle
+    // We look for the subtitle that ends closest to BEFORE current time, 
+    // or the one currently active.
+    const currentIndex = subtitles.findIndex(line => currentTime >= line.start && currentTime <= line.end);
+    
+    if (currentIndex !== -1) {
+      const currentLine = subtitles[currentIndex];
+      // If we are more than 1s into the current sentence, jump to its start
+      if (currentTime - currentLine.start > 1) {
+        requestSeek(currentLine.start);
+      } else if (currentIndex > 0) {
+        // Otherwise jump to the previous sentence
+        requestSeek(subtitles[currentIndex - 1].start);
+      }
+    } else {
+      // If not in a sentence, find the one immediately before current time
+      const prevLine = [...subtitles].reverse().find(line => line.start < currentTime);
+      if (prevLine) {
+        requestSeek(prevLine.start);
+      }
     }
   }
 }));

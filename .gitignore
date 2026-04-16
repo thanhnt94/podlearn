@@ -36,3 +36,6 @@ migrations/__pycache__/
 
 # Deployment Scripts
 update_podlearn.py
+
+# YouTube Auth
+youtube_cookies.txt
