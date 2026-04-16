@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from ..extensions import db
 from sqlalchemy import func
 from ..models.activity_log import ActivityLog
+from ..models.lesson import Lesson
 
 tracking_bp = Blueprint('tracking', __name__)
 
@@ -14,6 +15,7 @@ def ping():
     listening_seconds = int(data.get('listening_seconds', 0))
     shadowing_count = int(data.get('shadowing_count', 0))
     shadowing_seconds = int(data.get('shadowing_seconds', 0))
+    lesson_id = data.get('lesson_id')
 
     today = datetime.now(timezone.utc).date()
     yesterday = today - timedelta(days=1)
@@ -26,6 +28,12 @@ def ping():
         )
         db.session.add(log)
         current_user.total_listening_seconds = (current_user.total_listening_seconds or 0) + listening_seconds
+        
+        # Update lesson-specific total
+        if lesson_id:
+            lesson = Lesson.query.get(lesson_id)
+            if lesson and lesson.user_id == current_user.id:
+                lesson.time_spent = (lesson.time_spent or 0) + listening_seconds
 
     if shadowing_count > 0:
         log = ActivityLog(

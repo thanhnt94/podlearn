@@ -59,8 +59,9 @@ export const NoteOverlay: React.FC = () => {
     const currentTheme = themeStyles[theme] || themeStyles.classic;
 
     return (
-        <div className={`absolute inset-0 pointer-events-none z-40 p-8 flex ${alignmentClasses[alignment]}`}>
-            <div className={`flex ${stackClass} gap-2.5 max-w-[90%] md:max-w-[40%]`}>
+        <div className={`absolute inset-0 pointer-events-none z-40 flex ${alignmentClasses[alignment]}`}
+             style={{ containerType: 'size' }}>
+            <div className={`flex ${stackClass} gap-[1cqw] max-w-[80%] md:max-w-[30%] p-[2cqw]`}>
                 <AnimatePresence mode="popLayout">
                     {activeNotes.map((note) => (
                         <motion.div
@@ -68,7 +69,7 @@ export const NoteOverlay: React.FC = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className={`w-fit flex items-center gap-3 p-2 px-4 rounded-2xl border transition-all duration-700 pointer-events-auto relative overflow-hidden ${currentTheme.container}`}
+                            className={`w-fit flex items-center gap-[0.8cqw] p-[0.4cqw] rounded-[0.6cqw] border transition-all duration-700 pointer-events-auto relative overflow-hidden ${currentTheme.container}`}
                         >
                             {/* Glow Pulse Background effect */}
                             <motion.div 
@@ -77,13 +78,17 @@ export const NoteOverlay: React.FC = () => {
                                 className={`absolute inset-0 pointer-events-none blur-xl bg-current opacity-5`}
                             />
 
-                            {/* Compact Icon Container */}
-                            <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${currentTheme.iconBg}`}>
-                                <Lightbulb size={16} className={currentTheme.iconColor} fill="currentColor" />
+                            {/* Scaling Icon Container */}
+                            <div className={`rounded-full flex items-center justify-center shrink-0 z-10 ${currentTheme.iconBg}`}
+                                 style={{ width: 'clamp(14px, 3.5cqw, 26px)', height: 'clamp(14px, 3.5cqw, 26px)' }}>
+                                <Lightbulb size="55%" className={currentTheme.iconColor} fill="currentColor" />
                             </div>
 
                             <div className="flex flex-col z-10">
-                                <span className="text-[13px] md:text-sm font-bold leading-tight whitespace-pre-wrap">{note.content}</span>
+                                <span className="font-bold leading-tight whitespace-pre-wrap"
+                                      style={{ fontSize: `clamp(9px, ${(settings.notes.fontSize || 2.5) * 0.7}cqw, 24px)` }}>
+                                    {note.content}
+                                </span>
                             </div>
                         </motion.div>
                     ))}

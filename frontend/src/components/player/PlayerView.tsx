@@ -30,12 +30,13 @@ export const PlayerView: React.FC = () => {
     isCompleted, completeLesson,
     sidebarWidth, setSidebarWidth,
     isPlaying, addListeningTime, flushTrackingData,
-    sessionListeningSeconds, sessionShadowingCount
+    initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount
   } = usePlayerStore();
 
   const formatSessionTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const totalSecs = Number(initialListeningSeconds || 0) + Number(seconds || 0);
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
     return `${m}:${s < 10 ? '0' + s : s}`;
   };
 
@@ -166,17 +167,17 @@ export const PlayerView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                   {/* Live Heartbeat Session Stats */}
-                  {(sessionListeningSeconds > 0 || sessionShadowingCount > 0) && (
+                  {(Number(initialListeningSeconds) > 0 || Number(sessionListeningSeconds) > 0 || Number(sessionShadowingCount) > 0) && (
                       <motion.div 
                         initial={{ opacity: 0, scale: 0.9, x: 20 }}
                         animate={{ opacity: 1, scale: 1, x: 0 }}
-                        className="flex items-center gap-3 px-3 py-1.5 bg-sky-500/10 border border-sky-500/20 rounded-full mr-2"
+                        className="flex items-center gap-3 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full mr-2"
                       >
                           <div className="flex items-center gap-1.5">
-                              <div className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-pulse" />
-                              <span className="text-[10px] font-black text-sky-400 font-mono">{formatSessionTime(sessionListeningSeconds)}</span>
+                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                              <span className="text-[10px] font-black text-emerald-400 font-mono">{formatSessionTime(sessionListeningSeconds)}</span>
                           </div>
-                          {sessionShadowingCount > 0 && (
+                          {Number(sessionShadowingCount) > 0 && (
                               <>
                                   <div className="w-[1px] h-3 bg-white/10" />
                                   <div className="flex items-center gap-1.5">

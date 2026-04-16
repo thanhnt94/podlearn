@@ -876,6 +876,7 @@ def fetch_subtitles(lesson_id):
         'available_tracks': available_tracks,
         'settings_json': lesson.settings_json,
         'is_completed': lesson.is_completed,
+        'total_time_spent': lesson.time_spent,
         'metadata': {
             'original_lang': lesson.original_lang_code,
             'target_lang': lesson.target_lang_code,

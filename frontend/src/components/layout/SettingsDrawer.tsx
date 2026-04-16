@@ -313,13 +313,13 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                     </select>
                                                 </div>
 
-                                                <div className="space-y-3">
+                                                <div className="space-y-3 pt-4 border-t border-white/5">
                                                     <div className="flex justify-between">
-                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Screen Duration</label>
-                                                        <span className="text-xs font-mono text-sky-400">{settings.notes.duration}s</span>
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Note Font Scale</label>
+                                                        <span className="text-xs font-mono text-sky-400">{(settings.notes.fontSize * 10).toFixed(0)}%</span>
                                                     </div>
-                                                    <input type="range" min="1" max="20" step="1" value={settings.notes.duration} 
-                                                           onChange={(e) => setNoteSettings({ duration: parseFloat(e.target.value) })} 
+                                                    <input type="range" min="1" max="6" step="0.1" value={settings.notes.fontSize || 2.5} 
+                                                           onChange={(e) => setNoteSettings({ fontSize: parseFloat(e.target.value) })} 
                                                            className="w-full accent-sky-500 h-1 bg-slate-800 rounded-full" />
                                                 </div>
                                             </div>

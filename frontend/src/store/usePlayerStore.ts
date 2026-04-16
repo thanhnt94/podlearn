@@ -87,6 +87,7 @@ interface PlayerState {
   comments: any[];
   
   // NEW: Gamification Tracking
+  initialListeningSeconds: number;
   sessionListeningSeconds: number;
   sessionShadowingCount: number;
   sessionShadowingSeconds: number;
@@ -102,6 +103,7 @@ interface PlayerState {
         position: number;
         alignment: 'topLeft' | 'topCenter' | 'topRight' | 'centerLeft' | 'center' | 'centerRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight';
         theme: 'classic' | 'cyber' | 'amber' | 'ghost';
+        fontSize: number;
       };
   };
   
@@ -167,6 +169,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isCommunityOn: false,
   comments: [],
   
+  initialListeningSeconds: 0,
   sessionListeningSeconds: 0,
   sessionShadowingCount: 0,
   sessionShadowingSeconds: 0,
@@ -210,7 +213,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         duration: 5,
         position: 75,
         alignment: 'bottomCenter',
-        theme: 'classic'
+        theme: 'classic',
+        fontSize: 1.8
     }
   },
 
@@ -331,6 +335,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       if (state.sessionListeningSeconds === 0 && state.sessionShadowingCount === 0) return;
 
       const payload = {
+          lesson_id: state.lessonId,
           listening_seconds: state.sessionListeningSeconds,
           shadowing_count: state.sessionShadowingCount,
           shadowing_seconds: state.sessionShadowingSeconds
@@ -547,6 +552,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             trackIds,
             settings: finalSettings,
             isCompleted: m.is_completed || false,
+            initialListeningSeconds: m.total_time_spent || 0,
             isLoaded: true // Success
         });
 

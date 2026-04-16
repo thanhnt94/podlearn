@@ -26,6 +26,7 @@ def view(lesson_id):
         'lesson_title': lesson.video.title,
         'available_tracks': available_tracks,
         'settings_json': lesson.settings_json,
+        'total_time_spent': lesson.time_spent,
         'metadata': {
             'original_lang': lesson.original_lang_code,
             'target_lang': lesson.target_lang_code,
