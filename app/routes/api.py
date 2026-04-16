@@ -25,6 +25,7 @@ from ..models.lesson import Lesson
 from ..models.video import Video
 from ..models.note import Note
 from ..models.subtitle import SubtitleTrack
+from ..models.playlist import Playlist
 from ..models.shadowing import ShadowingHistory
 from ..models.sentence import Sentence, SentenceSet
 from ..models.glossary import VideoGlossary, VocabEditHistory
