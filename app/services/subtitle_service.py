@@ -26,7 +26,6 @@ def _get_ytdlp_opts(extra_opts=None):
         'ignoreerrors': True,
         'prefer_ffmpeg': True,
     }
-    }
     if os.path.exists(cookie_path):
         opts['cookiefile'] = cookie_path
     
