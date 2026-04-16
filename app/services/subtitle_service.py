@@ -32,7 +32,21 @@ def _get_ytdlp_opts(extra_opts=None):
     }
 
     if os.path.exists(cookie_path):
-        opts['cookiefile'] = cookie_path
+        # 1. Check if the file is readable by the current process
+        if not os.access(cookie_path, os.R_OK):
+            logger.error(f"YouTube cookies FOUND but NOT READABLE. Please run: chmod 644 {cookie_path}")
+        else:
+            # 2. Check for Netscape format header
+            try:
+                with open(cookie_path, 'r', encoding='utf-8') as f:
+                    first_line = f.readline()
+                    if "# Netscape HTTP Cookie File" not in first_line:
+                        logger.error(f"YouTube cookies FOUND but INVALID FORMAT. Header missing. First line: {first_line[:50]}")
+                    else:
+                        # logger.info(f"YouTube cookies loaded successfully from {cookie_path}")
+                        opts['cookiefile'] = cookie_path
+            except Exception as e:
+                logger.error(f"Error reading YouTube cookies: {e}")
     else:
         if extra_opts:
             logger.warning(f"YouTube cookie file NOT FOUND at: {cookie_path}. Using guest mode.")
