@@ -3,8 +3,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { LessonCard } from './LessonCard';
 import { 
     Layers, Plus, Trash2, ArrowLeft, 
-    FolderPlus, Sparkles, Folder,
-    Clock, Play, MoreVertical
+    FolderPlus, Folder,
+    Play
 } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';

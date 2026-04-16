@@ -39,7 +39,7 @@ export const MasteryView: React.FC = () => {
                 {/* Categories & Decks */}
                 <div className="space-y-16">
                     {categories.map(cat => {
-                        const catSets = sets.filter(s => s.set_type === cat.id);
+                        const catSets = sets.filter((s: any) => s.set_type === cat.id);
                         return (
                             <section key={cat.id} className="space-y-8">
                                 <div className="flex items-center justify-between border-b border-white/5 pb-4">
@@ -53,7 +53,7 @@ export const MasteryView: React.FC = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {catSets.map(set => (
+                                    {catSets.map((set: any) => (
                                         <motion.div 
                                             key={set.id}
                                             whileHover={{ y: -5 }}

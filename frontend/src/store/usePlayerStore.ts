@@ -225,11 +225,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setCurrentTime: (time) => {
     const { subtitles, activeLineIndex, abLoop, requestSeek, isSeeking, lastSeekTime } = get();
     
-    // Remove the heavy 1s delay and the isSeeking lock here, 
-    // because VideoSection will unlock isSeeking immediately.
-    // We use a tiny 200ms buffer to prevent poller from 
     // overwriting the state before the player actually seeks.
-    if (isSeeking || (Date.now() - lastSeekTime < 200)) {
+    // Increased to 1000ms because YouTube player can be slow to report new position.
+    if (isSeeking || (Date.now() - lastSeekTime < 1000)) {
       return; 
     }
 
@@ -674,10 +672,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   skipNextSentence: () => {
     const { subtitles, currentTime, requestSeek } = get();
-    // Find the first subtitle that starts AFTER the current time
-    const nextLine = subtitles.find(line => line.start > currentTime + 0.1);
-    if (nextLine) {
-      requestSeek(nextLine.start);
+    // Find the current active sentence index
+    const currentIndex = subtitles.findIndex(line => currentTime >= line.start && currentTime <= line.end);
+    
+    if (currentIndex !== -1 && currentIndex < subtitles.length - 1) {
+      // If we are currently IN a sentence, jump to the START of the next one
+      const targetLine = subtitles[currentIndex + 1];
+      requestSeek(targetLine.start + 0.05, currentIndex + 1);
+    } else {
+      // If we are in a gap between sentences, find the first one that starts after us
+      const nextIdx = subtitles.findIndex(line => line.start > currentTime + 0.05);
+      if (nextIdx !== -1) {
+        requestSeek(subtitles[nextIdx].start + 0.05, nextIdx);
+      }
     }
   },
 
@@ -691,17 +698,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (currentIndex !== -1) {
       const currentLine = subtitles[currentIndex];
       // If we are more than 1s into the current sentence, jump to its start
-      if (currentTime - currentLine.start > 1) {
-        requestSeek(currentLine.start);
+      if (currentTime - currentLine.start > 1.2) {
+        requestSeek(currentLine.start + 0.05, currentIndex);
       } else if (currentIndex > 0) {
         // Otherwise jump to the previous sentence
-        requestSeek(subtitles[currentIndex - 1].start);
+        requestSeek(subtitles[currentIndex - 1].start + 0.05, currentIndex - 1);
       }
     } else {
       // If not in a sentence, find the one immediately before current time
-      const prevLine = [...subtitles].reverse().find(line => line.start < currentTime);
+      // findIndex on reversed copy is tricky, let's just use a loop for clarity if needed or simpler find logic
+      const rSubtitles = [...subtitles].reverse();
+      const prevLine = rSubtitles.find(line => line.start < currentTime - 0.5);
       if (prevLine) {
-        requestSeek(prevLine.start);
+         const originalIndex = subtitles.findIndex(l => l.start === prevLine.start);
+         requestSeek(prevLine.start + 0.05, originalIndex);
       }
     }
   }

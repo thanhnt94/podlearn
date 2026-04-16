@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Lightbulb, Compass, User, Layers } from 'lucide-react';
+import { Home, Lightbulb, Compass, Layers } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 

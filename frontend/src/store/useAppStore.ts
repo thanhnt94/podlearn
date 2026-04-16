@@ -38,6 +38,7 @@ interface AppState {
     lessons: Lesson[];
     communityVideos: Lesson[];
     playlists: Playlist[];
+    sets: any[];
     stats: {
         current_streak: number;
         longest_streak: number;
@@ -64,6 +65,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     lessons: [],
     communityVideos: [],
     playlists: [],
+    sets: [],
     stats: { current_streak: 0, longest_streak: 0, completed_count: 0, total_lessons: 0, total_time_seconds: 0 },
     notifications: [],
     isLoading: true,
@@ -77,6 +79,7 @@ export const useAppStore = create<AppState>((set, get) => ({
                 communityVideos: res.data.community_videos,
                 stats: res.data.stats,
                 notifications: res.data.notifications,
+                sets: res.data.sets || [],
                 isLoading: false
             });
             get().fetchPlaylists();

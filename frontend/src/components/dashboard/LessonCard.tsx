@@ -1,3 +1,4 @@
+import React from 'react';
 import { Play, CheckCircle2, Clock, User, Trash2, Layers, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
