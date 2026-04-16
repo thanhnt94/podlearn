@@ -254,28 +254,29 @@ def create_app(config_name: str | None = None) -> Flask:
     # ── User loader for Flask-Login ────────────────────────────
     from .models import User
 
-    @login_manager.user_loader
-    def load_user(user_id):
-        return db.session.get(User, int(user_id))
-
-    # ── CLI commands ───────────────────────────────────────────
-    import click
-
-    @app.cli.command('seed-admin')
-    def seed_admin():
-        """Create the default admin/admin account."""
-        existing = User.query.filter_by(username='admin').first()
-        if existing:
-            existing.is_admin = True
-            db.session.commit()
-            click.echo('Admin user already exists. Updated to is_admin=True')
-            return
-        admin = User(username='admin', email='admin@AuraFlow.local', is_admin=True)
-        admin.set_password('admin')
-        db.session.add(admin)
-        db.session.commit()
-        click.echo('Admin user created successfully.')
-
-        click.echo('✅ Admin user created (admin/admin)')
+    # ── Ensure Database & Tables ───────────────────────────────
+    with app.app_context():
+        from .models.user import User
+        # 1. Create database directory if it's SQLite
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if db_uri.startswith('sqlite:///'):
+            db_path_str = db_uri.replace('sqlite:///', '')
+            db_dir = os.path.dirname(db_path_str)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir)
+        
+        # 2. Create tables
+        db.create_all()
+        
+        # 3. Seed Admin if not exists
+        try:
+            admin_exists = User.query.filter((User.username == 'admin') | (User.email == 'admin@AuraFlow.local')).first()
+            if not admin_exists:
+                admin = User(username='admin', email='admin@AuraFlow.local', is_admin=True)
+                admin.set_password('admin')
+                db.session.add(admin)
+                db.session.commit()
+        except Exception as e:
+            app.logger.warning(f"Database initialization - Check migrations: {e}")
 
     return app

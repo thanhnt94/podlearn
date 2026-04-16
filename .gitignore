@@ -33,3 +33,6 @@ Thumbs.db
 
 # Migrations (keep structure, ignore pycache)
 migrations/__pycache__/
+
+# Deployment Scripts
+update_podlearn.py
