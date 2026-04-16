@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 def _get_ytdlp_opts(extra_opts=None):
     """Centralized yt-dlp options with cookies."""
-    cookie_path = os.path.abspath(os.path.join(os.getcwd(), 'youtube_cookies.txt'))
+    # Use absolute path relative to this file's parent's parent (app root)
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cookie_path = os.path.join(base_dir, 'youtube_cookies.txt')
+
     opts = {
         'quiet': True,
         'no_warnings': True,
@@ -26,8 +29,13 @@ def _get_ytdlp_opts(extra_opts=None):
         'ignoreerrors': True,
         'prefer_ffmpeg': True,
     }
+
     if os.path.exists(cookie_path):
         opts['cookiefile'] = cookie_path
+    else:
+        # Only log if we have extra_opts (meaning we are actually trying a task)
+        if extra_opts:
+            logger.warning(f"YouTube cookie file NOT FOUND at: {cookie_path}. Using guest mode.")
     
     if extra_opts:
         opts.update(extra_opts)
@@ -78,8 +86,11 @@ def download_and_parse_youtube_sub(video_id: str, lang_code: str, is_auto: bool 
         'writesubtitles': not is_auto,
         'writeautomaticsub': is_auto,
         'subtitleslangs': [lang_code],
-        'subtitlesformat': 'vtt',
         'outtmpl': os.path.join(temp_dir, f'sub_%(id)s_%(lang)s'),
+        'postprocessors': [{
+            'key': 'FFmpegSubtitlesConvertor',
+            'format': 'vtt',
+        }],
     })
 
     try:
