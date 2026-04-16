@@ -14,6 +14,10 @@ class Video(db.Model):
     visibility = db.Column(db.String(20), default='private') # private, pending_public, public
 
     title = db.Column(db.String(500), nullable=False)
+    channel_title = db.Column(db.String(255))
+    channel_id = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    
     thumbnail_url = db.Column(db.String(500))
     duration_seconds = db.Column(db.Integer)
     status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
@@ -21,6 +25,7 @@ class Video(db.Model):
 
     # Relationships
     owner = db.relationship('User', backref='uploaded_videos')
+    playlists = db.relationship('Playlist', secondary='playlist_items', back_populates='videos')
 
     # Relationships
     subtitle_tracks = db.relationship('SubtitleTrack', back_populates='video',

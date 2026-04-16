@@ -18,6 +18,9 @@ class VideoInfo:
     title: str
     thumbnail_url: str
     duration_seconds: int
+    channel_title: str | None = None
+    channel_id: str | None = None
+    description: str | None = None
 
 
 def extract_video_id(url: str) -> str | None:
@@ -55,11 +58,15 @@ def fetch_video_info(youtube_id: str) -> VideoInfo | None:
         if not info:
             return None
 
+        # Robust extraction of channel and description
         return VideoInfo(
             youtube_id=youtube_id,
             title=info.get('title', 'Untitled'),
             thumbnail_url=info.get('thumbnail', f'https://img.youtube.com/vi/{youtube_id}/hqdefault.jpg'),
             duration_seconds=int(info.get('duration', 0)),
+            channel_title=info.get('uploader'),
+            channel_id=info.get('uploader_id'),
+            description=info.get('description')
         )
 
     except Exception as e:

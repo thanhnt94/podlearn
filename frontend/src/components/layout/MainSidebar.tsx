@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
     Home, Compass, BookOpen, User, 
-    PlusCircle, Flame, LogOut, ChevronRight, Headphones
+    PlusCircle, Flame, LogOut, ChevronRight, Headphones,
+    Layers
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +14,7 @@ export const MainSidebar: React.FC = () => {
 
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', path: '/', icon: <Home size={22} /> },
+        { id: 'sets', label: 'Library Sets', path: '/sets', icon: <Layers size={22} /> },
         { id: 'mastery', label: 'Mastery', path: '/mastery', icon: <BookOpen size={22} /> },
         { id: 'explore', label: 'Explore', path: '/explore', icon: <Compass size={22} /> },
         { id: 'profile', label: 'My Stats', path: '/profile', icon: <User size={22} /> },

@@ -147,6 +147,114 @@ def track_time(lesson_id):
     })
 
 
+# --- Playlist (Sets) Endpoints ---
+
+@api_bp.route('/playlists', methods=['GET'])
+@login_required
+def get_playlists():
+    """List all playlists (sets) of the current user."""
+    playlists = Playlist.query.filter_by(owner_id=current_user.id).order_by(Playlist.created_at.desc()).all()
+    return jsonify({
+        'playlists': [{
+            'id': p.id,
+            'name': p.name,
+            'description': p.description,
+            'video_count': len(p.videos),
+            'created_at': p.created_at.isoformat()
+        } for p in playlists]
+    })
+
+@api_bp.route('/playlists', methods=['POST'])
+@login_required
+def create_playlist():
+    """Create a new playlist (set)."""
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+        
+    playlist = Playlist(name=name, description=data.get('description'), owner_id=current_user.id)
+    db.session.add(playlist)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'playlist': {
+            'id': playlist.id,
+            'name': playlist.name,
+            'description': playlist.description
+        }
+    })
+
+@api_bp.route('/playlists/<int:playlist_id>', methods=['DELETE'])
+@login_required
+def delete_playlist(playlist_id):
+    """Delete a playlist."""
+    playlist = Playlist.query.filter_by(id=playlist_id, owner_id=current_user.id).first_or_404()
+    db.session.delete(playlist)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/playlists/<int:playlist_id>/videos', methods=['POST'])
+@login_required
+def add_video_to_playlist(playlist_id):
+    """Add a video (or lesson's video) to a playlist."""
+    playlist = Playlist.query.filter_by(id=playlist_id, owner_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+    video_id = data.get('video_id')
+    
+    video = Video.query.get_or_404(video_id)
+    if video not in playlist.videos:
+        playlist.videos.append(video)
+        db.session.commit()
+        
+    return jsonify({'success': True})
+
+@api_bp.route('/playlists/<int:playlist_id>/videos/<int:video_id>', methods=['DELETE'])
+@login_required
+def remove_video_from_playlist(playlist_id, video_id):
+    """Remove a video from a playlist."""
+    playlist = Playlist.query.filter_by(id=playlist_id, owner_id=current_user.id).first_or_404()
+    video = Video.query.get_or_404(video_id)
+    
+    if video in playlist.videos:
+        playlist.videos.remove(video)
+        db.session.commit()
+        
+    return jsonify({'success': True})
+
+@api_bp.route('/playlists/<int:playlist_id>/details', methods=['GET'])
+@login_required
+def get_playlist_details(playlist_id):
+    """Get videos inside a specific playlist."""
+    playlist = Playlist.query.filter_by(id=playlist_id, owner_id=current_user.id).first_or_404()
+    
+    videos_data = []
+    for v in playlist.videos:
+        # We need to find the user's lesson for this video or use a dummy lesson-like structure
+        lesson = Lesson.query.filter_by(user_id=current_user.id, video_id=v.id).first()
+        videos_data.append({
+            'id': lesson.id if lesson else None,
+            'video_id': v.id,
+            'video': {
+                'id': v.id,
+                'title': v.title,
+                'channel_title': v.channel_title,
+                'thumbnail_url': v.thumbnail_url,
+                'duration_seconds': v.duration_seconds or 1,
+            }
+        })
+        
+    return jsonify({
+        'playlist': {
+            'id': playlist.id,
+            'name': playlist.name,
+            'description': playlist.description
+        },
+        'videos': videos_data
+    })
+
+
 @api_bp.route('/dashboard/init', methods=['GET'])
 @login_required
 def get_dashboard_init():
@@ -165,6 +273,7 @@ def get_dashboard_init():
             'video': {
                 'id': l.video.id,
                 'title': l.video.title,
+                'channel_title': l.video.channel_title,
                 'thumbnail_url': l.video.thumbnail_url,
                 'duration_seconds': l.video.duration_seconds or 1,
                 'owner_name': l.video.owner.username if l.video.owner else "System",

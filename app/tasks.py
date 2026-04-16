@@ -23,6 +23,9 @@ def process_video_metadata(video_id_int: int):
             video.title = info.title
             video.thumbnail_url = info.thumbnail_url
             video.duration_seconds = info.duration_seconds
+            video.channel_title = info.channel_title
+            video.channel_id = info.channel_id
+            video.description = info.description
             db.session.commit()
         else:
             video.status = 'failed'

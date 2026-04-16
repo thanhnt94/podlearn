@@ -8,8 +8,19 @@ import { ExploreView } from './components/explore/ExploreView';
 import { StatsView } from './components/profile/StatsView';
 import { MasteryView } from './components/mastery/MasteryView';
 import { ImportView } from './components/dashboard/ImportView';
+import { SetListView, SetDetailView } from './components/dashboard/PlaylistViews';
 
 import { PlayerErrorBoundary } from './components/common/PlayerErrorBoundary';
+
+// Wrapper for Sets to handle list vs detail
+const SetsWrapper: React.FC = () => {
+  const [selectedSetId, setSelectedSetId] = React.useState<number | null>(null);
+  
+  if (selectedSetId) {
+    return <SetDetailView playlistId={selectedSetId} onBack={() => setSelectedSetId(null)} />;
+  }
+  return <SetListView onSelect={(id) => setSelectedSetId(id)} />;
+};
 
 // Wrapper for Player to handle fetching data from URL params
 const PlayerRouteWrapper: React.FC = () => {
@@ -48,6 +59,9 @@ const App: React.FC = () => {
         <Routes>
           {/* Main Dashboard */}
           <Route path="/" element={<DashboardView />} />
+
+          {/* Library Sets */}
+          <Route path="/sets" element={<SetsWrapper />} />
           
           {/* Mastery / Flashcards */}
           <Route path="/mastery" element={<MasteryView />} />

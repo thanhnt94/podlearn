@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Lightbulb, Compass, User } from 'lucide-react';
+import { Home, Lightbulb, Compass, User, Layers } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -8,9 +8,9 @@ export const BottomNav: React.FC = () => {
 
     const tabs = [
         { id: 'dashboard', label: 'Home', path: '/', icon: <Home size={22} /> },
-        { id: 'mastery', label: 'Mastery', path: '/mastery', icon: <Lightbulb size={22} /> },
-        { id: 'explore', label: 'Explore', path: '/explore', icon: <Compass size={22} /> },
-        { id: 'profile', label: 'Stats', path: '/profile', icon: <User size={22} /> },
+        { id: 'sets', label: 'Sets', path: '/sets', icon: <Layers size={22} /> },
+        { id: 'mastery', label: 'Learn', path: '/mastery', icon: <Lightbulb size={22} /> },
+        { id: 'explore', label: 'Discovery', path: '/explore', icon: <Compass size={22} /> },
     ];
 
     return (

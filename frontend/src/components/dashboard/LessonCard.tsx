@@ -1,6 +1,6 @@
-import React from 'react';
-import { Play, CheckCircle2, Clock, User, Trash2 } from 'lucide-react';
+import { Play, CheckCircle2, Clock, User, Trash2, Layers, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAppStore } from '../../store/useAppStore';
 
 interface LessonCardProps {
     lesson: any;
@@ -9,6 +9,9 @@ interface LessonCardProps {
 
 export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete }) => {
     const { video, time_spent, is_completed, last_accessed } = lesson;
+    const { playlists, addVideoToPlaylist } = useAppStore();
+    const [showPlaylistSelector, setShowPlaylistSelector] = React.useState(false);
+
     const progressPercent = Math.min(100, Math.round((time_spent / (video.duration_seconds || 1)) * 100));
 
     const formatDuration = (seconds: number) => {
@@ -68,9 +71,9 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete }) => {
                         </h3>
                     </Link>
                     <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 truncate max-w-[150px]">
                             <User size={12} className="text-sky-500" />
-                            {video.owner_name}
+                            {video.channel_title || video.owner_name}
                         </div>
                         <div className="flex items-center gap-1.5 font-mono">
                             {progressPercent}% Done
@@ -79,14 +82,49 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete }) => {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                    <div className="flex items-center gap-2 text-[10px] text-slate-600 font-bold uppercase tracking-tighter">
-                        <Clock size={12} />
-                        {last_accessed ? `Studied ${new Date(last_accessed).toLocaleDateString()}` : 'New Lesson'}
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-600 font-bold uppercase tracking-tighter">
+                            <Clock size={12} />
+                            {last_accessed ? `Studied ${new Date(last_accessed).toLocaleDateString()}` : 'New Lesson'}
+                        </div>
+                        
+                        {/* Playlist Add Action */}
+                        <div className="relative">
+                            <button 
+                                onClick={(e) => { e.preventDefault(); setShowPlaylistSelector(!showPlaylistSelector); }}
+                                className={`p-1.5 rounded-lg transition-all ${showPlaylistSelector ? 'bg-sky-500 text-slate-950 scale-110 shadow-lg' : 'text-slate-700 hover:text-sky-400 hover:bg-sky-500/10'}`}
+                                title="Add to Set"
+                            >
+                                <Layers size={14} />
+                            </button>
+                            
+                            {showPlaylistSelector && (
+                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-2 z-[60] overflow-hidden">
+                                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest p-2 border-b border-white/5 mb-1">Add to Set</p>
+                                     <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                         {playlists.map(p => (
+                                             <button 
+                                                key={p.id}
+                                                onClick={() => { addVideoToPlaylist(p.id, video.id); setShowPlaylistSelector(false); }}
+                                                className="w-full text-left px-3 py-2 text-xs font-bold text-slate-300 hover:bg-sky-500 hover:text-slate-950 rounded-xl transition-all flex items-center justify-between group/p"
+                                             >
+                                                 <span className="truncate">{p.name}</span>
+                                                 <Plus size={12} className="opacity-0 group-hover/p:opacity-100" />
+                                             </button>
+                                         ))}
+                                         {playlists.length === 0 && (
+                                             <p className="text-[10px] italic text-slate-600 p-2">No sets created yet.</p>
+                                         )}
+                                     </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
+
                     {onDelete && (
                         <button 
                             onClick={() => onDelete(lesson.id)}
-                            className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                            className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
                         >
                             <Trash2 size={16} />
                         </button>
