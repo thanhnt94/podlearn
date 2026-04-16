@@ -1,5 +1,5 @@
-import React from 'react';
-import { Bell, Search, Headphones } from 'lucide-react';
+import { Search, Headphones } from 'lucide-react';
+import { NotificationBell } from './NotificationBell';
 
 export const MobileHeader: React.FC = () => {
     const username = (window as any).__PODLEARN_DATA__?.username || 'User';
@@ -17,10 +17,7 @@ export const MobileHeader: React.FC = () => {
                 <button className="p-2 hover:bg-white/5 rounded-full transition-colors">
                     <Search size={22} />
                 </button>
-                <div className="relative">
-                    <Bell size={22} />
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-sky-500 border-2 border-slate-950 rounded-full" />
-                </div>
+                <NotificationBell />
                 <div className="w-8 h-8 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center font-bold text-xs text-sky-400">
                     {username[0].toUpperCase()}
                 </div>

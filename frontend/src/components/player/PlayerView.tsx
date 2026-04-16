@@ -156,9 +156,9 @@ export const PlayerView: React.FC = () => {
     <div className="flex-1 flex flex-col md:flex-row h-full bg-slate-950 overflow-hidden">
       
       {/* 1. MAIN AREA (LEFT) - Balanced Cinema Focus */}
-      <div className="flex-none md:flex-1 flex flex-col items-center justify-center bg-black md:bg-[#020617] relative overflow-hidden">
-          {/* Header (Integrated) - Zero Gap for Mobile, Floating on Desktop */}
-          <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-1 pb-0 md:py-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl shrink-0 z-20">
+      <div className="flex-none md:flex-1 flex flex-col bg-black md:bg-[#020617] relative overflow-hidden">
+          {/* Header (Integrated) - Flexible on Mobile, Floating on Desktop */}
+          <div className="relative md:absolute md:top-0 md:left-0 md:right-0 flex items-center justify-between px-4 py-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl shrink-0 z-20">
               <div className="flex items-center gap-3">
                   <button onClick={() => navigate('/')} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <ArrowLeft size={20} />
@@ -177,15 +177,6 @@ export const PlayerView: React.FC = () => {
                               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                               <span className="text-[10px] font-black text-emerald-400 font-mono">{formatSessionTime(sessionListeningSeconds)}</span>
                           </div>
-                          {Number(sessionShadowingCount) > 0 && (
-                              <>
-                                  <div className="w-[1px] h-3 bg-white/10" />
-                                  <div className="flex items-center gap-1.5">
-                                      <Mic2 size={10} className="text-purple-400" />
-                                      <span className="text-[10px] font-black text-purple-400 font-mono">{sessionShadowingCount}</span>
-                                  </div>
-                              </>
-                          )}
                       </motion.div>
                   )}
 
@@ -202,8 +193,8 @@ export const PlayerView: React.FC = () => {
           </div>
           
           {/* Video Wrapper - Maximized but constrained to view height */}
-          <div className="w-full h-full flex flex-col items-center justify-center p-0 md:p-8 lg:p-12 mb-[-1px]">
-               <div className="w-full max-w-[1700px] max-h-full aspect-video md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 bg-black">
+          <div className="flex-1 w-full flex flex-col items-center justify-center p-0 md:p-8 lg:p-12">
+               <div className="w-full max-w-[1700px] aspect-video md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 bg-black relative">
                   <VideoSection />
                </div>
           </div>

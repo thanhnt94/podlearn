@@ -94,32 +94,32 @@ export const VideoControls: React.FC = () => {
                         </div>
 
                         {/* 2. Main Control Row */}
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-6">
+                        <div className="flex flex-wrap items-center justify-between gap-y-4">
+                            <div className="flex items-center gap-3 md:gap-6 overflow-x-auto no-scrollbar">
                                 {/* Play/Pause Toggle */}
                                 <button 
                                     onClick={() => setPlaying(!isPlaying)}
-                                    className="text-white hover:text-sky-400 transition-colors"
+                                    className="text-white hover:text-sky-400 transition-colors shrink-0"
                                 >
                                     {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
                                 </button>
 
                                 {/* Jump Controls */}
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 md:gap-4 shrink-0">
                                     <button 
                                         onClick={skipPrevSentence} 
                                         className="text-white/80 hover:text-amber-400 transition-all active:scale-90 p-1 bg-white/5 rounded-lg border border-white/10" 
                                         title="Previous Sentence"
                                     >
-                                        <ChevronLeft size={20} />
+                                        <ChevronLeft size={18} />
                                     </button>
                                     
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1 md:gap-2">
                                         <button onClick={() => requestSeek(Math.max(0, currentTime - 5))} className="text-white/60 hover:text-white transition-colors" title="Back 5s">
-                                            <RotateCcw size={18} />
+                                            <RotateCcw size={16} />
                                         </button>
                                         <button onClick={() => requestSeek(Math.min(duration, currentTime + 5))} className="text-white/60 hover:text-white transition-colors" title="Forward 5s">
-                                            <RotateCw size={18} />
+                                            <RotateCw size={16} />
                                         </button>
                                     </div>
                                     
@@ -128,12 +128,12 @@ export const VideoControls: React.FC = () => {
                                         className="text-white/80 hover:text-amber-400 transition-all active:scale-90 p-1 bg-white/5 rounded-lg border border-white/10" 
                                         title="Next Sentence"
                                     >
-                                        <ChevronRight size={20} />
+                                        <ChevronRight size={18} />
                                     </button>
                                 </div>
 
-                                {/* Volume Control */}
-                                <div className="flex items-center gap-3 group/vol">
+                                {/* Volume Control - Hidden on mobile, handled by device */}
+                                <div className="hidden md:flex items-center gap-3 group/vol">
                                     <button onClick={() => setVolume(volume === 0 ? 100 : 0)} className="text-white/60 hover:text-white transition-colors">
                                         {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
                                     </button>
@@ -145,12 +145,12 @@ export const VideoControls: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-3 md:gap-6 ml-auto">
                                 {/* Subtitle Toggles */}
                                 <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md rounded-xl p-0.5 border border-white/10">
                                     <button 
                                         onClick={toggleNativeCC}
-                                        className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-all ${isNativeCCOn ? 'bg-red-500/20 text-red-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-2 py-1.5 md:px-3 rounded-lg flex items-center justify-center transition-all ${isNativeCCOn ? 'bg-red-500/20 text-red-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
                                         title="Native YouTube CC"
                                     >
                                         <Tv size={14} />
@@ -181,7 +181,7 @@ export const VideoControls: React.FC = () => {
                                             <button 
                                                 key={num}
                                                 onClick={() => setTrackSettings(trackKey, { enabled: !isOn })}
-                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${isOn ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                                className={`px-2 py-1.5 md:px-3 rounded-lg text-[9px] md:text-[10px] font-black transition-all ${isOn ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-white/40 hover:text-white'}`}
                                                 title={`Toggle Learning Subtitle ${num}`}
                                             >
                                                 {num}
@@ -193,22 +193,22 @@ export const VideoControls: React.FC = () => {
                                     
                                     <button 
                                         onClick={() => setNoteSettings({ enabled: !settings.notes.enabled })}
-                                        className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-all ${settings.notes.enabled ? 'bg-amber-500/20 text-amber-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-2 py-1.5 md:px-3 rounded-lg flex items-center justify-center transition-all ${settings.notes.enabled ? 'bg-amber-500/20 text-amber-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
                                         title="Toggle Notes Overlay"
                                     >
                                         <MessageSquare size={13} />
                                     </button>
                                     <button 
                                         onClick={toggleCommunity}
-                                        className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-all ${isCommunityOn ? 'bg-emerald-500/20 text-emerald-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-2 py-1.5 md:px-3 rounded-lg flex items-center justify-center transition-all ${isCommunityOn ? 'bg-emerald-500/20 text-emerald-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
                                         title="Toggle Community Insight"
                                     >
                                         <Users size={13} />
                                     </button>
                                 </div>
 
-                                {/* Speed Picker */}
-                                <div className="flex bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-0.5">
+                                {/* Speed Picker - Hidden on mobile since it's in header */}
+                                <div className="hidden lg:flex bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-0.5">
                                     {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
                                         <button 
                                             key={rate}
@@ -221,29 +221,29 @@ export const VideoControls: React.FC = () => {
                                     ))}
                                 </div>
 
-                                {/* A-B Loop Controls */}
+                                {/* A-B Loop Controls - More compact on mobile */}
                                 <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md rounded-xl p-0.5 border border-white/10">
                                     <button 
                                         onClick={() => setAbLoop({ start: currentTime })}
-                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${abLoop.start !== null ? 'bg-sky-500 text-slate-950 animate-pulse' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-2 py-1 md:px-3 md:py-1.5 rounded-lg text-[9px] md:text-[10px] font-black transition-all ${abLoop.start !== null ? 'bg-sky-500 text-slate-950 animate-pulse' : 'text-white/40 hover:text-white'}`}
                                     >
                                         A
                                     </button>
                                     <button 
                                         onClick={() => setAbLoop({ end: currentTime })}
-                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${abLoop.end !== null ? 'bg-sky-500 text-slate-950' : 'text-white/40 hover:text-white'}`}
+                                        className={`px-2 py-1 md:px-3 md:py-1.5 rounded-lg text-[9px] md:text-[10px] font-black transition-all ${abLoop.end !== null ? 'bg-sky-500 text-slate-950' : 'text-white/40 hover:text-white'}`}
                                     >
                                         B
                                     </button>
                                     {(abLoop.start || abLoop.end) && (
-                                        <button onClick={() => setAbLoop({ start: null, end: null })} className="px-2 text-red-500 hover:text-red-400">
-                                            <Repeat size={14} />
+                                        <button onClick={() => setAbLoop({ start: null, end: null })} className="px-1 text-red-500 hover:text-red-400">
+                                            <Repeat size={12} />
                                         </button>
                                     )}
                                 </div>
 
                                 {/* Fullscreen */}
-                                <button onClick={toggleFullscreen} className="text-white/60 hover:text-white transition-colors">
+                                <button onClick={toggleFullscreen} className="text-white/60 hover:text-white transition-colors shrink-0">
                                     <Maximize size={20} />
                                 </button>
                             </div>

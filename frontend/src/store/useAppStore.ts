@@ -29,9 +29,22 @@ interface Playlist {
 
 interface Notification {
     id: number;
-    sender_name: string;
-    video_title: string;
+    type: string;
+    title: string;
+    message: string;
+    is_read: boolean;
     created_at: string;
+    link_url?: string;
+}
+
+interface Badge {
+    id: number;
+    name: string;
+    description: string;
+    icon_name: string;
+    category: string;
+    is_earned: boolean;
+    earned_at?: string;
 }
 
 interface AppState {
@@ -47,6 +60,8 @@ interface AppState {
         total_time_seconds: number;
     };
     notifications: Notification[];
+    badges: Badge[];
+    newlyEarnedBadge: Badge | null; // For the celebration modal
     isLoading: boolean;
     
     // Actions
@@ -59,6 +74,13 @@ interface AppState {
     deletePlaylist: (id: number) => Promise<void>;
     addVideoToPlaylist: (playlistId: number, videoId: number) => Promise<void>;
     removeVideoFromPlaylist: (playlistId: number, videoId: number) => Promise<void>;
+    
+    // Notification & Gamification Actions
+    fetchNotifications: () => Promise<void>;
+    markNotificationRead: (id: number) => Promise<void>;
+    fetchBadges: () => Promise<void>;
+    checkNewBadges: () => Promise<void>;
+    clearCelebration: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -68,6 +90,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     sets: [],
     stats: { current_streak: 0, longest_streak: 0, completed_count: 0, total_lessons: 0, total_time_seconds: 0 },
     notifications: [],
+    badges: [],
+    newlyEarnedBadge: null,
     isLoading: true,
 
     fetchDashboard: async () => {
@@ -83,6 +107,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                 isLoading: false
             });
             get().fetchPlaylists();
+            get().fetchNotifications();
+            get().fetchBadges();
         } catch (err) {
             console.error("Dashboard fetch failed", err);
             set({ isLoading: false });
@@ -98,7 +124,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
     },
 
-    createPlaylist: async (name, description) => {
+    createPlaylist: async (name: string, description?: string) => {
         try {
             const data = (window as any).__PODLEARN_DATA__;
             await axios.post('/api/playlists', { name, description }, {
@@ -112,7 +138,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
     },
 
-    deletePlaylist: async (id) => {
+    deletePlaylist: async (id: number) => {
         try {
             const data = (window as any).__PODLEARN_DATA__;
             await axios.delete(`/api/playlists/${id}`, {
@@ -124,7 +150,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
     },
 
-    addVideoToPlaylist: async (playlistId, videoId) => {
+    addVideoToPlaylist: async (playlistId: number, videoId: number) => {
         try {
             const data = (window as any).__PODLEARN_DATA__;
             await axios.post(`/api/playlists/${playlistId}/videos`, { video_id: videoId }, {
@@ -136,7 +162,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
     },
 
-    removeVideoFromPlaylist: async (playlistId, videoId) => {
+    removeVideoFromPlaylist: async (playlistId: number, videoId: number) => {
         try {
             const data = (window as any).__PODLEARN_DATA__;
             await axios.delete(`/api/playlists/${playlistId}/videos/${videoId}`, {
@@ -158,5 +184,48 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (err) {
             console.error("Invite response failed", err);
         }
-    }
+    },
+
+    fetchNotifications: async () => {
+        try {
+            const res = await axios.get('/api/notifications');
+            set({ notifications: res.data });
+        } catch (err) { console.error("Fetch notifications failed", err); }
+    },
+
+    markNotificationRead: async (id) => {
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.post(`/api/notifications/${id}/read`, {}, {
+                headers: { 'X-CSRF-Token': data.csrf_token }
+            });
+            set(state => ({
+                notifications: state.notifications.map(n => n.id === id ? { ...n, is_read: true } : n)
+            }));
+        } catch (err) { console.error("Mark read failed", err); }
+    },
+
+    fetchBadges: async () => {
+        try {
+            const res = await axios.get('/api/gamification/badges');
+            set({ badges: res.data.badges });
+        } catch (err) { console.error("Fetch badges failed", err); }
+    },
+
+    checkNewBadges: async () => {
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            const res = await axios.post('/api/gamification/check-badges', {}, {
+                headers: { 'X-CSRF-Token': data.csrf_token }
+            });
+            if (res.data.new_badges && res.data.new_badges.length > 0) {
+                // For now just show the first one if multiple
+                set({ newlyEarnedBadge: res.data.new_badges[0] });
+                get().fetchBadges();
+                get().fetchNotifications();
+            }
+        } catch (err) { console.error("Check badges failed", err); }
+    },
+
+    clearCelebration: () => set({ newlyEarnedBadge: null })
 }));

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Book, Layers, Languages, GraduationCap, Play, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { BadgeGrid } from '../dashboard/BadgeGrid';
 
 export const MasteryView: React.FC = () => {
     const { sets, fetchDashboard, isLoading } = useAppStore();
@@ -20,8 +21,13 @@ export const MasteryView: React.FC = () => {
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-950 px-6 md:px-10 pb-24 custom-scrollbar">
-            <div className="max-w-7xl mx-auto pt-12 space-y-12">
+            <div className="max-w-7xl mx-auto pt-12 space-y-16">
                 
+                {/* Badges Section */}
+                <section className="bg-slate-900/30 border border-white/5 p-8 rounded-[3rem] shadow-2xl">
+                    <BadgeGrid />
+                </section>
+
                 {/* Header */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 text-sky-400">

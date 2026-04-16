@@ -26,6 +26,8 @@ from ..models.video import Video
 from ..models.note import Note
 from ..models.subtitle import SubtitleTrack
 from ..models.playlist import Playlist
+from ..models.badge import Badge, UserBadge
+from ..models.notification import Notification
 from ..models.shadowing import ShadowingHistory
 from ..models.sentence import Sentence, SentenceSet
 from ..models.glossary import VideoGlossary, VocabEditHistory
@@ -145,6 +147,80 @@ def track_time(lesson_id):
         'success': True, 
         'current_streak': result['current_streak'],
         'longest_streak': result['longest_streak']
+    })
+
+
+# --- Gamification & Notifications ---
+
+@api_bp.route('/notifications', methods=['GET'])
+@login_required
+def get_notifications():
+    """Fetch unread notifications for the current user."""
+    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).limit(20).all()
+    return jsonify([{
+        'id': n.id,
+        'type': n.type,
+        'title': n.title,
+        'message': n.message,
+        'is_read': n.is_read,
+        'created_at': n.created_at.isoformat(),
+        'link_url': n.link_url
+    } for n in notifs])
+
+@api_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+@login_required
+def mark_notification_read(notif_id):
+    """Mark a notification as read."""
+    notif = Notification.query.filter_by(id=notif_id, user_id=current_user.id).first_or_404()
+    notif.is_read = True
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/gamification/badges', methods=['GET'])
+@login_required
+def get_badges():
+    """Get all badges with status (locked/unlocked) for current user."""
+    all_badges = Badge.query.all()
+    earned_ids = {ub.badge_id for ub in current_user.badges_earned}
+    
+    badges_data = []
+    for b in all_badges:
+        earned_at = None
+        if b.id in earned_ids:
+            ub = UserBadge.query.filter_by(user_id=current_user.id, badge_id=b.id).first()
+            earned_at = ub.earned_at.isoformat() if ub else None
+            
+        # Hide secret badges unless earned
+        if b.is_hidden and not earned_at:
+            continue
+            
+        badges_data.append({
+            'id': b.id,
+            'name': b.name,
+            'description': b.description,
+            'icon_name': b.icon_name,
+            'category': b.category,
+            'threshold': b.threshold,
+            'requirement_type': b.requirement_type,
+            'is_earned': earned_at is not None,
+            'earned_at': earned_at
+        })
+    return jsonify({'badges': badges_data})
+
+@api_bp.route('/gamification/check-badges', methods=['POST'])
+@login_required
+def check_badges():
+    """Manual trigger to check and award badges (e.g. after a session)."""
+    from ..services.gamification_service import GamificationService
+    newly_earned = GamificationService.check_and_award_badges(current_user)
+    
+    return jsonify({
+        'new_badges': [{
+            'id': b.id,
+            'name': b.name,
+            'description': b.description,
+            'icon_name': b.icon_name
+        } for b in newly_earned]
     })
 
 

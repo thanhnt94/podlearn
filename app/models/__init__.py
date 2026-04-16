@@ -17,3 +17,5 @@ from .grammar import Grammar # noqa: F401
 from .sentence_token import SentenceToken # noqa: F401
 from .vocabulary import Vocabulary # noqa: F401 
 from .playlist import Playlist # noqa: F401
+from .badge import Badge, UserBadge # noqa: F401
+from .notification import Notification # noqa: F401

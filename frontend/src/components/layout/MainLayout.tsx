@@ -3,7 +3,9 @@ import { useLocation } from 'react-router-dom';
 import { SettingsDrawer } from './SettingsDrawer';
 import { MainSidebar } from './MainSidebar';
 import { MobileHeader } from './MobileHeader';
+import { DesktopHeader } from './DesktopHeader';
 import { BottomNav } from './BottomNav';
+import { AchievementModal } from '../dashboard/AchievementModal';
 
 export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
@@ -13,6 +15,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-slate-200 overflow-hidden font-sans">
       <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <AchievementModal />
 
       {/* 1. Header cho Mobile (Ẩn trên Desktop và ẩn khi ở trong Player) */}
       {!isPlayerRoute && <MobileHeader />}
@@ -25,6 +28,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
 
         {/* 3. Main Container */}
         <div className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden">
+          {!isPlayerRoute && <DesktopHeader />}
           <main className={`flex-1 flex flex-col relative ${isPlayerRoute ? 'pb-0' : 'pb-20'} md:pb-0 overflow-y-auto md:overflow-hidden`}>
             {children}
           </main>

@@ -320,4 +320,11 @@ def create_app(config_name: str | None = None) -> Flask:
             db.session.rollback()
             # app.logger.debug(f"Admin seeding skipped (likely already seeded by another worker): {e}")
 
+        # 4. Seed Default Badges
+        try:
+            from .services.gamification_service import GamificationService
+            GamificationService.seed_default_badges()
+        except Exception as e:
+            app.logger.error(f"Failed to seed badges: {e}")
+
     return app

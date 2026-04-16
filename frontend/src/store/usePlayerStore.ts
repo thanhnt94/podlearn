@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import { useAppStore } from './useAppStore';
 
 interface SubtitleLine {
   start: number;
@@ -352,22 +353,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
       try {
           // Use fetch for API call (CSRF handled internally by app or bypass)
-          const response = await fetch('/api/tracking/ping', {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'X-CSRFToken': (window as any).__PODLEARN_DATA__?.csrf_token || ''
-              },
-              body: JSON.stringify(payload)
-          });
-          if (!response.ok) {
-              // Return failed data to store
-              set(s => ({
-                  sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
-                  sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
-                  sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds
-              }));
-          }
+           const response = await fetch('/api/tracking/ping', {
+               method: 'POST',
+               headers: {
+                   'Content-Type': 'application/json',
+                   'X-CSRFToken': (window as any).__PODLEARN_DATA__?.csrf_token || ''
+               },
+               body: JSON.stringify(payload)
+           });
+           if (!response.ok) {
+               // Re-add on failure
+               set(s => ({
+                   sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
+                   sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
+                   sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds
+               }));
+           } else {
+               // Success: trigger badge check
+               useAppStore.getState().checkNewBadges();
+           }
       } catch (err) {
           // Re-add on failure
           set(s => ({
@@ -594,6 +598,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         const data = await response.json();
         if (data.success) {
             set({ isCompleted: true });
+            useAppStore.getState().checkNewBadges();
         }
     } catch (e) {
         console.error("Failed to complete lesson", e);
