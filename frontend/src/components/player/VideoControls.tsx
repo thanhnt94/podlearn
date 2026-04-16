@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, 
     Maximize, Repeat, Tv, MessageSquare, Users,
-    SkipBack, SkipForward
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -106,19 +106,29 @@ export const VideoControls: React.FC = () => {
 
                                 {/* Jump Controls */}
                                 <div className="flex items-center gap-4">
-                                    <button onClick={skipPrevSentence} className="text-white hover:text-sky-400 transition-all active:scale-90" title="Previous Sentence">
-                                        <SkipBack size={20} fill="currentColor" />
+                                    <button 
+                                        onClick={skipPrevSentence} 
+                                        className="text-white/80 hover:text-amber-400 transition-all active:scale-90 p-1 bg-white/5 rounded-lg border border-white/10" 
+                                        title="Previous Sentence"
+                                    >
+                                        <ChevronLeft size={20} />
                                     </button>
                                     
-                                    <button onClick={() => requestSeek(Math.max(0, currentTime - 5))} className="text-white/60 hover:text-white transition-colors" title="Back 5s">
-                                        <RotateCcw size={18} />
-                                    </button>
-                                    <button onClick={() => requestSeek(Math.min(duration, currentTime + 5))} className="text-white/60 hover:text-white transition-colors" title="Forward 5s">
-                                        <RotateCw size={18} />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => requestSeek(Math.max(0, currentTime - 5))} className="text-white/60 hover:text-white transition-colors" title="Back 5s">
+                                            <RotateCcw size={18} />
+                                        </button>
+                                        <button onClick={() => requestSeek(Math.min(duration, currentTime + 5))} className="text-white/60 hover:text-white transition-colors" title="Forward 5s">
+                                            <RotateCw size={18} />
+                                        </button>
+                                    </div>
                                     
-                                    <button onClick={skipNextSentence} className="text-white hover:text-sky-400 transition-all active:scale-90" title="Next Sentence">
-                                        <SkipForward size={20} fill="currentColor" />
+                                    <button 
+                                        onClick={skipNextSentence} 
+                                        className="text-white/80 hover:text-amber-400 transition-all active:scale-90 p-1 bg-white/5 rounded-lg border border-white/10" 
+                                        title="Next Sentence"
+                                    >
+                                        <ChevronRight size={20} />
                                     </button>
                                 </div>
 
