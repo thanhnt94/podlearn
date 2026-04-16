@@ -37,27 +37,14 @@ def fetch_video_info(youtube_id: str) -> VideoInfo | None:
     """Fetch video metadata using yt-dlp. Returns None on failure."""
     try:
         import yt_dlp
+        from .subtitle_service import _get_ytdlp_opts
 
-        # Đảm bảo đường dẫn tuyệt đối cho cookies
-        import os
-        cookie_path = os.path.abspath(os.path.join(os.getcwd(), 'youtube_cookies.txt'))
-        cookies_exist = os.path.exists(cookie_path)
-
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
+        # Reuse the centralized opts (correct cookie path, extractor_args, etc.)
+        ydl_opts = _get_ytdlp_opts({
             'skip_download': True,
             'extract_flat': False,
-            'socket_timeout': 10, # Ngừng treo nếu net lỗi
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-                'Accept-Language': 'en-US,en;q=0.9',
-            }
-        }
-        
-        if cookies_exist:
-            ydl_opts['cookiefile'] = cookie_path
-
+            'socket_timeout': 10,
+        })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(

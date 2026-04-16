@@ -27,15 +27,20 @@ def _get_ytdlp_opts(extra_opts=None):
         'format': 'ba/b',
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web'],
-                'skip': ['hls', 'dash']
+                'player_client': ['ios', 'android', 'web_embedded'],
+                'player_skip': ['webvtt-subtitle', 'dash', 'hls'],
             }
         },
         'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
             'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.youtube.com/',
+            'Origin': 'https://www.youtube.com/',
         },
         'ignoreerrors': True,
         'prefer_ffmpeg': True,
+        'youtube_include_dash_manifest': False,
+        'youtube_include_hls_manifest': False,
     }
 
     if os.path.exists(cookie_path):
