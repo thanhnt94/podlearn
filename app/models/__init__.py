@@ -11,3 +11,8 @@ from .sentence import Sentence, SentenceSet    # noqa: F401
 from .share import ShareRequest # noqa: F401
 from .comment import Comment         # noqa: F401
 from .activity_log import ActivityLog # noqa: F401
+from .ai_insight import AIInsightTrack, AIInsightItem # noqa: F401
+from .glossary import VideoGlossary # noqa: F401
+from .grammar import GrammarNote # noqa: F401
+from .sentence_token import SentenceToken # noqa: F401
+from .vocabulary import Vocabulary # noqa: F401 

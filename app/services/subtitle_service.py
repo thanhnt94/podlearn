@@ -22,7 +22,10 @@ def _get_ytdlp_opts(extra_opts=None):
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
-        }
+        },
+        'ignoreerrors': True,
+        'prefer_ffmpeg': True,
+    }
     }
     if os.path.exists(cookie_path):
         opts['cookiefile'] = cookie_path

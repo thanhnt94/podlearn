@@ -283,6 +283,9 @@ def create_app(config_name: str | None = None) -> Flask:
     # Run this on every startup. In multi-worker Gunicorn, workers might
     # race, so we handle IntegrityErrors gracefully.
     with app.app_context():
+        # Import all models to ensure they are registered with SQLAlchemy
+        from . import models 
+        
         # 1. Create database directory if it's SQLite
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
         if db_uri and db_uri.startswith('sqlite:///'):
@@ -295,6 +298,8 @@ def create_app(config_name: str | None = None) -> Flask:
         
         # 2. Create tables
         try:
+            # IMPORTANT: Re-import models inside the app context to ensure registration
+            from . import models
             db.create_all()
         except Exception as e:
             app.logger.error(f"Failed to create tables: {e}")
