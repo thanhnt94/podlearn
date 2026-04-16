@@ -26,6 +26,7 @@ class Video(db.Model):
     subtitle_tracks = db.relationship('SubtitleTrack', back_populates='video',
                                       lazy='dynamic', cascade='all, delete-orphan')
     lessons = db.relationship('Lesson', back_populates='video', lazy='dynamic')
+    comments = db.relationship('Comment', backref='video', lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self) -> str:
         return f'<Video {self.youtube_id}>'

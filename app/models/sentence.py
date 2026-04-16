@@ -19,6 +19,10 @@ class SentenceSet(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    # Export Tracking
+    is_exported = db.Column(db.Boolean, default=False, index=True)
+    exported_at = db.Column(db.DateTime, nullable=True)
+
     # Relationships
     user = db.relationship('User', backref=db.backref('sentence_sets', lazy='dynamic'))
     sentences = db.relationship('Sentence', backref='sentence_set', lazy='dynamic', cascade='all, delete-orphan')
@@ -67,6 +71,10 @@ class Sentence(db.Model):
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Export Tracking
+    is_exported = db.Column(db.Boolean, default=False, index=True)
+    exported_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     user = db.relationship('User', backref=db.backref('sentences', lazy='dynamic'))

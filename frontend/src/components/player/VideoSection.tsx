@@ -5,6 +5,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import { VideoControls } from './VideoControls';
 import { NoteOverlay } from './NoteOverlay';
+import { DanmakuLayer } from './DanmakuLayer';
 
 // Add global type for YT
 declare global {
@@ -22,7 +23,7 @@ export const VideoSection: React.FC = () => {
   
   const { 
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
-    volume, playbackRate, isLockedPaused
+    volume, playbackRate, isLockedPaused, isNativeCCOn, nativeCCLang, originalLang
   } = usePlayerStore();
 
   const [isReady, setIsReady] = React.useState(false);
@@ -61,6 +62,8 @@ export const VideoSection: React.FC = () => {
           rel: 0,
           playsinline: 1,
           controls: 0, // We will build custom controls
+          cc_load_policy: 0, // Prevent forced captions
+          iv_load_policy: 3, // Disable annotations
         },
         events: {
           onReady: (event: any) => {
@@ -157,6 +160,29 @@ export const VideoSection: React.FC = () => {
     }
   }, [seekToTime, isReady]);
 
+  // Handle Native CC Toggle
+  useEffect(() => {
+    if (!ytPlayer.current || !isReady || !ytPlayer.current.loadModule) return;
+    try {
+      if (isNativeCCOn) {
+        ytPlayer.current.loadModule("captions");
+        if (nativeCCLang === originalLang) {
+            ytPlayer.current.setOption("captions", "track", { languageCode: nativeCCLang });
+        } else {
+            // Attempt to force Auto-Translate via undocumented translationLanguage Option
+            ytPlayer.current.setOption("captions", "track", { 
+                languageCode: originalLang, 
+                translationLanguage: { languageCode: nativeCCLang }
+            });
+        }
+      } else {
+        ytPlayer.current.unloadModule("captions");
+      }
+    } catch (e) {
+      console.warn("Failed to toggle YouTube Native CC", e);
+    }
+  }, [isNativeCCOn, isReady, nativeCCLang]);
+
   // 5. Volume Sync
   useEffect(() => {
     if (ytPlayer.current && isReady && ytPlayer.current.setVolume) {
@@ -208,6 +234,7 @@ export const VideoSection: React.FC = () => {
 
       <SubtitleOverlay />
       <NoteOverlay />
+      <DanmakuLayer />
       <VideoControls />
 
       {/* Loading State Overlay */}

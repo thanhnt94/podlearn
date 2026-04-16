@@ -16,6 +16,7 @@ interface TrackSettings {
   bgOpacity: number;
   enabled: boolean;
   position: number; // Vertical offset from bottom (0-100)
+  textAlign: 'left' | 'center' | 'right';
 }
 
 interface Note {
@@ -80,6 +81,16 @@ interface PlayerState {
   lastSeekTime: number;
   isSeeking: boolean; // NEW: Lock for navigation
   
+  isNativeCCOn: boolean; // NEW: YouTube Native CC Toggle
+  nativeCCLang: string;
+  isCommunityOn: boolean; // NEW: Community Toggle
+  comments: any[];
+  
+  // NEW: Gamification Tracking
+  sessionListeningSeconds: number;
+  sessionShadowingCount: number;
+  sessionShadowingSeconds: number;
+  
   settings: {
       s1: TrackSettings;
       s2: TrackSettings;
@@ -106,6 +117,17 @@ interface PlayerState {
   setRecording: (isRecording: boolean) => void;
   setShadowingResult: (result: any) => void;
   setSeeking: (isSeeking: boolean) => void;
+  toggleNativeCC: () => void;
+  setNativeCCLang: (lang: string) => void;
+  toggleCommunity: () => void;
+  fetchComments: (videoId: string | number) => Promise<void>;
+  addComment: (videoId: string | number, content: string, timestamp?: number) => Promise<void>;
+  
+  // Gamification Tracking Actions
+  addListeningTime: (seconds: number) => void;
+  addShadowingCount: (count: number, durationSeconds: number) => void;
+  flushTrackingData: () => Promise<void>;
+
   setTrackSettings: (track: 's1' | 's2' | 's3', settings: Partial<TrackSettings>) => void;
   setAvailableTracks: (tracks: any[]) => void;
   setTrackIds: (ids: Partial<PlayerState['trackIds']>) => void;
@@ -128,7 +150,7 @@ interface PlayerState {
 }
 
 const defaultTrackSettings = (fontSize: number, color: string, opacity: number, position: number): TrackSettings => ({
-    fontSize, color, bgColor: '#000000', bgOpacity: opacity, enabled: true, position
+    fontSize, color, bgColor: '#000000', bgOpacity: opacity, enabled: true, position, textAlign: 'center'
 });
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -140,6 +162,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isLockedPaused: false,
   lastSeekTime: 0,
   isSeeking: false,
+  isNativeCCOn: false,
+  nativeCCLang: 'ja',
+  isCommunityOn: false,
+  comments: [],
+  
+  sessionListeningSeconds: 0,
+  sessionShadowingCount: 0,
+  sessionShadowingSeconds: 0,
   
   lessonId: null,
   lessonTitle: null,
@@ -254,7 +284,93 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setSeeking: (isSeeking) => set({ isSeeking }),
   setRecording: (isRecording) => set({ isRecording }),
   setShadowingResult: (result) => set({ shadowingResult: result }),
+  toggleNativeCC: () => set(state => ({ isNativeCCOn: !state.isNativeCCOn })),
+  setNativeCCLang: (lang) => set({ nativeCCLang: lang }),
+  toggleCommunity: () => set(state => ({ isCommunityOn: !state.isCommunityOn })),
   
+  fetchComments: async (video_id) => {
+    try {
+        const response = await fetch(`/api/community/comments/${video_id}`);
+        if (response.ok) {
+            const data = await response.json();
+            set({ comments: data });
+        }
+    } catch (err) {
+        console.error("Fetch comments failed", err);
+    }
+  },
+
+  addComment: async (video_id, content, timestamp) => {
+    try {
+        const response = await fetch(`/api/community/comments/${video_id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': (window as any).__PODLEARN_DATA__?.csrf_token || ''
+            },
+            body: JSON.stringify({ content, video_timestamp: timestamp })
+        });
+        if (response.ok) {
+            const data = await response.json();
+            set(state => ({ 
+                comments: [...state.comments, data.comment].sort((a, b) => (a.video_timestamp || 0) - (b.video_timestamp || 0)) 
+            }));
+        }
+    } catch (err) {
+        console.error("Post comment failed", err);
+    }
+  },
+
+  addListeningTime: (seconds) => set(state => ({ sessionListeningSeconds: state.sessionListeningSeconds + seconds })),
+  addShadowingCount: (count, duration) => set(state => ({ 
+      sessionShadowingCount: state.sessionShadowingCount + count,
+      sessionShadowingSeconds: state.sessionShadowingSeconds + duration
+  })),
+  flushTrackingData: async () => {
+      const state = get();
+      if (state.sessionListeningSeconds === 0 && state.sessionShadowingCount === 0) return;
+
+      const payload = {
+          listening_seconds: state.sessionListeningSeconds,
+          shadowing_count: state.sessionShadowingCount,
+          shadowing_seconds: state.sessionShadowingSeconds
+      };
+
+      // Optimistically clear the counts locally right away to avoid double flushing
+      set({ 
+          sessionListeningSeconds: 0, 
+          sessionShadowingCount: 0,
+          sessionShadowingSeconds: 0
+      });
+
+      try {
+          // Use fetch for API call (CSRF handled internally by app or bypass)
+          const response = await fetch('/api/tracking/ping', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': (window as any).__PODLEARN_DATA__?.csrf_token || ''
+              },
+              body: JSON.stringify(payload)
+          });
+          if (!response.ok) {
+              // Return failed data to store
+              set(s => ({
+                  sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
+                  sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
+                  sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds
+              }));
+          }
+      } catch (err) {
+          // Re-add on failure
+          set(s => ({
+              sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
+              sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
+              sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds
+          }));
+      }
+  },
+
   setTrackSettings: (track, newSettings) => set((state) => ({
       settings: {
           ...state.settings,

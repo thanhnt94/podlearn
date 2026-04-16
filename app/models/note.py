@@ -16,6 +16,10 @@ class Note(db.Model):
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 
+    # Export Tracking
+    is_exported = db.Column(db.Boolean, default=False, index=True)
+    exported_at = db.Column(db.DateTime, nullable=True)
+
     # Relationships
     user = db.relationship('User', back_populates='notes')
     lesson = db.relationship('Lesson', back_populates='notes')

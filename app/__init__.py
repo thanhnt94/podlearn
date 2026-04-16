@@ -66,6 +66,8 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes.practice import practice_bp
     from .routes.import_handler import import_bp
     from .routes.share_routes import share_bp
+    from .routes.tracking import tracking_bp
+    from .routes.community import community_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -77,6 +79,8 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(practice_bp, url_prefix='/practice')
     app.register_blueprint(import_bp)
     app.register_blueprint(share_bp)
+    app.register_blueprint(tracking_bp, url_prefix='/api/tracking')
+    app.register_blueprint(community_bp, url_prefix='/api/community')
 
     @app.route('/api/health')
     def api_health():

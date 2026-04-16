@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     BookOpen, Mic2, FileText, MessageSquare, 
-    ArrowLeft, Settings, Check, Sparkles
+    ArrowLeft, Settings, Check, Sparkles, Users
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,8 +13,9 @@ import { VocabPanel } from '../tabs/VocabPanel';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { SettingsDrawer } from '../layout/SettingsDrawer';
 import { InsightsPanel } from '../tabs/InsightsPanel';
+import { CommunityPanel } from '../tabs/CommunityPanel';
 
-type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights';
+type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights' | 'community';
 
 export const PlayerView: React.FC = () => {
   const navigate = useNavigate();
@@ -27,8 +28,16 @@ export const PlayerView: React.FC = () => {
     playbackRate, setPlaybackRate,
     activeLineIndex, subtitles,
     isCompleted, completeLesson,
-    sidebarWidth, setSidebarWidth
+    sidebarWidth, setSidebarWidth,
+    isPlaying, addListeningTime, flushTrackingData,
+    sessionListeningSeconds, sessionShadowingCount
   } = usePlayerStore();
+
+  const formatSessionTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' + s : s}`;
+  };
 
   // Expose control to window for child components (e.g. TranscriptBody empty state)
   useEffect(() => {
@@ -40,6 +49,31 @@ export const PlayerView: React.FC = () => {
   const totalLines = subtitles.length;
   const progressPercent = totalLines > 0 ? Math.floor((progressLine / totalLines) * 100) : 0;
 
+  // Heartbeat Tracking: Listen Time (Every 1s)
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = window.setInterval(() => {
+        addListeningTime(1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isPlaying, addListeningTime]);
+
+  // Heartbeat Tracking: Flush to Server (Every 60s & Unmount)
+  useEffect(() => {
+    const bgInterval = setInterval(() => {
+        flushTrackingData();
+    }, 60000);
+
+    const handleBeforeUnload = () => flushTrackingData();
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+        clearInterval(bgInterval);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        flushTrackingData();
+    };
+  }, [flushTrackingData]);
+
   const renderPanel = () => {
     switch (activeTab) {
       case 'transcript': return <TranscriptBody />;
@@ -47,6 +81,7 @@ export const PlayerView: React.FC = () => {
       case 'notes': return <NotesPanel />;
       case 'vocab': return <VocabPanel />;
       case 'insights': return <InsightsPanel />;
+      case 'community': return <CommunityPanel />;
       default: return <TranscriptBody />;
     }
   };
@@ -57,6 +92,7 @@ export const PlayerView: React.FC = () => {
     { id: 'notes', label: 'Notes', icon: MessageSquare },
     { id: 'vocab', label: 'Vocab', icon: BookOpen },
     { id: 'insights', label: 'AI', icon: Sparkles },
+    { id: 'community', label: 'Social', icon: Users },
   ];
 
   // Resize Logic
@@ -129,6 +165,29 @@ export const PlayerView: React.FC = () => {
                   <h1 className="text-sm font-bold text-slate-200 line-clamp-1">{lessonTitle || 'Untitled Lesson'}</h1>
               </div>
               <div className="flex items-center gap-2">
+                  {/* Live Heartbeat Session Stats */}
+                  {(sessionListeningSeconds > 0 || sessionShadowingCount > 0) && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        className="flex items-center gap-3 px-3 py-1.5 bg-sky-500/10 border border-sky-500/20 rounded-full mr-2"
+                      >
+                          <div className="flex items-center gap-1.5">
+                              <div className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-pulse" />
+                              <span className="text-[10px] font-black text-sky-400 font-mono">{formatSessionTime(sessionListeningSeconds)}</span>
+                          </div>
+                          {sessionShadowingCount > 0 && (
+                              <>
+                                  <div className="w-[1px] h-3 bg-white/10" />
+                                  <div className="flex items-center gap-1.5">
+                                      <Mic2 size={10} className="text-purple-400" />
+                                      <span className="text-[10px] font-black text-purple-400 font-mono">{sessionShadowingCount}</span>
+                                  </div>
+                              </>
+                          )}
+                      </motion.div>
+                  )}
+
                   <div className="flex bg-slate-900 border border-white/5 rounded-lg p-0.5">
                       {[1, 1.25, 1.5].map(rate => (
                           <button key={rate} onClick={() => setPlaybackRate(rate)}

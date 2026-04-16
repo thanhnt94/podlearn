@@ -6,13 +6,13 @@ export const SubtitleOverlay: React.FC = () => {
     
     // Find active lines for each track independently
     const findActiveLine = (lines: any[]) => {
-        return lines.find(line => (currentTime >= line.start - 0.2) && (currentTime <= line.end + 0.2));
+        return lines.find(line => (currentTime >= line.start) && (currentTime <= line.end));
     };
 
     const getLineForTrack = (sid: 's1' | 's2' | 's3', lines: any[]) => {
         if (!settings[sid].enabled) return null;
         if (trackIds[sid] === 'ai') {
-            const ai = aiInsights.find(i => (currentTime >= i.start - 0.2) && (currentTime <= i.end + 0.2));
+            const ai = aiInsights.find(i => (currentTime >= i.start) && (currentTime <= i.end));
             return ai ? { text: ai.short, isAi: true } : null;
         }
         return findActiveLine(lines);
@@ -34,13 +34,21 @@ export const SubtitleOverlay: React.FC = () => {
     const renderTrack = (sid: 's1' | 's2' | 's3', line: any) => {
         if (!line) return null;
         const s = settings[sid];
+        const alignDefault = s.textAlign || 'center';
+        
         return (
             <div 
-                className="absolute inset-x-0 flex justify-center pointer-events-none transition-all duration-300 px-[5%]"
+                className={`absolute inset-x-0 flex pointer-events-none transition-all duration-300 px-2 ${
+                    alignDefault === 'left' ? 'justify-start' : 
+                    alignDefault === 'right' ? 'justify-end' : 'justify-center'
+                }`}
                 style={{ bottom: `${s.position}%` }}
             >
                 <div 
-                    className="px-4 py-2 rounded-xl shadow-2xl text-center font-bold border border-white/5"
+                    className={`px-4 py-2 rounded-xl shadow-2xl font-bold border border-white/5 ${
+                        alignDefault === 'left' ? 'text-left' : 
+                        alignDefault === 'right' ? 'text-right' : 'text-center'
+                    }`}
                     style={{
                         fontSize: `clamp(10px, ${s.fontSize}cqw, 100px)`,
                         color: s.color,

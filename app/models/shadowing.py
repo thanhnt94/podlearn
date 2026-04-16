@@ -24,6 +24,14 @@ class ShadowingHistory(db.Model):
     accuracy_score = db.Column(db.Integer, nullable=False) # 0-100
     spoken_text = db.Column(db.Text)
     
+    # Audio & Tracking
+    user_audio_url = db.Column(db.String(500), nullable=True)
+    duration_seconds = db.Column(db.Integer, default=0)
+    
+    # AI Standby
+    ai_score = db.Column(db.Float, nullable=True)
+    ai_feedback = db.Column(db.JSON, nullable=True)
+    
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships

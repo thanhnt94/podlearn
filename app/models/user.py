@@ -22,6 +22,12 @@ class User(UserMixin, db.Model):
     current_streak = db.Column(db.Integer, default=0)
     longest_streak = db.Column(db.Integer, default=0)
     last_study_date = db.Column(db.Date)
+    
+    # Gamification & Thống kê EdTech
+    total_exp = db.Column(db.Integer, default=0)
+    current_level = db.Column(db.Integer, default=1)
+    total_listening_seconds = db.Column(db.Integer, default=0)
+    total_shadowing_count = db.Column(db.Integer, default=0)
 
 
 
@@ -30,6 +36,8 @@ class User(UserMixin, db.Model):
                               cascade='all, delete-orphan')
     notes = db.relationship('Note', back_populates='user', lazy='dynamic',
                             cascade='all, delete-orphan')
+    comments = db.relationship('Comment', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    activity_logs = db.relationship('ActivityLog', backref='user', lazy='dynamic', cascade='all, delete-orphan')
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)

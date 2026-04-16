@@ -19,5 +19,9 @@ class Vocabulary(db.Model):
     collocations = db.Column(db.JSON)
     jlpt_level = db.Column(db.String(10))
 
+    # Export Tracking
+    is_exported = db.Column(db.Boolean, default=False, index=True)
+    exported_at = db.Column(db.DateTime, nullable=True)
+
     def __repr__(self):
         return f'<Vocabulary {self.id}: {self.word}>'

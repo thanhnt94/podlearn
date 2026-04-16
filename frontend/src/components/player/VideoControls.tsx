@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, 
-    Maximize, Repeat
+    Maximize, Repeat, Tv, MessageSquare, Users
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,7 +12,10 @@ export const VideoControls: React.FC = () => {
         currentTime, duration, requestSeek,
         volume, setVolume,
         abLoop, setAbLoop,
-        playbackRate, setPlaybackRate
+        playbackRate, setPlaybackRate,
+        isNativeCCOn, toggleNativeCC, nativeCCLang, setNativeCCLang,
+        isCommunityOn, toggleCommunity,
+        settings, setNoteSettings, setTrackSettings
     } = usePlayerStore();
 
     const [isVisible, setIsVisible] = useState(true);
@@ -123,12 +126,77 @@ export const VideoControls: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-6">
+                                {/* Subtitle Toggles */}
+                                <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md rounded-xl p-0.5 border border-white/10">
+                                    <button 
+                                        onClick={toggleNativeCC}
+                                        className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-all ${isNativeCCOn ? 'bg-red-500/20 text-red-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                        title="Native YouTube CC"
+                                    >
+                                        <Tv size={14} />
+                                    </button>
+                                    
+                                    <AnimatePresence>
+                                        {isNativeCCOn && (
+                                            <motion.select 
+                                                initial={{ width: 0, opacity: 0 }}
+                                                animate={{ width: 'auto', opacity: 1 }}
+                                                exit={{ width: 0, opacity: 0 }}
+                                                value={nativeCCLang}
+                                                onChange={(e) => setNativeCCLang(e.target.value)}
+                                                className="bg-transparent text-[10px] items-center font-black uppercase text-red-500 outline-none cursor-pointer appearance-none px-1"
+                                                title="Select CC Language"
+                                            >
+                                                <option value="en">EN</option>
+                                                <option value="ja">JA</option>
+                                                <option value="vi">VI</option>
+                                            </motion.select>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {[1, 2, 3].map(num => {
+                                        const trackKey = `s${num}` as 's1' | 's2' | 's3';
+                                        const isOn = settings[trackKey].enabled;
+                                        return (
+                                            <button 
+                                                key={num}
+                                                onClick={() => setTrackSettings(trackKey, { enabled: !isOn })}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${isOn ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                                title={`Toggle Learning Subtitle ${num}`}
+                                            >
+                                                {num}
+                                            </button>
+                                        );
+                                    })}
+                                    
+                                    <div className="w-[1px] h-4 bg-white/10 mx-1" />
+                                    
+                                    <button 
+                                        onClick={() => setNoteSettings({ enabled: !settings.notes.enabled })}
+                                        className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-all ${settings.notes.enabled ? 'bg-amber-500/20 text-amber-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                        title="Toggle Notes Overlay"
+                                    >
+                                        <MessageSquare size={13} />
+                                    </button>
+                                    <button 
+                                        onClick={toggleCommunity}
+                                        className={`px-3 py-1.5 rounded-lg flex items-center justify-center transition-all ${isCommunityOn ? 'bg-emerald-500/20 text-emerald-500 shadow-lg' : 'text-white/40 hover:text-white'}`}
+                                        title="Toggle Community Insight"
+                                    >
+                                        <Users size={13} />
+                                    </button>
+                                </div>
+
                                 {/* Speed Picker */}
                                 <div className="flex bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-0.5">
-                                    {[1, 1.25, 1.5].map(rate => (
-                                        <button key={rate} onClick={() => setPlaybackRate(rate)}
-                                                className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${playbackRate === rate ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}>
-                                            {rate}X
+                                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
+                                        <button 
+                                            key={rate}
+                                            onClick={() => setPlaybackRate(rate)}
+                                            className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all ${playbackRate === rate ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                                            title={`Speed ${rate}x`}
+                                        >
+                                            {rate}x
                                         </button>
                                     ))}
                                 </div>

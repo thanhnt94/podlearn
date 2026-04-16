@@ -20,7 +20,8 @@ export const ShadowingPanel: React.FC = () => {
         shadowingStats,
         fetchShadowingStats,
         setMode,
-        originalLang
+        originalLang,
+        addShadowingCount
     } = usePlayerStore();
 
     const [recordedText, setRecordedText] = useState('');
@@ -149,6 +150,11 @@ export const ShadowingPanel: React.FC = () => {
             });
             setShadowingResult(response.data);
             fetchShadowingStats();
+
+            // Gamification Tracking Ping
+            if (response.data.score > 0) {
+                addShadowingCount(1, Math.round(line.end - line.start));
+            }
 
             // AUTO NEXT: if enabled, jump to next sentence after 2s
             if (usePlayerStore.getState().isAutoNext) {

@@ -239,6 +239,20 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                                     <input type="color" value={s.bgColor} onChange={(e) => update({ bgColor: e.target.value })} className="w-8 h-8 rounded-xl bg-transparent p-0 cursor-pointer" />
                                                                 </div>
                                                             </div>
+                                                            <div className="flex items-center justify-between border-t border-white/5 pt-5">
+                                                                <span className="text-[10px] font-black text-slate-500 uppercase">Alignment</span>
+                                                                <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
+                                                                    {(['left', 'center', 'right'] as const).map(align => (
+                                                                        <button 
+                                                                            key={align}
+                                                                            onClick={() => update({ textAlign: align })}
+                                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${(s.textAlign || 'center') === align ? 'bg-sky-500 text-slate-950' : 'text-slate-500 hover:text-white'}`}
+                                                                        >
+                                                                            {align}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );

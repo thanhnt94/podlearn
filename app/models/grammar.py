@@ -21,5 +21,9 @@ class Grammar(db.Model):
     jlpt_level = db.Column(db.String(10))
     tags = db.Column(db.String(255))       # Phân loại (chuỗi cách nhau bằng dấu phẩy)
 
+    # Export Tracking
+    is_exported = db.Column(db.Boolean, default=False, index=True)
+    exported_at = db.Column(db.DateTime, nullable=True)
+
     def __repr__(self):
         return f'<Grammar {self.id}: {self.pattern}>'

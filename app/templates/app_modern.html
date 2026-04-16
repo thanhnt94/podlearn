@@ -40,8 +40,8 @@
         Using built assets by default for the transition.
         To use dev server for HMR, run 'npm run dev' in frontend/ and uncomment the dev block.
     -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='dist/assets/index.css') }}">
-    <script type="module" src="{{ url_for('static', filename='dist/assets/index.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/assets/index.css') }}?v=1.6">
+    <script type="module" src="{{ url_for('static', filename='dist/assets/index.js') }}?v=1.6"></script>
     
     {# 
     {% if config.DEBUG %}
