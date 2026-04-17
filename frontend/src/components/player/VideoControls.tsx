@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, 
     Maximize, Repeat, Tv, MessageSquare, Users,
-    ChevronLeft, ChevronRight
+    ChevronLeft, ChevronRight, RefreshCw
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,7 +17,8 @@ export const VideoControls: React.FC = () => {
         playbackRate, setPlaybackRate,
         isNativeCCOn, toggleNativeCC, nativeCCLang, setNativeCCLang,
         isCommunityOn, toggleCommunity,
-        settings, setNoteSettings, setTrackSettings
+        settings, setNoteSettings, setTrackSettings,
+        handsFreeModeEnabled, toggleHandsFreeMode, ttsBatchProgress
     } = usePlayerStore();
 
     const [isVisible, setIsVisible] = useState(true);
@@ -220,6 +221,19 @@ export const VideoControls: React.FC = () => {
                                         </button>
                                     ))}
                                 </div>
+                                
+                                <button 
+                                    onClick={toggleHandsFreeMode}
+                                    className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest transition-all ${
+                                        handsFreeModeEnabled 
+                                        ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(14,165,233,0.3)]' 
+                                        : 'bg-white/5 text-slate-500 hover:text-white border border-white/10'
+                                    }`}
+                                    title="Hands-Free Mode"
+                                >
+                                    <RefreshCw size={14} className={handsFreeModeEnabled && ttsBatchProgress.done < ttsBatchProgress.total ? 'animate-spin' : ''} />
+                                    <span>HANDS-FREE</span>
+                                </button>
 
                                 {/* A-B Loop Controls - More compact on mobile */}
                                 <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md rounded-xl p-0.5 border border-white/10">

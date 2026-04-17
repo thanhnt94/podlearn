@@ -15,7 +15,8 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const { 
         settings, setTrackSettings, setNoteSettings,
         availableTracks, trackIds, setTrackIds, setAvailableTracks,
-        lessonId, videoId, aiInsights
+        lessonId, videoId, aiInsights,
+        ttsTrackSource, setTTSTrackSource
     } = usePlayerStore();
 
     const [activeMainTab, setActiveMainTab] = useState<MainTab>('display');
@@ -258,6 +259,42 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                 );
                                             })()}
                                        </section>
+
+                                        {/* Neural Learning / Hands-Free Section */}
+                                        <section className="bg-sky-500/5 rounded-3xl p-6 border border-sky-500/10 space-y-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-sky-500/10 rounded-2xl flex items-center justify-center text-sky-400">
+                                                    <RefreshCw size={20} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <h3 className="text-xs font-black uppercase tracking-widest text-sky-400">Neural Hands-Free</h3>
+                                                    <p className="text-[10px] text-slate-500 font-medium">Configure the automated voice engine</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">TTS Source Track</label>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {(['s1', 's2', 's3'] as const).map(sid => (
+                                                        <button 
+                                                            key={sid}
+                                                            onClick={() => setTTSTrackSource(sid)}
+                                                            className={`py-3 rounded-xl text-[10px] font-black uppercase transition-all border ${
+                                                                ttsTrackSource === sid 
+                                                                ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-lg' 
+                                                                : 'bg-slate-950 text-slate-500 border-white/5 hover:border-white/10'
+                                                            }`}
+                                                        >
+                                                            Track {sid.slice(1)}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[9px] text-slate-600 px-1 leading-relaxed italic">
+                                                    This determines which subtitle language the AI reads during Hands-Free mode. 
+                                                    This is <strong>independent</strong> of what you choose to show on video.
+                                                </p>
+                                            </div>
+                                        </section>
                                    </motion.div>
                                )}
 

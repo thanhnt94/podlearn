@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
     BookOpen, Mic2, FileText, MessageSquare, 
-    ArrowLeft, Settings, Check, Sparkles, Users
+    ArrowLeft, Settings, Check, Sparkles, Users, RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoSection } from './VideoSection';
+import { HandsFreeEngine } from './HandsFreeEngine';
+import { PodcastOverlay } from './PodcastOverlay';
 import { TranscriptBody } from '../transcript/TranscriptBody';
 import { ShadowingPanel } from '../tabs/ShadowingPanel';
 import { NotesPanel } from '../tabs/NotesPanel';
@@ -30,7 +32,8 @@ export const PlayerView: React.FC = () => {
     isCompleted, completeLesson,
     sidebarWidth, setSidebarWidth,
     isPlaying, addListeningTime, flushTrackingData,
-    initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount
+    initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount,
+    handsFreeModeEnabled, toggleHandsFreeMode, handsFreeStatus, handsFreeProgress
   } = usePlayerStore();
 
   const formatSessionTime = (seconds: number) => {
@@ -180,22 +183,49 @@ export const PlayerView: React.FC = () => {
                       </motion.div>
                   )}
 
+                  {/* Hands-Free Toggle (Header) */}
+                  <button 
+                      onClick={toggleHandsFreeMode}
+                      className={`relative flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black tracking-widest transition-all ${
+                          handsFreeModeEnabled 
+                          ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(14,165,233,0.3)]' 
+                          : 'bg-slate-900 text-slate-500 hover:text-white border border-white/5'
+                      }`}
+                  >
+                      <RefreshCw size={12} className={handsFreeStatus === 'generating' ? 'animate-spin' : ''} />
+                      <span className="hidden sm:inline">HANDS-FREE</span>
+                      {handsFreeStatus === 'generating' && (
+                          <div className="absolute -bottom-1 left-0 right-0 h-0.5 bg-slate-950/20 rounded-full overflow-hidden">
+                              <div 
+                                  className="h-full bg-slate-950/40 transition-all duration-300" 
+                                  style={{ width: `${handsFreeProgress * 100}%` }}
+                              />
+                          </div>
+                      )}
+                  </button>
+
                   <div className="flex bg-slate-900 border border-white/5 rounded-lg p-0.5">
-                      {[1, 1.25, 1.5].map(rate => (
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
                           <button key={rate} onClick={() => setPlaybackRate(rate)}
                                   className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${playbackRate === rate ? 'bg-sky-500 text-slate-950' : 'text-slate-500 hover:text-white'}`}>
-                              {rate}x
+                              {rate === 1 ? '1x' : rate}
                           </button>
                       ))}
                   </div>
-                  <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-slate-400 hover:text-white"><Settings size={20} /></button>
+                  <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-slate-400 hover:text-white transition-colors">
+                      <Settings size={20} />
+                  </button>
               </div>
           </div>
           
           {/* Video Wrapper - Maximized but constrained to view height */}
-          <div className="flex-1 w-full flex flex-col items-center justify-center p-0 md:p-8 lg:p-12">
+          <div className="flex-1 w-full flex flex-col items-center justify-center p-0 md:p-8 lg:p-12 relative">
                <div className="w-full max-w-[1700px] aspect-video md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 bg-black relative">
-                  <VideoSection />
+                  {handsFreeModeEnabled ? (
+                      <PodcastOverlay />
+                  ) : (
+                      <VideoSection />
+                  )}
                </div>
           </div>
       </div>
@@ -284,6 +314,7 @@ export const PlayerView: React.FC = () => {
           </div>
       </div>
 
+      <HandsFreeEngine />
       <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );

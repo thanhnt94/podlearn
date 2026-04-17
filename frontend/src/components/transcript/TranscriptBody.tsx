@@ -4,7 +4,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 export const TranscriptBody: React.FC = () => {
     const { 
         subtitles, s2Lines, s3Lines, 
-        activeLineIndex, requestSeek, settings 
+        activeLineIndex, requestSeek 
     } = usePlayerStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -13,8 +13,8 @@ export const TranscriptBody: React.FC = () => {
     const getAlternativeLines = (time: number) => {
         const findMatch = (lines: any[]) => lines.find(l => Math.abs(l.start - time) < 0.5);
         return {
-            s2: settings.s2.enabled ? findMatch(s2Lines) : null,
-            s3: settings.s3.enabled ? findMatch(s3Lines) : null
+            s2: findMatch(s2Lines),
+            s3: findMatch(s3Lines)
         };
     };
 

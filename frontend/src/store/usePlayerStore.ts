@@ -70,6 +70,18 @@ interface PlayerState {
     processed: number;
     total: number;
   };
+  ttsBatchProgress: { done: number; total: number; cached: number };
+  ttsBatchTaskId: string | null;
+  ttsTrackSource: 's1' | 's2' | 's3';
+  handsFreeModeEnabled: boolean;
+  handsFreeStatus: 'idle' | 'playing_original' | 'playing_tts' | 'transitioning' | 'generating';
+  handsFreeAudioUrl: string | null;
+  handsFreeTimeline: any[] | null;
+  handsFreeTaskId: string | null;
+  handsFreeProgress: number;
+  handsFreeDuration: number;
+  handsFreeStep: string;
+  ttsAudioCache: Record<number, string>;
   aiSummary: string | null;
   isAutoNext: boolean;
   shadowingStats: Record<string, { count: number, avg: number, best: number }>;
@@ -151,9 +163,16 @@ interface PlayerState {
   fetchAIInsights: () => Promise<void>;
   analyzeLine: (index: number) => Promise<void>;
   
-  // Navigation
   skipNextSentence: () => void;
   skipPrevSentence: () => void;
+
+   // Hands-Free Actions
+  toggleHandsFreeMode: () => void;
+  setHandsFreeStatus: (status: PlayerState['handsFreeStatus']) => void;
+  setHandsFreeAudioData: (audioUrl: string | null, timeline: any[] | null, duration: number) => void;
+  setHandsFreeTaskId: (id: string | null) => void;
+  setHandsFreeProgress: (progress: number, step: string) => void;
+  setTTSTrackSource: (source: 's1' | 's2' | 's3') => void;
 }
 
 const defaultTrackSettings = (fontSize: number, color: string, opacity: number, position: number): TrackSettings => ({
@@ -173,6 +192,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   nativeCCLang: 'ja',
   isCommunityOn: false,
   comments: [],
+  
+  handsFreeModeEnabled: false,
+  handsFreeStatus: 'idle',
+  handsFreeAudioUrl: null,
+  handsFreeTimeline: null,
+  handsFreeTaskId: null,
+  handsFreeProgress: 0,
+  handsFreeDuration: 0,
+  handsFreeStep: '',
+  ttsAudioCache: {},
+  ttsBatchProgress: { done: 0, total: 0, cached: 0 },
+  ttsBatchTaskId: null,
+  ttsTrackSource: 's2',
   
   initialListeningSeconds: 0,
   sessionListeningSeconds: 0,
@@ -413,6 +445,28 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (newIds.s2 !== undefined) fetchTrack(updatedIds.s2, 's2Lines');
     if (newIds.s3 !== undefined) fetchTrack(updatedIds.s3, 's3Lines');
   },
+  // Hands-Free Mode
+  toggleHandsFreeMode: () => set(state => ({ 
+    handsFreeModeEnabled: !state.handsFreeModeEnabled,
+    handsFreeStatus: 'idle' as const,
+    // Reset generation state when disabling
+    ...(state.handsFreeModeEnabled ? {
+        handsFreeAudioUrl: null,
+        handsFreeTimeline: null,
+        handsFreeTaskId: null,
+        handsFreeProgress: 0,
+        handsFreeStep: ''
+    } : {})
+  })),
+  setHandsFreeStatus: (status: PlayerState['handsFreeStatus']) => set({ handsFreeStatus: status }),
+  setHandsFreeAudioData: (audioUrl, timeline, duration) => set({ 
+    handsFreeAudioUrl: audioUrl, 
+    handsFreeTimeline: timeline, 
+    handsFreeDuration: duration 
+  }),
+  setHandsFreeTaskId: (id) => set({ handsFreeTaskId: id }),
+  setHandsFreeProgress: (progress, step) => set({ handsFreeProgress: progress, handsFreeStep: step }),
+  setTTSTrackSource: (source) => set({ ttsTrackSource: source }),
   setAbLoop: (newLoop) => set((state) => ({
     abLoop: { ...state.abLoop, ...newLoop }
   })),

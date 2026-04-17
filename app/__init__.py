@@ -68,6 +68,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes.share_routes import share_bp
     from .routes.tracking import tracking_bp
     from .routes.community import community_bp
+    from .routes.handsfree_routes import handsfree_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -81,6 +82,17 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(share_bp)
     app.register_blueprint(tracking_bp, url_prefix='/api/tracking')
     app.register_blueprint(community_bp, url_prefix='/api/community')
+    app.register_blueprint(handsfree_bp, url_prefix='/api/handsfree')
+
+    # ── Serve Hands-Free Audio Files ───────────────────────────
+    handsfree_storage = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), '..', '..', 'Storage', 'PodLearn', 'handsfree'
+    ))
+    os.makedirs(handsfree_storage, exist_ok=True)
+
+    @app.route('/media/handsfree/<path:filename>')
+    def serve_handsfree(filename):
+        return send_from_directory(handsfree_storage, filename)
 
     @app.route('/api/health')
     def api_health():
@@ -223,6 +235,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # Ensure CSRF exemption
     csrf.exempt(api_bp)
+    csrf.exempt(handsfree_bp)
     csrf.exempt(internal_user_list)
     csrf.exempt(internal_link_user)
     csrf.exempt(internal_delete_user)
