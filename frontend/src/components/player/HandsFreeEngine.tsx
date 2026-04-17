@@ -144,10 +144,10 @@ export const HandsFreeEngine: React.FC = () => {
         const targetUrl = handsFreeType === 'mixed' ? handsFreeAudioUrl : handsFreeOriginalUrl;
         if (!targetUrl) return;
 
-        const fullTargetUrl = window.location.origin + targetUrl;
+        const fullTargetUrl = targetUrl.startsWith('http') ? targetUrl : window.location.origin + targetUrl;
         if (audioRef.current.src !== fullTargetUrl) {
             const wasPlaying = !audioRef.current.paused;
-            audioRef.current.src = targetUrl;
+            audioRef.current.src = fullTargetUrl;
             audioRef.current.load();
             if (wasPlaying) audioRef.current.play();
         }

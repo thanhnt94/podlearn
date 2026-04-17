@@ -17,7 +17,7 @@ export const VideoControls: React.FC = () => {
         isNativeCCOn, toggleNativeCC, nativeCCLang, setNativeCCLang,
         isCommunityOn, toggleCommunity,
         settings, setNoteSettings, setTrackSettings,
-        handsFreeType, setHandsFreeType
+        handsFreeModeEnabled, handsFreeType, setHandsFreeType
     } = usePlayerStore();
 
     const [isVisible, setIsVisible] = useState(true);
@@ -69,11 +69,13 @@ export const VideoControls: React.FC = () => {
                     {/* Shadow Overlay for bottom focus */}
                     <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
 
-                    {/* Hands-Free Mode Toggle */}
-                    <div className="absolute top-8 left-1/2 -translate-x-1/2 flex bg-slate-900/80 p-1 rounded-2xl border border-white/5 backdrop-blur-xl pointer-events-auto">
-                        <button onClick={() => setHandsFreeType('original')} className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${(handsFreeType as string) === 'original' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}>ORIGINAL</button>
-                        <button onClick={() => setHandsFreeType('mixed')} className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${(handsFreeType as string) === 'mixed' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}>BILINGUAL MIX</button>
-                    </div>
+                    {/* Hands-Free Mode Toggle (Only visible if handsFreeModeEnabled is true) */}
+                    {handsFreeModeEnabled && (
+                        <div className="absolute top-8 left-1/2 -translate-x-1/2 flex bg-slate-900/80 p-1 rounded-2xl border border-white/5 backdrop-blur-xl pointer-events-auto">
+                            <button onClick={() => setHandsFreeType('original')} className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${(handsFreeType as string) === 'original' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}>ORIGINAL</button>
+                            <button onClick={() => setHandsFreeType('mixed')} className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${(handsFreeType as string) === 'mixed' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}>BILINGUAL MIX</button>
+                        </div>
+                    )}
 
                     {/* Bottom Control Bar */}
                     <div className="relative p-6 md:p-8 space-y-4 pointer-events-auto">

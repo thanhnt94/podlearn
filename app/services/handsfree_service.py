@@ -485,6 +485,47 @@ def start_generation_task(video_id: str, subtitles: list,
     return task_id
 
 
+def get_direct_audio_url(video_id: str) -> dict | None:
+    """Extract a direct audio stream URL from YouTube metadata."""
+    from .subtitle_service import fetch_info_cached
+    
+    print(f">>> [HF-FALLBACK] Attempting direct stream extraction for {video_id}... <<<")
+    # Force full extraction but skip format verification to avoid errors
+    info = fetch_info_cached(video_id, extra_opts={
+        'extract_flat': False,
+        'check_formats': False,
+        'ignore_no_formats_error': True
+    })
+    
+    if not info:
+        return None
+        
+    formats = info.get('formats', [])
+    # Filter for audio-only formats
+    # Note: vcodec is often 'none' for DASH audio streams
+    audio_formats = [
+        f for f in formats 
+        if f.get('acodec') != 'none' and (f.get('vcodec') == 'none' or f.get('vcodec') is None)
+    ]
+    
+    if not audio_formats:
+        print(f">>> [HF-FALLBACK] FAILED: No audio formats found in metadata for {video_id} <<<")
+        return None
+        
+    # Pick the best audio format (usually the last one in the list is higher bitrate)
+    best_audio = audio_formats[-1]
+    direct_url = best_audio.get('url')
+    
+    if not direct_url:
+        return None
+        
+    print(f">>> [HF-FALLBACK] SUCCESS: Direct stream found ({best_audio.get('ext')}) <<<")
+    return {
+        "audio_url": direct_url,
+        "total_duration": float(info.get('duration') or 0)
+    }
+
+
 def get_original_audio_info(video_id: str) -> dict | None:
     """Download (if needed) and return info for the original audio file."""
     storage_dir = _get_storage_dir()
@@ -501,6 +542,11 @@ def get_original_audio_info(video_id: str) -> dict | None:
                 import shutil
                 shutil.move(downloaded, output_path)
             else:
+                # FALLBACK: Try to get direct stream URL if download failed
+                fallback = get_direct_audio_url(video_id)
+                if fallback:
+                    print(f">>> [HF-FALLBACK] Returning direct YouTube URL for {video_id} <<<")
+                    return fallback
                 return None
     
     # Convert to MP3 for better browser compatibility and size
