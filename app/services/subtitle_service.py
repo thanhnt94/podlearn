@@ -3,7 +3,10 @@
 import json
 import logging
 import os
+import requests
+import sys
 import tempfile
+import time
 import webvtt
 import yt_dlp
 
@@ -12,22 +15,34 @@ from ..models.subtitle import SubtitleTrack
 
 logger = logging.getLogger(__name__)
 
+# --- GLOBAL METADATA CACHE ---
+# Stores {video_id: (timestamp, info_dict, is_flat)}
+YT_INFO_CACHE = {}
+YT_CACHE_TTL = 3600 # 1 hour
+
+
 def _get_ytdlp_opts(extra_opts=None):
     """Centralized yt-dlp options with cookies."""
-    # Use absolute path relative to this file's parent's parent (app root)
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # Robust path resolution: find run_podlearn.py location
+    current_file = os.path.abspath(__file__)
+    # Go up from app/services/subtitle_service.py to the root PodLearn folder
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
     cookie_path = os.path.join(base_dir, 'youtube_cookies.txt')
 
-    print(f"\n>>> [PODLEARN DEBUG] Checking YouTube cookies at: {cookie_path} <<<")
+    print(f"\n[YT-CONFIG] Base Dir detected: {base_dir}")
+    print(f"[YT-CONFIG] Checking for cookies at: {cookie_path}")
 
     opts = {
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'skip_download': True,
+        'socket_timeout': 15,
+        'connect_timeout': 5,
         'extractor_args': {
             'youtube': {
-                'player_client': ['web', 'android'],
+                # Removing explicit client overrides to let yt-dlp use its full internal logic
+                'skip': [] 
             }
         },
         'http_headers': {
@@ -37,9 +52,14 @@ def _get_ytdlp_opts(extra_opts=None):
             'Origin': 'https://www.youtube.com/',
         },
         'ignoreerrors': True,
+        'ignore_no_formats_error': True,
+        'noplaylist': True,
+        'check_formats': False,                 # CRITICAL: Don't verify video formats (fixes 'Format not available')
+        'listsubtitles': True,                  # Force retrieval of metadata
+        'writesubtitles': True,                 # Ensure they are available in info dict
         'prefer_ffmpeg': True,
-        'youtube_include_dash_manifest': False,
-        'youtube_include_hls_manifest': False,
+        'youtube_include_dash_manifest': True,
+        'youtube_include_hls_manifest': True,
     }
 
     if os.path.exists(cookie_path):
@@ -61,73 +81,140 @@ def _get_ytdlp_opts(extra_opts=None):
     
     if extra_opts:
         opts.update(extra_opts)
+        
+    # Force log visibility
+    sys.stdout.flush()
     return opts
+
+def fetch_info_cached(video_id: str, extra_opts=None):
+    """Fetch video info with 1-hour in-memory caching. 
+    Smart enough to re-fetch if we have a 'flat' cache but need a 'full' one.
+    """
+    now = time.time()
+    req_is_flat = extra_opts.get('extract_flat', False) if extra_opts else False
+
+    if video_id in YT_INFO_CACHE:
+        ts, info, cached_is_flat = YT_INFO_CACHE[video_id]
+        if now - ts < YT_CACHE_TTL:
+            has_subs = bool(info.get('subtitles') or info.get('automatic_captions'))
+            # If we need a full extract but cache is flat, OR if we need full but cache has no subs
+            # we allow one re-fetch attempt to get tracks.
+            if not req_is_flat and (cached_is_flat or not has_subs):
+                print(f">>> [YT CACHE] Incomplete data for {video_id}. Attempting upgrade/re-fetch... <<<")
+            else:
+                print(f">>> [YT CACHE] Hit for {video_id} (Flat={cached_is_flat}, Subs={has_subs}) <<<")
+                return info
+    
+    print(f">>> [YT FETCH] Extracting metadata for {video_id} (Flat={req_is_flat})... <<<")
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    ydl_opts = _get_ytdlp_opts(extra_opts)
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        if info:
+            # Detect if it's flat or full. Flat often lacks 'formats' or has specific type
+            is_flat_result = info.get('_type') == 'url_composite' or 'formats' not in info
+            YT_INFO_CACHE[video_id] = (now, info, is_flat_result)
+        return info
+
 
 def get_available_subs_from_youtube(video_id: str):
     """Fetch available subtitle languages from YouTube using yt-dlp."""
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    ydl_opts = _get_ytdlp_opts({'skip_download': True})
-
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            subs = info.get('subtitles', {})
-            autos = info.get('automatic_captions', {})
-            
-            available = []
-            # Manual subs
-            for code, formats in subs.items():
-                available.append({
-                    'lang_code': code,
-                    'name': formats[0].get('name', code) if formats else code,
-                    'is_auto': False
-                })
-            # Auto subs
-            for code, formats in autos.items():
-                if any(a['lang_code'] == code for a in available): continue
-                available.append({
-                    'lang_code': code,
-                    'name': (formats[0].get('name', code) if formats else code) + " (Auto)",
-                    'is_auto': True
-                })
-            return {'subtitles': available}
+        sys.stderr.write(f"\n[YT-DEBUG] get_available_subs_from_youtube called for {video_id}\n")
+        info = fetch_info_cached(video_id)
+        if not info:
+            sys.stderr.write(f"[YT-DEBUG] ERROR: No info returned for {video_id}\n")
+            return {"error": "NotFound", "message": "Video not found or inaccessible"}
+ 
+        sys.stderr.write(f"[YT-DEBUG] info dict keys found: {list(info.keys())[:15]}...\n")
+
+        subs = info.get('subtitles', {}) or {}
+        autos = info.get('automatic_captions', {}) or {}
+        
+        sys.stderr.write(f"[YT-DEBUG] Manual subs: {len(subs)} keys | Auto subs: {len(autos)} keys\n")
+        sys.stderr.flush()
+
+        available = []
+        # Manual subs
+        for code, formats in subs.items():
+            available.append({
+                'lang_code': code,
+                'name': formats[0].get('name', code) if formats else code,
+                'is_auto': False
+            })
+        # Auto subs
+        for code, formats in autos.items():
+            if any(a['lang_code'] == code for a in available): continue
+            available.append({
+                'lang_code': code,
+                'name': (formats[0].get('name', code) if formats else code) + " (Auto)",
+                'is_auto': True
+            })
+        
+        sys.stderr.write(f"[YT-DEBUG] SUCCESS: Returning {len(available)} tracks to API\n")
+        sys.stderr.flush()
+        return {'subtitles': available}
     except yt_dlp.utils.DownloadError as e:
         error_msg = str(e)
+        sys.stderr.write(f"[YT-DEBUG] DL ERROR: {error_msg}\n")
+        sys.stderr.flush()
         if '429' in error_msg or 'Too Many Requests' in error_msg:
             return {"error": "429", "message": "YouTube đang chặn yêu cầu của máy chủ (Lỗi 429). Vui lòng thử lại sau hoặc Upload file thủ công."}
         return {"error": "YouTube Error", "message": error_msg}
     except Exception as e:
+        sys.stderr.write(f"[YT-DEBUG] CRITICAL EXCEPTION: {str(e)}\n")
+        sys.stderr.flush()
         return {"error": "Error", "message": str(e)}
 
 def download_and_parse_youtube_sub(video_id: str, lang_code: str, is_auto: bool = False):
-    """Download and parse a specific YouTube subtitle track."""
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    temp_dir = tempfile.gettempdir()
+    """Download and parse a specific YouTube subtitle track using direct HTTP download."""
+    print(f"\n>>> [YT-SUB] Initiating direct-download for {'auto' if is_auto else 'manual'} subtitles: {video_id} ({lang_code}) <<<")
     
-    ydl_opts = _get_ytdlp_opts({
-        'writesubtitles': not is_auto,
-        'writeautomaticsub': is_auto,
-        'subtitleslangs': [lang_code],
-        'outtmpl': os.path.join(temp_dir, f'sub_%(id)s_%(lang)s'),
-        'postprocessors': [{
-            'key': 'FFmpegSubtitlesConvertor',
-            'format': 'vtt',
-        }],
-    })
-
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-            target_path = os.path.join(temp_dir, f'sub_{video_id}_{lang_code}.vtt')
-            
-            if not os.path.exists(target_path):
-                import glob
-                matches = glob.glob(os.path.join(temp_dir, f'sub_{video_id}_*.vtt'))
-                if matches: target_path = matches[0]
-                else: return {"error": "FileNotFound", "message": "Failed to find downloaded subtitle file"}
+        # 1. Get info (hardened/cached)
+        info = fetch_info_cached(video_id)
+        if not info:
+            return {"error": "MetadataFail", "message": "Failed to retrieve video metadata for track download"}
 
-            parsed_lines = []
-            for caption in webvtt.read(target_path):
+        # 2. Locate the track in the info dict
+        tracks = info.get('automatic_captions' if is_auto else 'subtitles', {})
+        if lang_code not in tracks:
+            # Fallback for name mismatch (e.g. en-US vs en)
+            alt_lang = lang_code.split('-')[0]
+            if alt_lang in tracks:
+                print(f">>> [YT-SUB] Redirecting {lang_code} -> {alt_lang} <<<")
+                lang_code = alt_lang
+            else:
+                return {"error": "TrackNotFound", "message": f"Track {lang_code} not found in YouTube metadata"}
+
+        track_formats = tracks[lang_code]
+        # 3. Find VTT URL (YouTube provides this)
+        vtt_entry = next((f for f in track_formats if f.get('ext') == 'vtt'), None)
+        if not vtt_entry:
+            # If no VTT, try any entry (srv3, etc) and hope webvtt or future logic handles it
+            vtt_entry = track_formats[0]
+            print(f">>> [YT-SUB] WARN: No VTT format found. Trying {vtt_entry.get('ext')}... <<<")
+        
+        vtt_url = vtt_entry.get('url')
+        if not vtt_url:
+            return {"error": "UrlMissing", "message": "Subtitle download URL missing in metadata"}
+
+        # 4. Direct Download via requests
+        print(f">>> [YT-SUB] Fetching VTT from: {vtt_url[:60]}... <<<")
+        response = requests.get(vtt_url, timeout=15)
+        response.raise_for_status()
+        vtt_content = response.text
+
+        # 5. Save and Parse
+        temp_file = os.path.join(tempfile.gettempdir(), f"sub_{video_id}_{lang_code}.vtt")
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            f.write(vtt_content)
+
+        print(f">>> [YT-SUB] Parsing VTT content ({len(vtt_content)} chars)... <<<")
+        parsed_lines = []
+        try:
+            for caption in webvtt.read(temp_file):
                 s = caption.start_in_seconds
                 e = caption.end_in_seconds
                 parsed_lines.append({
@@ -136,16 +223,26 @@ def download_and_parse_youtube_sub(video_id: str, lang_code: str, is_auto: bool 
                     'duration': round(e - s, 3),
                     'text': caption.text.replace('\n', ' ').strip()
                 })
-            
-            if os.path.exists(target_path):
-                os.remove(target_path)
-            return {"success": True, "lines": parsed_lines}
-    except yt_dlp.utils.DownloadError as e:
-        error_msg = str(e)
-        if '429' in error_msg or 'Too Many Requests' in error_msg:
-            return {"error": "429", "message": "YouTube đang chặn tải tự động (Lỗi 429). Vui lòng thử lại sau hoặc nộp thủ công."}
-        return {"error": "DownloadError", "message": error_msg}
+        except Exception as parse_err:
+            print(f">>> [YT-SUB] PARSE ERROR: {str(parse_err)} <<<")
+            # Fallback if VTT parsing fails - might be a different format
+            if 'WEBVTT' not in vtt_content[:100]:
+                 return {"error": "InvalidFormat", "message": "Downloaded content is not a valid VTT file"}
+            raise
+
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        
+        if not parsed_lines:
+            return {"error": "EmptyResult", "message": "No subtitles lines extracted from file"}
+
+        print(f">>> [YT-SUB] SUCCESS: {len(parsed_lines)} lines extracted <<<")
+        sys.stdout.flush()
+        return {"success": True, "lines": parsed_lines}
+
     except Exception as e:
+        print(f">>> [YT-SUB] CRITICAL ERROR: {str(e)} <<<")
+        sys.stdout.flush()
         return {"error": "Error", "message": str(e)}
 
 def _parse_timestamp(ts):

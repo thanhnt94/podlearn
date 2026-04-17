@@ -154,3 +154,16 @@ def check_cache(video_id):
         })
     
     return jsonify({'cached': False})
+
+
+@handsfree_bp.route('/original/<video_id>', methods=['GET'])
+@login_required
+def get_original(video_id):
+    """Get the original audio URL for the video."""
+    from ..services.handsfree_service import get_original_audio_info
+    
+    info = get_original_audio_info(video_id)
+    if not info:
+        return jsonify({'error': 'Failed to fetch original audio'}), 500
+        
+    return jsonify(info)

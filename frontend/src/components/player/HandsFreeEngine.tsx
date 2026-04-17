@@ -13,9 +13,10 @@ import { usePlayerStore } from '../../store/usePlayerStore';
  */
 export const HandsFreeEngine: React.FC = () => {
     const { 
-        handsFreeModeEnabled, lessonId, videoId, ttsTrackSource,
-        setHandsFreeStatus, setHandsFreeTaskId, setHandsFreeProgress, setHandsFreeAudioData,
-        handsFreeTaskId, handsFreeAudioUrl, handsFreeTimeline,
+        handsFreeModeEnabled, handsFreeType, handsFreeStatus, lessonId, videoId, ttsTrackSource,
+        setHandsFreeStatus, setHandsFreeTaskId, setHandsFreeProgress, 
+        setHandsFreeAudioData, setHandsFreeOriginalData,
+        handsFreeTaskId, handsFreeAudioUrl, handsFreeOriginalUrl,
         setPlaying, setCurrentTime,
     } = usePlayerStore();
 
@@ -31,14 +32,8 @@ export const HandsFreeEngine: React.FC = () => {
         audio.onpause = () => setPlaying(false);
         audio.onended = () => setPlaying(false);
         
-        // Sync audio time to global store for transcript scrolling
         audio.ontimeupdate = () => {
-            if (!handsFreeTimeline) return;
-            const time = audio.currentTime;
-            
-            // Note: We MUST update currentTime so the UI knows where we are.
-            // activeLineIndex is derived from currentTime in the store logic generally.
-            setCurrentTime(time);
+            setCurrentTime(audio.currentTime);
         };
 
         return () => {
@@ -46,17 +41,35 @@ export const HandsFreeEngine: React.FC = () => {
             audio.src = '';
             audioRef.current = null;
         };
-    }, [handsFreeTimeline, setPlaying, setCurrentTime]);
+    }, [setPlaying, setCurrentTime]);
 
-    // 2. Start Generation / Polling Logic
+    // 2. Fetch Original Audio (Automatically when active)
     useEffect(() => {
-        if (!handsFreeModeEnabled || !lessonId || !videoId || handsFreeAudioUrl || handsFreeTaskId) return;
+        if (!handsFreeModeEnabled || !videoId || handsFreeOriginalUrl || handsFreeStatus === 'generating') return;
+
+        const fetchOriginal = async () => {
+            try {
+                const res = await fetch(`/api/handsfree/original/${videoId}`);
+                const data = await res.json();
+                if (data.audio_url) {
+                    setHandsFreeOriginalData(data.audio_url, data.total_duration);
+                }
+            } catch (err) {
+                console.error("Failed to fetch original audio:", err);
+            }
+        };
+
+        fetchOriginal();
+    }, [handsFreeModeEnabled, videoId, handsFreeOriginalUrl, handsFreeStatus]);
+
+    // 3. Start Generation / Polling Logic (Mixed Mode)
+    useEffect(() => {
+        if (handsFreeType !== 'mixed' || !handsFreeModeEnabled || !lessonId || !videoId || handsFreeAudioUrl || handsFreeTaskId) return;
 
         const checkCacheAndStart = async () => {
             setHandsFreeStatus('generating');
             
             try {
-                // First, check if it's already cached on the server
                 const cacheRes = await fetch(`/api/handsfree/cached/${videoId}?lang=vi`);
                 const cacheData = await cacheRes.json();
                 
@@ -66,7 +79,6 @@ export const HandsFreeEngine: React.FC = () => {
                     return;
                 }
 
-                // If not cached, start generation
                 const response = await fetch('/api/handsfree/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -92,9 +104,9 @@ export const HandsFreeEngine: React.FC = () => {
         };
 
         checkCacheAndStart();
-    }, [handsFreeModeEnabled, lessonId, videoId, ttsTrackSource, handsFreeAudioUrl, handsFreeTaskId]);
+    }, [handsFreeType, handsFreeModeEnabled, lessonId, videoId, ttsTrackSource, handsFreeAudioUrl, handsFreeTaskId]);
 
-    // 3. Polling for Status
+    // 4. Polling for Status
     useEffect(() => {
         if (!handsFreeTaskId) return;
 
@@ -111,7 +123,6 @@ export const HandsFreeEngine: React.FC = () => {
                     setHandsFreeStatus('idle');
                     if (pollInterval.current) clearInterval(pollInterval.current);
                 } else if (data.status === 'failed') {
-                    console.error("HandsFree generation failed:", data.error);
                     setHandsFreeTaskId(null);
                     setHandsFreeStatus('idle');
                     if (pollInterval.current) clearInterval(pollInterval.current);
@@ -126,36 +137,40 @@ export const HandsFreeEngine: React.FC = () => {
         };
     }, [handsFreeTaskId]);
 
-    // 4. Handle Playback Commands from Store
+    // 5. Source Switching Logic
     useEffect(() => {
-        if (!audioRef.current || !handsFreeAudioUrl) return;
+        if (!audioRef.current || !handsFreeModeEnabled) return;
 
-        // Sync Audio Source
-        if (audioRef.current.src !== window.location.origin + handsFreeAudioUrl) {
-            audioRef.current.src = handsFreeAudioUrl;
+        const targetUrl = handsFreeType === 'mixed' ? handsFreeAudioUrl : handsFreeOriginalUrl;
+        if (!targetUrl) return;
+
+        const fullTargetUrl = window.location.origin + targetUrl;
+        if (audioRef.current.src !== fullTargetUrl) {
+            const wasPlaying = !audioRef.current.paused;
+            audioRef.current.src = targetUrl;
             audioRef.current.load();
+            if (wasPlaying) audioRef.current.play();
         }
+    }, [handsFreeType, handsFreeAudioUrl, handsFreeOriginalUrl, handsFreeModeEnabled]);
 
-        // Note: Play/Pause is usually handled by the store's isPlaying state
-        // but since we hijack playback in HandsFree mode, we need to observe it.
-    }, [handsFreeAudioUrl]);
-
-    // Sync isPlaying state to native audio
+    // 6. Playback State Sync
     const isPlaying = usePlayerStore(state => state.isPlaying);
     useEffect(() => {
-        if (!audioRef.current || !handsFreeAudioUrl) return;
+        if (!audioRef.current || !handsFreeModeEnabled) return;
         
+        const targetUrl = handsFreeType === 'mixed' ? handsFreeAudioUrl : handsFreeOriginalUrl;
+        if (!targetUrl) return;
+
         if (isPlaying && audioRef.current.paused) {
             audioRef.current.play().catch(e => console.warn("Audio play prevented:", e));
         } else if (!isPlaying && !audioRef.current.paused) {
             audioRef.current.pause();
         }
-    }, [isPlaying, handsFreeAudioUrl]);
+    }, [isPlaying, handsFreeModeEnabled, handsFreeType, handsFreeAudioUrl, handsFreeOriginalUrl]);
 
-    // Cleanup video player when handsfree is active
+    // 7. Stop Video Player
     useEffect(() => {
         if (handsFreeModeEnabled) {
-            // Pause the YouTube player if it exists
             const player = (window as any).ytPlayer;
             if (player && typeof player.pauseVideo === 'function') {
                 player.pauseVideo();
@@ -163,5 +178,5 @@ export const HandsFreeEngine: React.FC = () => {
         }
     }, [handsFreeModeEnabled]);
 
-    return null; // Logic only
+    return null;
 };

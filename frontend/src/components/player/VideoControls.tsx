@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, 
     Maximize, Repeat, Tv, MessageSquare, Users,
-    ChevronLeft, ChevronRight, RefreshCw
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,11 +14,10 @@ export const VideoControls: React.FC = () => {
         skipNextSentence, skipPrevSentence,
         volume, setVolume,
         abLoop, setAbLoop,
-        playbackRate, setPlaybackRate,
         isNativeCCOn, toggleNativeCC, nativeCCLang, setNativeCCLang,
         isCommunityOn, toggleCommunity,
         settings, setNoteSettings, setTrackSettings,
-        handsFreeModeEnabled, toggleHandsFreeMode, ttsBatchProgress
+        handsFreeType, setHandsFreeType
     } = usePlayerStore();
 
     const [isVisible, setIsVisible] = useState(true);
@@ -69,6 +68,12 @@ export const VideoControls: React.FC = () => {
                 >
                     {/* Shadow Overlay for bottom focus */}
                     <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
+
+                    {/* Hands-Free Mode Toggle */}
+                    <div className="absolute top-8 left-1/2 -translate-x-1/2 flex bg-slate-900/80 p-1 rounded-2xl border border-white/5 backdrop-blur-xl pointer-events-auto">
+                        <button onClick={() => setHandsFreeType('original')} className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${(handsFreeType as string) === 'original' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}>ORIGINAL</button>
+                        <button onClick={() => setHandsFreeType('mixed')} className={`px-6 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${(handsFreeType as string) === 'mixed' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}>BILINGUAL MIX</button>
+                    </div>
 
                     {/* Bottom Control Bar */}
                     <div className="relative p-6 md:p-8 space-y-4 pointer-events-auto">
@@ -208,34 +213,7 @@ export const VideoControls: React.FC = () => {
                                     </button>
                                 </div>
 
-                                {/* Speed Picker - Hidden on mobile since it's in header */}
-                                <div className="hidden lg:flex bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-0.5">
-                                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
-                                        <button 
-                                            key={rate}
-                                            onClick={() => setPlaybackRate(rate)}
-                                            className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all ${playbackRate === rate ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                                            title={`Speed ${rate}x`}
-                                        >
-                                            {rate}x
-                                        </button>
-                                    ))}
-                                </div>
-                                
-                                <button 
-                                    onClick={toggleHandsFreeMode}
-                                    className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest transition-all ${
-                                        handsFreeModeEnabled 
-                                        ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(14,165,233,0.3)]' 
-                                        : 'bg-white/5 text-slate-500 hover:text-white border border-white/10'
-                                    }`}
-                                    title="Hands-Free Mode"
-                                >
-                                    <RefreshCw size={14} className={handsFreeModeEnabled && ttsBatchProgress.done < ttsBatchProgress.total ? 'animate-spin' : ''} />
-                                    <span>HANDS-FREE</span>
-                                </button>
-
-                                {/* A-B Loop Controls - More compact on mobile */}
+                                 {/* A-B Loop Controls - More compact on mobile */}
                                 <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md rounded-xl p-0.5 border border-white/10">
                                     <button 
                                         onClick={() => setAbLoop({ start: currentTime })}
@@ -256,7 +234,7 @@ export const VideoControls: React.FC = () => {
                                     )}
                                 </div>
 
-                                {/* Fullscreen */}
+                                 {/* Fullscreen */}
                                 <button onClick={toggleFullscreen} className="text-white/60 hover:text-white transition-colors shrink-0">
                                     <Maximize size={20} />
                                 </button>

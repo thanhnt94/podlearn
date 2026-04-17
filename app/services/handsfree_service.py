@@ -56,17 +56,23 @@ def download_youtube_audio(video_id: str, output_dir: str) -> str | None:
         logger.info(f"[HandsFree] Reusing cached download: {output_path}")
         return output_path
 
+    print(f"\n>>> [YT-DL] Starting audio download for: {video_id} <<<")
     url = f"https://www.youtube.com/watch?v={video_id}"
 
     # Try different format combinations for robustness
+    # 1. bestaudio/best (Standard choice)
+    # 2. ba[ext=m4a]/ba/b (Specific fallbacks)
+    # 3. best (Absolute fallback, will get video+audio and we extract the audio)
     formats_to_try = [
-        'bestaudio/best',      # Prefer best audio
-        'ba[ext=m4a]/ba/b',    # Common audio formats
-        'best'                 # Final fallback: best available (might be video)
+        'bestaudio/best',
+        'ba[ext=m4a]/ba/b',
+        'best'
     ]
 
     for fmt in formats_to_try:
+        print(f">>> [YT-DL] Attempting format: {fmt} ... <<<")
         logger.info(f"[HandsFree] Attempting download with format: {fmt}")
+        
         ydl_opts = _get_ytdlp_opts({
             'skip_download': False,
             'format': fmt,
@@ -85,13 +91,15 @@ def download_youtube_audio(video_id: str, output_dir: str) -> str | None:
                 ydl.download([url])
 
             if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                print(f">>> [YT-DL] SUCCESS: Audio downloaded (+converted) using '{fmt}' <<<")
                 logger.info(f"[HandsFree] Audio downloaded successfully using format '{fmt}'")
                 return output_path
         except Exception as e:
+            print(f">>> [YT-DL] FAILED for '{fmt}': {str(e)[:60]}... <<<")
             logger.warning(f"[HandsFree] Download failed with format '{fmt}': {e}")
-            # Continue to next format
             continue
 
+    print(f">>> [YT-DL] FATAL: All download attempts failed for {video_id} <<<")
     logger.error(f"[HandsFree] All download attempts failed for video {video_id}")
     return None
 
@@ -170,6 +178,72 @@ def find_silence_cut_point(audio: AudioSegment, target_ms: int,
     return best_cut
 
 
+def _group_subtitles_into_sentences(original_subs, translation_lines=None, max_duration=20.0):
+    """Groups multiple short subtitle blocks into longer 'sentences' based on punctuation."""
+    if not original_subs:
+        return []
+        
+    merged = []
+    current_group = []
+    current_text = ""
+    start_time = 0
+    punctuation = ('.', '?', '!', '。', '？', '！')
+
+    for sub in original_subs:
+        if not current_group:
+            start_time = sub['start']
+        
+        current_group.append(sub)
+        text = sub['text'].strip()
+        current_text += (" " if current_text else "") + text
+        
+        # Check for sentence-ending punctuation or duration limit
+        is_end = text.endswith(punctuation)
+        duration = sub['end'] - start_time
+        
+        if is_end or duration >= max_duration:
+            # Aggregate translation text for this time window
+            trans_text = ""
+            if translation_lines:
+                # Find translation fragments that overlap with this group's time window
+                trans_items = [
+                    tl['text'].strip() for tl in translation_lines 
+                    if tl['start'] >= start_time - 0.5 and tl['end'] <= sub['end'] + 0.5
+                ]
+                if trans_items:
+                    trans_text = " ".join(trans_items)
+            
+            merged.append({
+                'start': start_time,
+                'end': sub['end'],
+                'text': current_text,
+                'translation': trans_text if trans_text else None
+            })
+            current_group = []
+            current_text = ""
+            
+    # Flush any remaining segments
+    if current_group:
+        last_sub = current_group[-1]
+        trans_text = ""
+        if translation_lines:
+            trans_items = [
+                tl['text'].strip() for tl in translation_lines 
+                if tl['start'] >= start_time - 0.5 and tl['end'] <= last_sub['end'] + 0.5
+            ]
+            trans_text = " ".join(trans_items)
+            
+        merged.append({
+            'start': start_time,
+            'end': last_sub['end'],
+            'text': current_text,
+            'translation': trans_text if trans_text else None
+        })
+        
+    logger.info(f"[HandsFree] Grouped {len(original_subs)} fragments into {len(merged)} sentences.")
+    return merged
+
+
 def build_handsfree_audio(video_id: str, subtitles: list, 
                           translation_lines: list, lang: str,
                           task_id: str = None) -> dict | None:
@@ -228,55 +302,45 @@ def build_handsfree_audio(video_id: str, subtitles: list,
 
     _update_progress('processing', 0.15)
 
-    # 3. Build segments
+    # 3. Group fragments into sentences
+    sentences = _group_subtitles_into_sentences(subtitles, translation_lines)
+    
+    # 4. Build segments
     combined = AudioSegment.empty()
     timeline = []
     silence_gap = AudioSegment.silent(duration=500)  # 0.5s between original and TTS
     segment_gap = AudioSegment.silent(duration=300)   # 0.3s between segments
     
-    total_lines = len(subtitles)
+    total_sentences = len(sentences)
     
-    for i, sub_line in enumerate(subtitles):
-        sub_start_ms = int(sub_line['start'] * 1000)
-        sub_end_ms = int(sub_line['end'] * 1000)
+    for i, sentence in enumerate(sentences):
+        sub_start_ms = int(sentence['start'] * 1000)
+        sub_end_ms = int(sentence['end'] * 1000)
         
         # Smart cut points using silence detection
         cut_start = find_silence_cut_point(
             full_audio, 
-            max(0, sub_start_ms - 200),  # Search slightly before sub start
+            max(0, sub_start_ms - 200),
             search_window_ms=500
         )
-        # For the end, bias toward extending (don't cut off speech)
         cut_end = find_silence_cut_point(
             full_audio, 
             sub_end_ms,
-            search_window_ms=1500  # Wider window for end
+            search_window_ms=1500
         )
         
-        # Ensure sane bounds
         cut_start = max(0, min(cut_start, len(full_audio)))
         cut_end = max(cut_start + 100, min(cut_end, len(full_audio)))
         
         # Extract original audio segment
         original_segment = full_audio[cut_start:cut_end]
-        
-        # Find matching translation line
-        translation_text = None
-        if translation_lines:
-            # Match by proximity of start time
-            best_match = min(
-                translation_lines, 
-                key=lambda tl: abs(tl['start'] - sub_line['start']),
-                default=None
-            )
-            if best_match and abs(best_match['start'] - sub_line['start']) < 1.5:
-                translation_text = best_match['text']
+        translation_text = sentence.get('translation')
         
         # Record timeline entry
         entry = {
             "index": i,
             "original_start": len(combined) / 1000.0,
-            "text_original": sub_line.get('text', ''),
+            "text_original": sentence['text'],
         }
         
         # Add original audio
@@ -306,15 +370,16 @@ def build_handsfree_audio(video_id: str, subtitles: list,
         timeline.append(entry)
         
         # Update progress
-        progress = 0.15 + (0.80 * (i + 1) / total_lines)
+        progress = 0.15 + (0.80 * (i + 1) / total_sentences)
         _update_progress('processing', progress)
 
-    _update_progress('exporting', 0.95)
-
     # 4. Export final MP3
+    print(f"[POD-TASK] Exporting final mix to MP3: {cached_mp3}")
+    _update_progress('exporting', 0.95)
     try:
         combined.export(cached_mp3, format="mp3", bitrate="192k")
     except Exception as e:
+        print(f"[POD-TASK] EXPORT FAILED: {e}")
         logger.error(f"[HandsFree] Failed to export MP3: {e}")
         return None
 
@@ -331,7 +396,7 @@ def build_handsfree_audio(video_id: str, subtitles: list,
 
     _update_progress('done', 1.0)
 
-    logger.info(f"[HandsFree] Generated: {cache_key}.mp3 ({len(combined)/1000:.1f}s, {total_lines} segments)")
+    logger.info(f"[HandsFree] Generated: {cache_key}.mp3 ({len(combined)/1000:.1f}s, {len(sentences)} segments)")
 
     return {
         "audio_url": f"/media/handsfree/{cache_key}.mp3",
@@ -418,3 +483,37 @@ def start_generation_task(video_id: str, subtitles: list,
     thread.start()
     
     return task_id
+
+
+def get_original_audio_info(video_id: str) -> dict | None:
+    """Download (if needed) and return info for the original audio file."""
+    storage_dir = _get_storage_dir()
+    # For original audio, we just use the video_id as filename
+    # but we store it in the handsfree folder for uniform serving
+    output_path = os.path.join(storage_dir, f"{video_id}_original.wav")
+    
+    # Check if already exists in storage
+    if not os.path.exists(output_path):
+        # Use child temporary directory for the download
+        with tempfile.TemporaryDirectory() as tmpdir:
+            downloaded = download_youtube_audio(video_id, tmpdir)
+            if downloaded and os.path.exists(downloaded):
+                import shutil
+                shutil.move(downloaded, output_path)
+            else:
+                return None
+    
+    # Convert to MP3 for better browser compatibility and size
+    mp3_path = os.path.join(storage_dir, f"{video_id}_original.mp3")
+    if not os.path.exists(mp3_path):
+        try:
+            audio = AudioSegment.from_file(output_path)
+            audio.export(mp3_path, format="mp3", bitrate="192k")
+        except Exception as e:
+            logger.error(f"[HandsFree] Failed to convert original audio to MP3: {e}")
+            return None
+            
+    return {
+        "audio_url": f"/media/handsfree/{video_id}_original.mp3",
+        "total_duration": len(AudioSegment.from_file(mp3_path)) / 1000.0
+    }

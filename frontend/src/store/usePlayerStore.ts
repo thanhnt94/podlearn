@@ -74,8 +74,10 @@ interface PlayerState {
   ttsBatchTaskId: string | null;
   ttsTrackSource: 's1' | 's2' | 's3';
   handsFreeModeEnabled: boolean;
+  handsFreeType: 'original' | 'mixed';
   handsFreeStatus: 'idle' | 'playing_original' | 'playing_tts' | 'transitioning' | 'generating';
   handsFreeAudioUrl: string | null;
+  handsFreeOriginalUrl: string | null;
   handsFreeTimeline: any[] | null;
   handsFreeTaskId: string | null;
   handsFreeProgress: number;
@@ -166,13 +168,16 @@ interface PlayerState {
   skipNextSentence: () => void;
   skipPrevSentence: () => void;
 
-   // Hands-Free Actions
+  // Hands-Free Actions
   toggleHandsFreeMode: () => void;
+  setHandsFreeType: (type: 'original' | 'mixed') => void;
   setHandsFreeStatus: (status: PlayerState['handsFreeStatus']) => void;
   setHandsFreeAudioData: (audioUrl: string | null, timeline: any[] | null, duration: number) => void;
+  setHandsFreeOriginalData: (audioUrl: string | null, duration: number) => void;
   setHandsFreeTaskId: (id: string | null) => void;
   setHandsFreeProgress: (progress: number, step: string) => void;
   setTTSTrackSource: (source: 's1' | 's2' | 's3') => void;
+  generateHandsFreeMixed: () => void;
 }
 
 const defaultTrackSettings = (fontSize: number, color: string, opacity: number, position: number): TrackSettings => ({
@@ -194,8 +199,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   comments: [],
   
   handsFreeModeEnabled: false,
+  handsFreeType: 'original',
   handsFreeStatus: 'idle',
   handsFreeAudioUrl: null,
+  handsFreeOriginalUrl: null,
   handsFreeTimeline: null,
   handsFreeTaskId: null,
   handsFreeProgress: 0,
@@ -458,19 +465,31 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         handsFreeStep: ''
     } : {})
   })),
+  setHandsFreeType: (type) => set({ handsFreeType: type }),
   setHandsFreeStatus: (status: PlayerState['handsFreeStatus']) => set({ handsFreeStatus: status }),
   setHandsFreeAudioData: (audioUrl, timeline, duration) => set({ 
     handsFreeAudioUrl: audioUrl, 
     handsFreeTimeline: timeline, 
     handsFreeDuration: duration 
   }),
+  setHandsFreeOriginalData: (audioUrl, duration) => set({
+    handsFreeOriginalUrl: audioUrl,
+    handsFreeDuration: duration
+  }),
   setHandsFreeTaskId: (id) => set({ handsFreeTaskId: id }),
   setHandsFreeProgress: (progress, step) => set({ handsFreeProgress: progress, handsFreeStep: step }),
   setTTSTrackSource: (source) => set({ ttsTrackSource: source }),
+  generateHandsFreeMixed: () => {
+    set({ 
+        handsFreeAudioUrl: null, 
+        handsFreeTimeline: null,
+        handsFreeTaskId: null,
+        handsFreeStatus: 'idle' 
+    });
+  },
   setAbLoop: (newLoop) => set((state) => ({
     abLoop: { ...state.abLoop, ...newLoop }
   })),
-
   setNotes: (notes) => set({ notes }),
   addNote: (note) => set((state) => ({ 
       notes: [...state.notes, note].sort((a,b) => a.timestamp - b.timestamp) 
@@ -481,23 +500,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         notes: { ...state.settings.notes, ...newSettings }
     }
   })),
-
   deleteNote: (id) => set((state) => ({ 
       notes: state.notes.filter(n => n.id !== id) 
   })),
   updateNote: (id, content) => set((state) => ({
       notes: state.notes.map(n => n.id === id ? { ...n, content } : n)
   })),
-
   setLessonData: (data) => set((state) => {
     let newSettings = state.settings;
     if (data.settings_json) {
         try {
-            // ROBUST PARSE: Never trust server-side strings
             const saved = typeof data.settings_json === 'string' 
                 ? JSON.parse(data.settings_json) 
                 : data.settings_json;
-            
             if (saved && typeof saved === 'object') {
                 newSettings = {
                     ...state.settings,
@@ -508,11 +523,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                     notes: { ...state.settings.notes, ...(saved.notes || {}) }
                 };
             }
-        } catch (e) { 
-            console.warn("Recovered from malformed settings_json in setLessonData", e); 
-        }
+        } catch (e) { console.warn("Recovered from malformed settings_json", e); }
     }
-
     return { 
         ...state,
         lessonId: data.lesson_id || data.lessonId || state.lessonId, 
@@ -525,41 +537,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     };
   }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
-
   fetchLessonData: async (id) => {
     const state = get();
-    // 1. If we ALREADY have this lesson and it's loaded, don't reset. 
-    // This prevents the 'black screen' flicker when hydrating from window data.
-    if (state.lessonId === id && state.isLoaded && state.videoId) {
-        // Just refresh notes/status in background if needed, but don't show loader
-    } else {
+    if (!(state.lessonId === id && state.isLoaded && state.videoId)) {
         set({ 
-          isLoaded: false, 
-          lessonId: id, 
-          videoId: null, 
-          subtitles: [], 
-          s1Lines: [], 
-          s2Lines: [], 
-          s3Lines: [], 
-          activeLineIndex: -1,
-          availableTracks: [] 
+          isLoaded: false, lessonId: id, videoId: null, 
+          subtitles: [], s1Lines: [], s2Lines: [], s3Lines: [], 
+          activeLineIndex: -1, availableTracks: [] 
         });
     }
-    
     try {
         const metaRes = await axios.get(`/api/subtitles/fetch/${id}`);
-        // Safety: If lessonId changed during fetch, ignore this stale result
         if (get().lessonId !== id) return;
-
         const m = metaRes.data;
-        
         const trackIds = {
             s1: m.metadata?.s1_track_id || m.track_id,
             s2: m.metadata?.s2_track_id || null,
             s3: m.metadata?.s3_track_id || null,
             ai: m.metadata?.ai_track_id || null
         };
-
         const fetchTrack = async (tid: number | string | null) => {
             if (!tid) return [];
             try {
@@ -567,138 +563,63 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 return r.data.lines || [];
             } catch (e) { return []; }
         };
-
         const [l1, l2, l3, aiRes] = await Promise.all([
-            fetchTrack(trackIds.s1),
-            fetchTrack(trackIds.s2),
-            fetchTrack(trackIds.s3),
+            fetchTrack(trackIds.s1), fetchTrack(trackIds.s2), fetchTrack(trackIds.s3),
             axios.get(`/api/ai/insights/${m.video_id}`).catch(() => ({ data: { insights: [] } }))
         ]);
-
-        // Safety again after long Promise.all
         if (get().lessonId !== id) return;
-
-        let finalSettings = get().settings;
-        if (m.settings_json) {
-            try {
-                const saved = typeof m.settings_json === 'string' 
-                    ? JSON.parse(m.settings_json) 
-                    : m.settings_json;
-
-                if (saved && typeof saved === 'object') {
-                    finalSettings = {
-                        ...get().settings,
-                        ...saved,
-                        s1: { ...get().settings.s1, ...(saved.s1 || {}) },
-                        s2: { ...get().settings.s2, ...(saved.s2 || {}) },
-                        s3: { ...get().settings.s3, ...(saved.s3 || {}) },
-                        notes: { ...get().settings.notes, ...(saved.notes || {}) }
-                    };
-                }
-            } catch (e) {
-                console.warn("Recovered from malformed settings_json in fetchLessonData", e);
-            }
-        }
-
         set({ 
-            lessonTitle: m.lesson_title,
-            videoId: m.video_id,
+            lessonTitle: m.lesson_title, videoId: m.video_id,
             originalLang: m.metadata?.original_lang || 'ja',
-            subtitles: l1,
-            s1Lines: l1,
-            s2Lines: l2,
-            s3Lines: l3,
-            availableTracks: m.available_tracks || [],
-            trackIds,
-            settings: finalSettings,
-            isCompleted: m.is_completed || false,
-            initialListeningSeconds: m.total_time_spent || 0,
-            isLoaded: true // Success
+            subtitles: l1, s1Lines: l1, s2Lines: l2, s3Lines: l3,
+            availableTracks: m.available_tracks || [], trackIds, isCompleted: m.is_completed || false,
+            initialListeningSeconds: m.total_time_spent || 0, isLoaded: true 
         });
-
         if (aiRes.data) {
             set({
                 aiInsights: aiRes.data.insights || [],
                 aiStatus: aiRes.data.status || 'empty',
-                aiProgress: {
-                    processed: aiRes.data.processed_lines || 0,
-                    total: aiRes.data.total_lines || 0
-                },
+                aiProgress: { processed: aiRes.data.processed_lines || 0, total: aiRes.data.total_lines || 0 },
                 aiSummary: aiRes.data.overall_summary || null
             });
         }
-
         const notesRes = await axios.get(`/api/lesson/${id}/notes`);
-        if (notesRes.data.notes && get().lessonId === id) {
-            set({ notes: notesRes.data.notes });
-        }
-    } catch (err) {
-        console.error("Fetch lesson failed", err);
-        // On error, we still need to set isLoaded to true so the UI can show a fallback/error,
-        // but we'll have videoId = null which should be handled by the UI.
-        set({ isLoaded: true }); 
-    }
+        if (notesRes.data.notes && get().lessonId === id) set({ notes: notesRes.data.notes });
+    } catch (err) { console.error("Fetch lesson failed", err); set({ isLoaded: true }); }
   },
-
   completeLesson: async () => {
-    const state = get();
-    if (!state.lessonId) return;
-    
+    const { lessonId } = get();
+    if (!lessonId) return;
     try {
-        const response = await fetch(`/api/lesson/${state.lessonId}/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        if (data.success) {
+        const response = await fetch(`/api/lesson/${lessonId}/complete`, { method: 'POST' });
+        if ((await response.json()).success) {
             set({ isCompleted: true });
             useAppStore.getState().checkNewBadges();
         }
-    } catch (e) {
-        console.error("Failed to complete lesson", e);
-    }
+    } catch (e) { console.error("Failed to complete lesson", e); }
   },
-
   fetchNotes: async () => {
     const { lessonId } = get();
     if (!lessonId) return;
     try {
         const res = await axios.get(`/api/lesson/${lessonId}/notes`);
-        if (res.data.notes) {
-            set({ notes: res.data.notes });
-        }
-    } catch (e) {
-        console.error("Failed to fetch notes", e);
-    }
+        if (res.data.notes) set({ notes: res.data.notes });
+    } catch (e) { console.error("Failed to fetch notes", e); }
   },
-
-  setAutoNext: (isAutoNext) => set({ isAutoNext }),
-
-  setMode: (mode) => set({ mode }),
-
   fetchShadowingStats: async () => {
     const { lessonId } = get();
     if (!lessonId) return;
     try {
         const res = await axios.get(`/api/lesson/${lessonId}/shadowing-stats`);
-        if (res.data.stats) {
-            set({ shadowingStats: res.data.stats });
-        }
-    } catch (e) {
-        console.error("Failed to fetch shadowing stats", e);
-    }
+        if (res.data.stats) set({ shadowingStats: res.data.stats });
+    } catch (e) { console.error("Failed to fetch shadowing stats", e); }
   },
-
   setAIInsights: (data: any) => set({
     aiInsights: data.insights || [],
     aiStatus: data.status || 'empty',
-    aiProgress: {
-        processed: data.processed_lines || 0,
-        total: data.total_lines || 0
-    },
+    aiProgress: { processed: data.processed_lines || 0, total: data.total_lines || 0 },
     aiSummary: data.overall_summary || null
   }),
-
   fetchAIInsights: async () => {
     const { videoId } = get();
     if (!videoId) return;
@@ -707,7 +628,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         get().setAIInsights(res.data);
     } catch (e) { console.error("Failed to fetch AI insights", e); }
   },
-
   analyzeLine: async (index: number) => {
     const { videoId, aiInsights } = get();
     if (!videoId) return;
@@ -716,56 +636,30 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         if (res.data.success && res.data.insight) {
             const newInsights = [...aiInsights];
             const existingIdx = newInsights.findIndex(it => it.index === index);
-            if (existingIdx !== -1) {
-                newInsights[existingIdx] = res.data.insight;
-            } else {
-                newInsights.push(res.data.insight);
-            }
+            if (existingIdx !== -1) newInsights[existingIdx] = res.data.insight;
+            else newInsights.push(res.data.insight);
             set({ aiInsights: newInsights });
         }
-    } catch (e) { 
-        console.error("Failed to analyze line", e);
-        throw e;
-    }
+    } catch (e) { console.error("Failed to analyze line", e); throw e; }
   },
-
   skipNextSentence: () => {
     const { subtitles, currentTime, requestSeek } = get();
-    // Find the current active sentence index
     const currentIndex = subtitles.findIndex(line => currentTime >= line.start && currentTime <= line.end);
-    
     if (currentIndex !== -1 && currentIndex < subtitles.length - 1) {
-      // If we are currently IN a sentence, jump to the START of the next one
-      const targetLine = subtitles[currentIndex + 1];
-      requestSeek(targetLine.start + 0.05, currentIndex + 1);
+      requestSeek(subtitles[currentIndex + 1].start + 0.05, currentIndex + 1);
     } else {
-      // If we are in a gap between sentences, find the first one that starts after us
       const nextIdx = subtitles.findIndex(line => line.start > currentTime + 0.05);
-      if (nextIdx !== -1) {
-        requestSeek(subtitles[nextIdx].start + 0.05, nextIdx);
-      }
+      if (nextIdx !== -1) requestSeek(subtitles[nextIdx].start + 0.05, nextIdx);
     }
   },
-
   skipPrevSentence: () => {
     const { subtitles, currentTime, requestSeek } = get();
-    // 1. Find the current/last subtitle
-    // We look for the subtitle that ends closest to BEFORE current time, 
-    // or the one currently active.
     const currentIndex = subtitles.findIndex(line => currentTime >= line.start && currentTime <= line.end);
-    
     if (currentIndex !== -1) {
       const currentLine = subtitles[currentIndex];
-      // If we are more than 1s into the current sentence, jump to its start
-      if (currentTime - currentLine.start > 1.2) {
-        requestSeek(currentLine.start + 0.05, currentIndex);
-      } else if (currentIndex > 0) {
-        // Otherwise jump to the previous sentence
-        requestSeek(subtitles[currentIndex - 1].start + 0.05, currentIndex - 1);
-      }
+      if (currentTime - currentLine.start > 1.2) requestSeek(currentLine.start + 0.05, currentIndex);
+      else if (currentIndex > 0) requestSeek(subtitles[currentIndex - 1].start + 0.05, currentIndex - 1);
     } else {
-      // If not in a sentence, find the one immediately before current time
-      // findIndex on reversed copy is tricky, let's just use a loop for clarity if needed or simpler find logic
       const rSubtitles = [...subtitles].reverse();
       const prevLine = rSubtitles.find(line => line.start < currentTime - 0.5);
       if (prevLine) {
@@ -773,5 +667,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
          requestSeek(prevLine.start + 0.05, originalIndex);
       }
     }
-  }
+  },
+  setAutoNext: (isAutoNext) => set({ isAutoNext }),
+  setMode: (mode) => set({ mode })
 }));
