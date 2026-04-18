@@ -1,16 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Search, Filter, MoreVertical, Shield, 
+  Search, Filter, Shield, 
   Mail, Calendar, ExternalLink, Trash2, Edit2 
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { AdminUser } from '../../types';
 
 export const MemberHub: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  
+  // Modals state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
 
-  useEffect(() => {
+  // Form states
+  const [newUser, setNewUser] = useState({ username: '', email: '', full_name: '', password: '', role: 'free' });
+  const [editForm, setEditForm] = useState({ username: '', email: '', full_name: '', role: 'free', password: '' });
+
+  const fetchUsers = () => {
+    setLoading(true);
     const PODLEARN_DATA = (window as any).__PODLEARN_ADMIN_DATA__;
     fetch(PODLEARN_DATA.api_base + '/users')
       .then(r => r.json())
@@ -18,12 +29,92 @@ export const MemberHub: React.FC = () => {
         setUsers(data);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchUsers();
   }, []);
+
+  const handleCreateUser = async () => {
+    const PODLEARN_DATA = (window as any).__PODLEARN_ADMIN_DATA__;
+    const response = await fetch(PODLEARN_DATA.api_base + '/users', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': PODLEARN_DATA.csrf_token
+      },
+      body: JSON.stringify(newUser)
+    });
+
+    if (response.ok) {
+      setIsAddModalOpen(false);
+      setNewUser({ username: '', email: '', full_name: '', password: '', role: 'free' });
+      fetchUsers();
+    } else {
+      const err = await response.json();
+      alert(err.error || 'Failed to create user');
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+    const PODLEARN_DATA = (window as any).__PODLEARN_ADMIN_DATA__;
+    const response = await fetch(`${PODLEARN_DATA.api_base}/users/${selectedUser.id}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': PODLEARN_DATA.csrf_token
+      },
+      body: JSON.stringify(editForm)
+    });
+
+    if (response.ok) {
+      setIsEditModalOpen(false);
+      fetchUsers();
+    } else {
+      const err = await response.json();
+      alert(err.error || 'Failed to update user');
+    }
+  };
+
+  const handleDeleteUser = async (user: AdminUser) => {
+    if (!confirm(`Are you sure you want to delete ${user.username}?`)) return;
+    const PODLEARN_DATA = (window as any).__PODLEARN_ADMIN_DATA__;
+    const response = await fetch(`${PODLEARN_DATA.api_base}/users/${user.id}`, {
+      method: 'DELETE',
+      headers: { 
+        'X-CSRF-Token': PODLEARN_DATA.csrf_token
+      }
+    });
+
+    if (response.ok) {
+      fetchUsers();
+    }
+  };
 
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(search.toLowerCase()) || 
-    u.email.toLowerCase().includes(search.toLowerCase())
+    u.email.toLowerCase().includes(search.toLowerCase()) ||
+    u.full_name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const getRoleStyle = (role: string) => {
+    switch(role) {
+      case 'admin': return 'bg-sky-500/10 border-sky-500/20 text-sky-400';
+      case 'moderator': return 'bg-amber-500/10 border-amber-500/20 text-amber-500';
+      case 'pro': return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500';
+      default: return 'bg-white/5 border-white/5 text-slate-400';
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch(role) {
+      case 'admin': return 'Administrator';
+      case 'moderator': return 'Moderator';
+      case 'pro': return 'Pro User';
+      default: return 'Free User';
+    }
+  };
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -33,7 +124,7 @@ export const MemberHub: React.FC = () => {
           <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" />
           <input 
             type="text" 
-            placeholder="Search members by identity, email or ID..."
+            placeholder="Search members by identity, email or name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-950/40 border border-white/5 rounded-2xl py-4 pl-14 pr-8 text-sm outline-none focus:border-sky-500/30 transition-all"
@@ -44,7 +135,10 @@ export const MemberHub: React.FC = () => {
             <Filter size={16} />
             Advanced Filtering
           </button>
-          <button className="px-8 py-4 bg-sky-500 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(14,165,233,0.3)] hover:scale-105 transition-all">
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-8 py-4 bg-sky-500 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(14,165,233,0.3)] hover:scale-105 transition-all"
+          >
             Instate New Member
           </button>
         </div>
@@ -77,7 +171,10 @@ export const MemberHub: React.FC = () => {
                        {user.is_admin && <div className="absolute top-0 right-0 w-3 h-3 bg-sky-500 border-2 border-slate-800 rounded-full" />}
                     </div>
                     <div>
-                      <div className="text-sm font-black text-white">{user.username}</div>
+                      <div className="text-sm font-black text-white flex items-center gap-2">
+                        {user.username}
+                        {user.full_name && <span className="text-slate-500 font-bold">• {user.full_name}</span>}
+                      </div>
                       <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 uppercase mt-0.5">
                         <Mail size={10} /> {user.email}
                       </div>
@@ -86,15 +183,10 @@ export const MemberHub: React.FC = () => {
                 </td>
                 <td className="px-10 py-8">
                   <div className="flex items-center gap-3">
-                    {user.is_admin ? (
-                      <div className="px-3 py-1.5 rounded-pill bg-sky-500/10 border border-sky-500/20 text-sky-500 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                        <Shield size={10} /> Administrator
-                      </div>
-                    ) : (
-                      <div className="px-3 py-1.5 rounded-pill bg-white/5 border border-white/5 text-slate-400 text-[9px] font-black uppercase tracking-widest">
-                        Standard Member
-                      </div>
-                    )}
+                    <div className={`px-3 py-1.5 rounded-pill border ${getRoleStyle(user.role)} text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5`}>
+                      {user.role === 'admin' ? <Shield size={10} /> : null}
+                      {getRoleLabel(user.role)}
+                    </div>
                     {user.central_auth_id && (
                       <div className="px-3 py-1.5 rounded-pill bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
                         <ExternalLink size={10} /> SSO Linked
@@ -109,15 +201,28 @@ export const MemberHub: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-10 py-8 text-right">
-                  <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-3 rounded-xl bg-white/5 hover:bg-sky-500/10 text-slate-400 hover:text-sky-500 transition-all">
+                  <div className="flex items-center justify-end gap-2">
+                    <button 
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setEditForm({
+                          username: user.username,
+                          email: user.email,
+                          full_name: user.full_name || '',
+                          role: user.role,
+                          password: ''
+                        });
+                        setIsEditModalOpen(true);
+                      }}
+                      className="p-3 rounded-xl bg-white/5 hover:bg-sky-500/10 text-slate-400 hover:text-sky-500 transition-all"
+                    >
                       <Edit2 size={16} />
                     </button>
-                    <button className="p-3 rounded-xl bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-all">
+                    <button 
+                      onClick={() => handleDeleteUser(user)}
+                      className="p-3 rounded-xl bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-all"
+                    >
                       <Trash2 size={16} />
-                    </button>
-                    <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all">
-                      <MoreVertical size={16} />
                     </button>
                   </div>
                 </td>
@@ -133,6 +238,145 @@ export const MemberHub: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass p-10 rounded-[3rem] w-full max-w-xl space-y-8 border border-white/10 overflow-y-auto max-h-[90vh]"
+            >
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-white uppercase tracking-tight">Instate New Member</h3>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Initialize a fresh local identity</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">User Identity</label>
+                  <input 
+                    type="text" placeholder="Username" 
+                    value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Email Address</label>
+                  <input 
+                    type="email" placeholder="email@example.com" 
+                    value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Full Name (Tên)</label>
+                  <input 
+                    type="text" placeholder="Thanh Nguyen..." 
+                    value={newUser.full_name} onChange={e => setNewUser({...newUser, full_name: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secret Key (Password)</label>
+                  <input 
+                    type="password" placeholder="••••••••" 
+                    value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Access Authorization</label>
+                  <select 
+                    value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white appearance-none"
+                  >
+                    <option value="free">Free User</option>
+                    <option value="pro">Pro User</option>
+                    <option value="moderator">Moderator</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 pt-4">
+                <button onClick={() => setIsAddModalOpen(false)} className="flex-1 py-4 glass-pill rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:text-white transition-all">Cancel</button>
+                <button onClick={handleCreateUser} className="flex-1 py-4 bg-sky-500 text-slate-950 rounded-2xl text-[10px] font-black uppercase">Initialize Member</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isEditModalOpen && selectedUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass p-10 rounded-[3rem] w-full max-w-xl space-y-8 border border-white/10 overflow-y-auto max-h-[90vh]"
+            >
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-white uppercase tracking-tight">Modify Member Identity</h3>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Adjust permissions & info for {selectedUser.username}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">User Identity</label>
+                  <input 
+                    type="text" 
+                    value={editForm.username} onChange={e => setEditForm({...editForm, username: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Email Address</label>
+                  <input 
+                    type="email" 
+                    value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Full Name (Tên)</label>
+                  <input 
+                    type="text" 
+                    value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Reset Password (Optional)</label>
+                  <input 
+                    type="password" placeholder="Leave blank to keep current"
+                    value={editForm.password} onChange={e => setEditForm({...editForm, password: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white placeholder:text-slate-700"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Update Authorization Level</label>
+                  <select 
+                    value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})}
+                    className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white appearance-none"
+                  >
+                    <option value="free">Free User</option>
+                    <option value="pro">Pro User</option>
+                    <option value="moderator">Moderator</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 pt-4">
+                <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 glass-pill rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:text-white transition-all">Cancel</button>
+                <button onClick={handleUpdateUser} className="flex-1 py-4 bg-sky-500 text-slate-950 rounded-2xl text-[10px] font-black uppercase">Update Identity</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

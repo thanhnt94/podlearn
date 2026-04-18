@@ -9,6 +9,8 @@ export interface AdminUser {
   id: number;
   username: string;
   email: string;
+  full_name?: string;
+  role: string;
   is_admin: boolean;
   created_at: string;
   central_auth_id?: string;

@@ -51,11 +51,98 @@ def list_users():
         'id': u.id,
         'username': u.username,
         'email': u.email,
+        'full_name': u.full_name,
         'role': u.role,
         'is_admin': u.is_admin,
         'created_at': u.created_at.isoformat() if u.created_at else None,
         'central_auth_id': getattr(u, 'central_auth_id', None)
     } for u in users])
+
+@admin_api_bp.route('/users', methods=['POST'])
+@login_required
+@admin_required
+def create_user():
+    """Create a new local user."""
+    data = request.get_json()
+    username = data.get('username')
+    email = data.get('email')
+    full_name = data.get('full_name')
+    password = data.get('password')
+    role = data.get('role', 'free')
+
+    if not username or not email or not password:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    if User.query.filter((User.username == username) | (User.email == email)).first():
+        return jsonify({"error": "Username or Email already exists"}), 400
+
+    user = User(username=username, email=email, full_name=full_name, role=role)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"User {username} created successfully",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role
+        }
+    }), 201
+
+@admin_api_bp.route('/users/<int:user_id>', methods=['PUT', 'PATCH'])
+@login_required
+@admin_required
+def update_user(user_id):
+    """Full update for a user's profile."""
+    data = request.get_json()
+    user = User.query.get_or_404(user_id)
+    
+    # 1. Identity updates
+    username = data.get('username')
+    email = data.get('email')
+    full_name = data.get('full_name')
+    role = data.get('role')
+    password = data.get('password')
+
+    if username and username != user.username:
+        if User.query.filter_by(username=username).first():
+            return jsonify({"error": "Username already taken"}), 400
+        user.username = username
+        
+    if email and email != user.email:
+        if User.query.filter_by(email=email).first():
+            return jsonify({"error": "Email already registered"}), 400
+        user.email = email
+        
+    if full_name is not None:
+        user.full_name = full_name
+        
+    if role:
+        if role not in ['free', 'pro', 'moderator', 'admin']:
+            return jsonify({"error": "Invalid role"}), 400
+        user.role = role
+        
+    if password:
+        user.set_password(password)
+        
+    db.session.commit()
+    return jsonify({"success": True, "message": f"User {user.username} updated successfully"})
+
+@admin_api_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    """Delete a user."""
+    if user_id == current_user.id:
+        return jsonify({"error": "Cannot delete yourself"}), 400
+        
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"success": True, "message": f"User {user.username} deleted"})
 
 @admin_api_bp.route('/settings')
 @login_required
