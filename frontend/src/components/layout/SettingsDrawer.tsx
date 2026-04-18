@@ -260,7 +260,32 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                             })()}
                                        </section>
 
-                                        {/* Neural Learning / Hands-Free Section */}
+                                        {/* 3. Subtitle Sync Calibration */}
+                                        <section className="bg-amber-500/5 rounded-3xl p-6 border border-amber-500/10 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-1">
+                                                    <h4 className="text-[10px] font-black uppercase text-amber-500 flex items-center gap-2"><Clock size={12}/> Sync Calibration</h4>
+                                                    <p className="text-[9px] text-slate-600">Manual timing adjustment (±2s)</p>
+                                                </div>
+                                                <span className={`text-xs font-mono font-bold ${settings.syncOffset < 0 ? 'text-rose-400' : settings.syncOffset > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                                    {settings.syncOffset > 0 ? '+' : ''}{settings.syncOffset.toFixed(1)}s
+                                                </span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <input 
+                                                    type="range" min="-2" max="2" step="0.1" 
+                                                    value={settings.syncOffset || 0} 
+                                                    onChange={(e) => usePlayerStore.getState().setSyncOffset(parseFloat(e.target.value))} 
+                                                    className="w-full h-1.5 bg-slate-800 appearance-none rounded-full accent-amber-500 cursor-pointer" 
+                                                />
+                                                <div className="flex justify-between text-[8px] font-black uppercase tracking-tighter text-slate-600">
+                                                    <span>Delay Subtitles</span>
+                                                    <span>Earlier</span>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        {/* 4. Neural Learning / Hands-Free Section */}
                                         <section className="bg-sky-500/5 rounded-3xl p-6 border border-sky-500/10 space-y-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-sky-500/10 rounded-2xl flex items-center justify-center text-sky-400">

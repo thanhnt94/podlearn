@@ -22,7 +22,9 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
 
       <div className="flex-1 flex relative overflow-hidden">
         {/* 2. Sidebar - Floating Overlay with Fixed Base */}
-        <div className="hidden md:block w-20 shrink-0 z-50">
+        <div className={`hidden md:block shrink-0 z-50 transition-all duration-300 ${
+            isPlayerRoute ? 'w-20' : 'w-[280px]'
+        }`}>
            <MainSidebar />
         </div>
 

@@ -10,7 +10,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const [isExpanded, setIsExpanded] = useState(false);
+    const isPlayerRoute = location.pathname.includes('/player/');
+    const [isHovered, setIsHovered] = useState(false);
+
+    const isExpanded = isPlayerRoute ? isHovered : true;
 
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', path: '/', icon: <Home size={22} /> },
@@ -24,9 +27,11 @@ export const MainSidebar: React.FC = () => {
         <motion.aside 
             initial={false}
             animate={{ width: isExpanded ? 280 : 80 }}
-            onMouseEnter={() => setIsExpanded(true)}
-            onMouseLeave={() => setIsExpanded(false)}
-            className="hidden md:flex flex-col bg-slate-900 border-r border-white/5 h-full absolute left-0 top-0 z-50 shadow-[20px_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
+            onMouseEnter={() => isPlayerRoute && setIsHovered(true)}
+            onMouseLeave={() => isPlayerRoute && setIsHovered(false)}
+            className={`hidden md:flex flex-col bg-slate-900 border-r border-white/5 h-full z-50 overflow-hidden ${
+                isPlayerRoute ? 'absolute left-0 top-0 shadow-[20px_0_50px_rgba(0,0,0,0.5)]' : 'relative'
+            }`}
         >
             
             {/* Brand Header */}

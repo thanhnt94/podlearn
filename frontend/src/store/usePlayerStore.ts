@@ -120,6 +120,7 @@ interface PlayerState {
         theme: 'classic' | 'cyber' | 'amber' | 'ghost';
         fontSize: number;
       };
+      syncOffset: number;
   };
   
   // Actions
@@ -151,6 +152,7 @@ interface PlayerState {
   setAbLoop: (loop: Partial<PlayerState['abLoop']>) => void;
   setNotes: (notes: Note[]) => void;
   setNoteSettings: (settings: Partial<PlayerState['settings']['notes']>) => void;
+  setSyncOffset: (offset: number) => void;
   addNote: (note: Note) => void;
   deleteNote: (id: number) => void;
   updateNote: (id: number, content: string) => void;
@@ -260,11 +262,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         alignment: 'bottomCenter',
         theme: 'classic',
         fontSize: 1.8
-    }
+    },
+    syncOffset: 0
   },
 
   setCurrentTime: (time) => {
-    const { subtitles, activeLineIndex, abLoop, requestSeek, isSeeking, lastSeekTime } = get();
+    const { subtitles, activeLineIndex, abLoop, requestSeek, isSeeking, lastSeekTime, settings } = get();
     
     // overwriting the state before the player actually seeks.
     // Increased to 1000ms because YouTube player can be slow to report new position.
@@ -280,7 +283,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       }
     }
     
-    const newIndex = subtitles.findIndex(line => time >= line.start && time <= line.end);
+    const adjustedTime = time + (settings.syncOffset || 0);
+    const newIndex = subtitles.findIndex(line => adjustedTime >= line.start && adjustedTime <= line.end);
     
     // Auto-pause at end of sentence in shadowing mode
     // Strategy: detect when the player LEAVES the current subtitle line
@@ -501,6 +505,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         notes: { ...state.settings.notes, ...newSettings }
     }
   })),
+  setSyncOffset: (offset) => set((state) => ({
+    settings: { ...state.settings, syncOffset: offset }
+  })),
   deleteNote: (id) => set((state) => ({ 
       notes: state.notes.filter(n => n.id !== id) 
   })),
@@ -521,7 +528,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                     s1: { ...state.settings.s1, ...(saved.s1 || {}) },
                     s2: { ...state.settings.s2, ...(saved.s2 || {}) },
                     s3: { ...state.settings.s3, ...(saved.s3 || {}) },
-                    notes: { ...state.settings.notes, ...(saved.notes || {}) }
+                    notes: { ...state.settings.notes, ...(saved.notes || {}) },
+                    syncOffset: saved.syncOffset !== undefined ? saved.syncOffset : state.settings.syncOffset
                 };
             }
         } catch (e) { console.warn("Recovered from malformed settings_json", e); }
@@ -537,6 +545,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         isLoaded: true 
     };
   }),
+  setAutoNext: (isAutoNext) => set({ isAutoNext }),
+  setMode: (mode) => set({ mode }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   fetchLessonData: async (id) => {
     const state = get();
@@ -669,9 +679,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       }
     }
   },
-  setAutoNext: (isAutoNext) => set({ isAutoNext }),
-  setMode: (mode) => set({ mode }),
-
   updateSubtitleLine: async (trackKey, index, data) => {
     const { trackIds, lessonId } = get();
     const trackId = trackIds[trackKey];
