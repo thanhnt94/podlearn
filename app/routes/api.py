@@ -1291,7 +1291,9 @@ def import_sentence():
 @api_bp.route('/video/import', methods=['POST'])
 @login_required
 def import_video():
-    """AJAX-based video import and lesson creation."""
+    """AJAX-based video import and lesson creation. 
+    ENFORCES SINGLETON: Only one Video record per YouTube ID across the system.
+    """
     data = request.get_json() or {}
     url = data.get('youtube_url', '').strip()
 
@@ -1302,39 +1304,78 @@ def import_video():
     if not video_id_str:
         return jsonify({'error': 'Invalid YouTube URL'}), 400
 
-    # Only match videos owned by this user
-    video = Video.query.filter_by(youtube_id=video_id_str, owner_id=current_user.id).first()
+    # 1. Global Singleton Check: Find ANY video with this YouTube ID
+    video = Video.query.filter_by(youtube_id=video_id_str).first()
 
     if not video:
-        video = Video(youtube_id=video_id_str, title="Processing...", status='pending', owner_id=current_user.id, visibility='private')
+        # First time this video enters the system: System Owned
+        video = Video(
+            youtube_id=video_id_str, 
+            title="Processing...", 
+            status='pending', 
+            owner_id=None, 
+            visibility='private'
+        )
         db.session.add(video)
         db.session.commit()
-        # Trigger background task
+        
+        # Trigger background metadata processing
         from ..tasks import process_video_metadata
         from ..utils.background_tasks import run_in_background
         run_in_background(process_video_metadata, video.id)
+        message = 'Video imported and added to library.'
+    else:
+        message = f'Video "{video.title}" added to your library.'
 
-    # Check if lesson exists, create if not
-    existing = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
-    if not existing:
+    # 2. Lesson Creation: One private learning instance per user
+    existing_lesson = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
+    if not existing_lesson:
         lesson = Lesson(user_id=current_user.id, video_id=video.id)
         db.session.add(lesson)
         db.session.commit()
+    else:
+        return jsonify({'success': False, 'error': 'This video is already in your library.'}), 400
 
     return jsonify({
         'success': True,
         'video_id': video.id,
         'title': video.title,
-        'message': 'Video imported and added to library.'
+        'message': message
     })
+
+@api_bp.route('/lesson/<int:lesson_id>', methods=['DELETE'])
+@login_required
+def delete_lesson(lesson_id):
+    """Remove a video from the user's private library (deletes the Lesson)."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    
+    # Cascade deletes Notes, etc. via SQLAlchemy relationship 'all, delete-orphan'
+    db.session.delete(lesson)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Lesson removed from your library.'})
+
+@api_bp.route('/video/<int:video_id>', methods=['DELETE'])
+@login_required
+def delete_video_global(video_id):
+    """ADMIN ONLY: Completely remove a video and all associated user lessons/data."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized. Admin role required.'}), 403
+        
+    video = Video.query.get_or_404(video_id)
+    
+    # Hard Delete: All Lessons, Subtitles, Comments, etc. will be removed via cascade
+    db.session.delete(video)
+    db.session.commit()
+    return jsonify({'success': True, 'message': f'Global video "{video.title}" and all associated data deleted.'})
 
 @api_bp.route('/video/<int:video_id>/publish', methods=['POST'])
 @login_required
 def request_publish(video_id):
-    """Owner submits their video for public review by an admin."""
-    video = Video.query.filter_by(id=video_id, owner_id=current_user.id).first_or_404()
-    video.visibility = 'pending_public'
-    db.session.commit()
+    """Suggest this video for the public gallery (reviewed by Admin)."""
+    video = Video.query.get_or_404(video_id)
+    if video.visibility == 'private':
+        video.visibility = 'pending_public'
+        db.session.commit()
     return jsonify({'success': True, 'message': 'Video submitted for admin approval.'})
 
 @api_bp.route('/video/<int:video_id>/join', methods=['POST'])

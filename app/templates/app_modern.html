@@ -25,6 +25,7 @@
             user_id: {{ current_user.id }},
             username: "{{ current_user.username }}",
             csrf_token: "{{ csrf_token() }}",
+            is_admin: {{ 'true' if current_user.is_admin else 'false' }},
             initial_settings: {{ (lesson.settings_json or '{}')|safe if lesson else '{}' }}
         };
     </script>

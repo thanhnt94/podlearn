@@ -184,16 +184,34 @@ def pending_videos():
 @login_required
 @admin_required
 def approve_public_video(video_id):
+    """Confirm a video is high quality and allow it in the public community gallery."""
     video = Video.query.get_or_404(video_id)
     video.visibility = 'public'
     db.session.commit()
-    return jsonify({'success': True, 'message': f'Video {video.title} is now public!'})
+    return jsonify({'success': True, 'message': f'Video "{video.title}" is now public!'})
 
 @admin_api_bp.route('/video/<int:video_id>/reject-public', methods=['POST'])
 @login_required
 @admin_required
 def reject_public_video(video_id):
+    """Reject a public request, keeping the video private to those who added it."""
     video = Video.query.get_or_404(video_id)
     video.visibility = 'private'
     db.session.commit()
-    return jsonify({'success': True, 'message': f'Video {video.title} public request rejected.'})
+    return jsonify({'success': True, 'message': f'Video "{video.title}" request rejected (set to private).'})
+
+@admin_api_bp.route('/video/<int:video_id>/visibility', methods=['POST'])
+@login_required
+@admin_required
+def set_video_visibility(video_id):
+    """Directly toggle visibility (private/public/pending_public)."""
+    data = request.get_json() or {}
+    visibility = data.get('visibility')
+    
+    if visibility not in ['private', 'public', 'pending_public']:
+        return jsonify({'error': 'Invalid visibility status'}), 400
+        
+    video = Video.query.get_or_404(video_id)
+    video.visibility = visibility
+    db.session.commit()
+    return jsonify({'success': True, 'visibility': video.visibility})

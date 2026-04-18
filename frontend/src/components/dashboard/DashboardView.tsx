@@ -7,7 +7,11 @@ import {
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
-    const { lessons, stats, notifications, isLoading, fetchDashboard } = useAppStore();
+    const { 
+        lessons, stats, notifications, isLoading, 
+        fetchDashboard, deleteLesson, deleteVideoGlobal,
+        toggleVideoVisibility
+    } = useAppStore();
 
     useEffect(() => {
         fetchDashboard();
@@ -99,7 +103,13 @@ export const DashboardView: React.FC = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {lessons.map(lesson => (
-                            <LessonCard key={lesson.id} lesson={lesson} />
+                            <LessonCard 
+                                key={lesson.id} 
+                                lesson={lesson} 
+                                onDelete={deleteLesson}
+                                onDeleteGlobal={deleteVideoGlobal}
+                                onToggleVisibility={toggleVideoVisibility}
+                            />
                         ))}
                         {lessons.length === 0 && (
                             <div className="col-span-full py-20 bg-slate-900/40 border-2 border-dashed border-white/5 rounded-[3rem] text-center space-y-4">

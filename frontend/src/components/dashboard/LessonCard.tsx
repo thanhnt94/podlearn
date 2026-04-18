@@ -1,14 +1,16 @@
 import React from 'react';
-import { Play, CheckCircle2, Clock, User, Trash2, Layers, Plus } from 'lucide-react';
+import { Play, CheckCircle2, Clock, Trash2, Layers, Plus, Globe, Lock, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 
 interface LessonCardProps {
     lesson: any;
     onDelete?: (id: number) => void;
+    onDeleteGlobal?: (id: number) => void;
+    onToggleVisibility?: (videoId: number, visibility: 'public' | 'private') => void;
 }
 
-export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete }) => {
+export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDeleteGlobal, onToggleVisibility }) => {
     const { video, time_spent, is_completed, last_accessed } = lesson;
     const { playlists, addVideoToPlaylist } = useAppStore();
     const [showPlaylistSelector, setShowPlaylistSelector] = React.useState(false);
@@ -47,6 +49,11 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete }) => {
                             <CheckCircle2 size={12} strokeWidth={3} /> Completed
                         </div>
                     )}
+                    {video.visibility === 'public' && (
+                        <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg backdrop-blur-md">
+                            <Globe size={12} strokeWidth={3} /> Featured
+                        </div>
+                    )}
                 </div>
 
                 {/* Duration Badge */}
@@ -73,8 +80,8 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete }) => {
                     </Link>
                     <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                         <div className="flex items-center gap-1.5 truncate max-w-[150px]">
-                            <User size={12} className="text-sky-500" />
-                            {video.channel_title || video.owner_name}
+                            <ShieldCheck size={12} className="text-sky-500" />
+                            PodLearn Library
                         </div>
                         <div className="flex items-center gap-1.5 font-mono">
                             {progressPercent}% Done
@@ -122,14 +129,51 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete }) => {
                         </div>
                     </div>
 
-                    {onDelete && (
-                        <button 
-                            onClick={() => onDelete(lesson.id)}
-                            className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    )}
+                    <div className="flex items-center gap-1">
+                        {onDelete && (
+                            <button 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    if (window.confirm('Remove this lesson from your library? Your notes for this video will be lost.')) {
+                                        onDelete(lesson.id);
+                                    }
+                                }}
+                                className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
+                                title="Remove from Personal Library"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        )}
+                        
+                        {onDeleteGlobal && (window as any).__PODLEARN_DATA__?.is_admin && (
+                            <button 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    if (window.confirm('!!! DANGER !!!\n\nThis will PERMANENTLY delete this video and ALL user lessons, notes, and progress for EVERYONE. Continue?')) {
+                                        onDeleteGlobal(video.id);
+                                    }
+                                }}
+                                className="p-2 text-red-600 hover:text-red-400 hover:bg-red-900/40 rounded-xl transition-all border border-red-900/30"
+                                title="ADMIN: Global Delete (Wipes Everything)"
+                            >
+                                <Trash2 size={16} className="fill-red-600/20" />
+                            </button>
+                        )}
+
+                        {onToggleVisibility && (window as any).__PODLEARN_DATA__?.is_admin && (
+                            <button 
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    const nextStatus = video.visibility === 'public' ? 'private' : 'public';
+                                    onToggleVisibility(video.id, nextStatus);
+                                }}
+                                className={`p-2 rounded-xl transition-all border ${video.visibility === 'public' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-white/10'}`}
+                                title={video.visibility === 'public' ? "Set to Private" : "Feature in Discovery"}
+                            >
+                                {video.visibility === 'public' ? <Globe size={16} /> : <Lock size={16} />}
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

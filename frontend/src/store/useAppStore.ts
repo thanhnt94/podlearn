@@ -81,6 +81,11 @@ interface AppState {
     fetchBadges: () => Promise<void>;
     checkNewBadges: () => Promise<void>;
     clearCelebration: () => void;
+
+    // Lesson/Video Management
+    deleteLesson: (lessonId: number) => Promise<boolean>;
+    deleteVideoGlobal: (videoId: number) => Promise<boolean>;
+    toggleVideoVisibility: (videoId: number, visibility: 'public' | 'private') => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -227,5 +232,45 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (err) { console.error("Check badges failed", err); }
     },
 
-    clearCelebration: () => set({ newlyEarnedBadge: null })
+    clearCelebration: () => set({ newlyEarnedBadge: null }),
+
+    deleteLesson: async (lessonId: number) => {
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.delete(`/api/lesson/${lessonId}`, {
+                headers: { 'X-CSRF-Token': data.csrf_token }
+            });
+            get().fetchDashboard();
+            return true;
+        } catch (err) {
+            console.error("Lesson deletion failed", err);
+            return false;
+        }
+    },
+
+    deleteVideoGlobal: async (videoId: number) => {
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.delete(`/api/video/${videoId}`, {
+                headers: { 'X-CSRF-Token': data.csrf_token }
+            });
+            get().fetchDashboard();
+            return true;
+        } catch (err) {
+            console.error("Global video deletion failed", err);
+            return false;
+        }
+    },
+
+    toggleVideoVisibility: async (videoId, visibility) => {
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.post(`/api/admin/video/${videoId}/visibility`, { visibility }, {
+                headers: { 'X-CSRF-Token': data.csrf_token }
+            });
+            get().fetchDashboard();
+        } catch (err) {
+            console.error("Failed to toggle visibility", err);
+        }
+    }
 }));

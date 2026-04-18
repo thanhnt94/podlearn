@@ -30,7 +30,7 @@ class Video(db.Model):
     # Relationships
     subtitle_tracks = db.relationship('SubtitleTrack', back_populates='video',
                                       lazy='dynamic', cascade='all, delete-orphan')
-    lessons = db.relationship('Lesson', back_populates='video', lazy='dynamic')
+    lessons = db.relationship('Lesson', back_populates='video', lazy='dynamic', cascade='all, delete-orphan')
     comments = db.relationship('Comment', backref='video', lazy='dynamic', cascade='all, delete-orphan')
 
     def __repr__(self) -> str:
