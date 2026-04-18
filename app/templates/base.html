@@ -45,6 +45,7 @@
     {% block content %}{% endblock %}
 
     <!-- Bottom Navigation Bar (Mobile Only) -->
+    {% if current_user.is_authenticated %}
     <nav class="bottom-nav mobile-only">
         <a href="{% if request.endpoint == 'dashboard.index' %}javascript:void(0){% else %}{{ url_for('dashboard.index', tab='library') }}{% endif %}" class="bottom-nav__item {% if request.endpoint == 'dashboard.index' %}active{% endif %}" id="nav-home" data-tab="library" onclick="if(window.switchDashTrack) switchDashTrack('library', this)">
             <i data-lucide="home"></i>
@@ -63,6 +64,7 @@
             <span>Profile</span>
         </a>
     </nav>
+    {% endif %}
 
     {% block scripts %}{% endblock %}
 

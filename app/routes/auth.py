@@ -13,9 +13,13 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 def is_sso_alive():
     """Circuit Breaker: Check if Central Auth server is reachable."""
+    from ..models.setting import AppSetting
     try:
-        sso_url = current_app.config.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://localhost:5000')
-        response = requests.get(f"{sso_url}/api/health", timeout=1.5)
+        # Priority: 1. Database Setting (UI) -> 2. Config (ENV) -> 3. Fallback
+        sso_url = AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS') or \
+                  current_app.config.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://127.0.0.1:5000')
+        
+        response = requests.get(f"{sso_url}/api/auth/health", timeout=1.5)
         return response.status_code == 200
     except (requests.RequestException, Exception):
         return False

@@ -145,7 +145,7 @@ export const MainSidebar: React.FC = () => {
                      </AnimatePresence>
                  </div>
                  
-                 <a href="/logout" className={`flex items-center gap-3 text-slate-500 hover:text-red-400 transition-colors text-xs font-bold uppercase tracking-widest ${
+                 <a href="/auth/logout" className={`flex items-center gap-3 text-slate-500 hover:text-red-400 transition-colors text-xs font-bold uppercase tracking-widest ${
                      isExpanded ? 'px-4 py-2' : 'justify-center p-2'
                  }`}>
                      <LogOut size={16} />

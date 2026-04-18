@@ -225,21 +225,36 @@ def test_auth_connection():
         client_secret = current_secret
 
     try:
+        # 1. Discovery Check (Server up?)
         discovery_response = requests.get(f"{base_url}/api/auth/discovery", timeout=5)
         if discovery_response.status_code != 200:
-            return jsonify({'success': False, 'message': 'Không thể kết nối tới Discovery endpoint.'}), 400
+            return jsonify({'success': False, 'message': 'Không thể kết nối tới Discovery endpoint của Central Auth.'}), 400
         
-        discovery_data = discovery_response.json()
+        # 2. Credential Handshake (Official Validation)
+        validate_url = f"{base_url}/api/auth/validate-client"
+        v_res = requests.post(validate_url, json={
+            "client_id": client_id,
+            "client_secret": client_secret
+        }, timeout=5)
         
-        # Save config
+        v_data = v_res.json()
+        if not v_res.ok or not v_data.get('success'):
+            error_msg = v_data.get('error', 'Client ID hoặc Secret không hợp lệ.')
+            return jsonify({'success': False, 'message': f'Bắt tay thất bại: {error_msg}'}), 401
+            
+        # 3. Save Config ONLY if handshake succeeded
         AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
         AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
-        if client_secret:
+        if client_secret and client_secret != current_secret:
             AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
         
-        return jsonify({'success': True, 'message': 'Kết nối thành công!', 'discovery': discovery_data})
+        return jsonify({
+            'success': True, 
+            'message': f'Kết nối thành công! Đã xác thực client: {v_data.get("client_name")}', 
+            'discovery': discovery_response.json()
+        })
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Lỗi: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': f'Lỗi hệ thống: {str(e)}'}), 500
 
 @admin_api_bp.route('/toggle-sso', methods=['POST'])
 @login_required

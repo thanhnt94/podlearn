@@ -47,6 +47,10 @@ from ..services.sentence_service import import_sentence_from_raw_json
 
 api_bp = Blueprint('api', __name__)
 
+@api_bp.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "service": "PodLearn", "version": "1.0.0"}), 200
+
 
 
 

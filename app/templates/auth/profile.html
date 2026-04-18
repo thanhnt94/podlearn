@@ -79,6 +79,18 @@
                     </div>
                     <i data-lucide="chevron-right" style="width:16px;height:16px;color:#64748b;"></i>
                 </button>
+
+                <div class="profile-divider" style="margin: 10px 0;"></div>
+
+                <a href="{{ url_for('auth.logout') }}" class="profile-sidebar__btn" style="color: #fb7185;">
+                    <div class="profile-sidebar__btn-left">
+                        <div class="profile-sidebar__icon" style="background: rgba(244,63,94,0.1); color: #fb7185;">
+                            <i data-lucide="log-out" style="width:20px;height:20px;"></i>
+                        </div>
+                        <span>Đăng xuất</span>
+                    </div>
+                    <i data-lucide="arrow-right" style="width:16px;height:16px;color: #fb7185; opacity: 0.5;"></i>
+                </a>
             </div>
 
             <!-- Main Content Area -->
