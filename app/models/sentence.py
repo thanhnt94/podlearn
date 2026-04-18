@@ -69,6 +69,12 @@ class Sentence(db.Model):
     detailed_analysis = db.Column(db.JSON)
     analysis_note = db.Column(db.Text)
 
+    # SRS (Spaced Repetition System) Metadata
+    next_review_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    ease_factor = db.Column(db.Float, default=2.5)  # Multiplier for interval growth
+    interval_days = db.Column(db.Integer, default=0) # Consecutive days until next review
+    mastery_level = db.Column(db.Integer, default=0) # Stages of memorization (e.g. 0-5)
+
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

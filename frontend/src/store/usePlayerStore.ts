@@ -167,6 +167,7 @@ interface PlayerState {
   
   skipNextSentence: () => void;
   skipPrevSentence: () => void;
+  updateSubtitleLine: (trackKey: 's1' | 's2' | 's3', index: number, data: Partial<SubtitleLine>) => Promise<void>;
 
   // Hands-Free Actions
   toggleHandsFreeMode: () => void;
@@ -669,5 +670,41 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
   setAutoNext: (isAutoNext) => set({ isAutoNext }),
-  setMode: (mode) => set({ mode })
+  setMode: (mode) => set({ mode }),
+
+  updateSubtitleLine: async (trackKey, index, data) => {
+    const { trackIds, lessonId } = get();
+    const trackId = trackIds[trackKey];
+    if (!trackId || !lessonId) return;
+
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        const res = await axios.patch(`/api/subtitles/${trackId}/line/${index}`, data, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+
+        if (res.data.success) {
+            const updatedLine = res.data.line;
+            const stateKey = trackKey === 's1' ? 's1Lines' : trackKey === 's2' ? 's2Lines' : 's3Lines';
+            
+            set(state => {
+                const lines = [...(state[stateKey] as SubtitleLine[])];
+                if (lines[index]) {
+                    lines[index] = { ...lines[index], ...updatedLine };
+                }
+                
+                const updates: any = { [stateKey]: lines };
+                // Also update the main 'subtitles' if we edited S1
+                if (trackKey === 's1') {
+                    updates.subtitles = lines;
+                }
+                
+                return updates;
+            });
+        }
+    } catch (err) {
+        console.error("Failed to update subtitle line", err);
+        throw err;
+    }
+  }
 }));

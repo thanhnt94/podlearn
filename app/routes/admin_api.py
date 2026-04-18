@@ -14,8 +14,16 @@ admin_api_bp = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
+        if not current_user.is_authenticated or not current_user.is_admin:
             return jsonify({"error": "Admin access required"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+def moderator_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_at_least_moderator:
+            return jsonify({"error": "Moderator access required"}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -43,7 +51,8 @@ def list_users():
         'id': u.id,
         'username': u.username,
         'email': u.email,
-        'is_admin': getattr(u, 'is_admin', False),
+        'role': u.role,
+        'is_admin': u.is_admin,
         'created_at': u.created_at.isoformat() if u.created_at else None,
         'central_auth_id': getattr(u, 'central_auth_id', None)
     } for u in users])

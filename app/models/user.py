@@ -14,7 +14,15 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     full_name = db.Column(db.String(100))
     avatar_url = db.Column(db.String(255))
-    is_admin = db.Column(db.Boolean, default=False)
+    role = db.Column(db.String(20), default='free') # free, user, moderator, admin
+    
+    @property
+    def is_admin(self):
+        return self.role == 'admin'
+
+    @property
+    def is_at_least_moderator(self):
+        return self.role in ['moderator', 'admin']
     central_auth_id = db.Column(db.String(36), unique=True, index=True, nullable=True) # UUID from CentralAuth
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 

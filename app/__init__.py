@@ -69,6 +69,7 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes.tracking import tracking_bp
     from .routes.community import community_bp
     from .routes.handsfree_routes import handsfree_bp
+    from .routes.subtitle_api import subtitle_api_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -83,6 +84,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(tracking_bp, url_prefix='/api/tracking')
     app.register_blueprint(community_bp, url_prefix='/api/community')
     app.register_blueprint(handsfree_bp, url_prefix='/api/handsfree')
+    app.register_blueprint(subtitle_api_bp)
 
     # ── Serve Hands-Free Audio Files ───────────────────────────
     handsfree_storage = os.path.abspath(os.path.join(
@@ -282,11 +284,11 @@ def create_app(config_name: str | None = None) -> Flask:
         """Create the default admin/admin account."""
         existing = User.query.filter((User.username == 'admin') | (User.email == 'admin@AuraFlow.local')).first()
         if existing:
-            existing.is_admin = True
+            existing.role = 'admin'
             db.session.commit()
-            click.echo('Admin user already exists. Updated to is_admin=True')
+            click.echo('Admin user already exists. Updated to role=admin')
             return
-        admin = User(username='admin', email='admin@AuraFlow.local', is_admin=True)
+        admin = User(username='admin', email='admin@AuraFlow.local', role='admin')
         admin.set_password('admin')
         db.session.add(admin)
         db.session.commit()
@@ -324,7 +326,7 @@ def create_app(config_name: str | None = None) -> Flask:
             # Use a slightly more robust check
             admin_exists = db.session.query(User).filter((User.username == admin_username) | (User.email == admin_email)).first()
             if not admin_exists:
-                admin = User(username=admin_username, email=admin_email, is_admin=True)
+                admin = User(username=admin_username, email=admin_email, role='admin')
                 admin.set_password('admin')
                 db.session.add(admin)
                 db.session.commit()

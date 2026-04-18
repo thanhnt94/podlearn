@@ -1,13 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { Edit2, Check, X, Plus, Minus } from 'lucide-react';
 
 export const TranscriptBody: React.FC = () => {
     const { 
         subtitles, s2Lines, s3Lines, 
-        activeLineIndex, requestSeek 
+        activeLineIndex, requestSeek,
+        updateSubtitleLine
     } = usePlayerStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+    const [editingIndex, setEditingIndex] = useState<number | -1>(-1);
+    const [editForm, setEditForm] = useState({ text: '', start: 0 });
+
+    const isModerator = (window as any).__PODLEARN_DATA__?.is_at_least_moderator || (window as any).__PODLEARN_DATA__?.is_admin;
 
     // Helper to find matching lines from other tracks
     const getAlternativeLines = (time: number) => {
@@ -20,13 +27,31 @@ export const TranscriptBody: React.FC = () => {
 
     // Auto-scroll logic
     useEffect(() => {
-        if (activeLineIndex !== -1 && lineRefs.current[activeLineIndex]) {
+        if (activeLineIndex !== -1 && lineRefs.current[activeLineIndex] && editingIndex === -1) {
             lineRefs.current[activeLineIndex]?.scrollIntoView({
                 behavior: 'smooth',
                 block: 'center'
             });
         }
-    }, [activeLineIndex]);
+    }, [activeLineIndex, editingIndex]);
+
+    const handleStartEdit = (index: number, line: any) => {
+        setEditingIndex(index);
+        setEditForm({ text: line.text, start: line.start });
+    };
+
+    const handleSaveEdit = async () => {
+        if (editingIndex === -1) return;
+        try {
+            await updateSubtitleLine('s1', editingIndex, { 
+                text: editForm.text, 
+                start: editForm.start 
+            });
+            setEditingIndex(-1);
+        } catch (err) {
+            alert("Failed to update line. Check console.");
+        }
+    };
 
     if (subtitles.length === 0) {
         return (
@@ -38,7 +63,6 @@ export const TranscriptBody: React.FC = () => {
                 <p className="text-slate-500 text-sm max-w-[240px] leading-relaxed mb-8">
                     No subtitle channels detected for this session. Connect a YouTube caption track to start learning.
                 </p>
-                
                 <button 
                     onClick={() => (window as any).openSettings?.()}
                     className="px-6 py-3 bg-white text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-sky-500 transition-all active:scale-95 shadow-xl"
@@ -54,45 +78,108 @@ export const TranscriptBody: React.FC = () => {
             {subtitles.map((line, i) => {
                 const alts = getAlternativeLines(line.start);
                 const isActive = i === activeLineIndex;
+                const isEditing = i === editingIndex;
 
                 return (
                     <div 
                         key={i} 
                         ref={el => { lineRefs.current[i] = el; }}
-                        className={`group cursor-pointer p-4 rounded-2xl transition-all border border-transparent 
-                            ${isActive 
-                                ? 'bg-sky-500/10 border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.05)]' 
-                                : 'hover:border-white/5 hover:bg-white/5'
+                        className={`group p-4 rounded-2xl transition-all border 
+                            ${isEditing 
+                                ? 'bg-slate-900 border-sky-500/50 shadow-2xl scale-[1.02] z-10 sticky top-4 bottom-4' 
+                                : isActive 
+                                    ? 'bg-sky-500/10 border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.05)]' 
+                                    : 'hover:border-white/5 hover:bg-white/5 border-transparent cursor-pointer'
                             }`}
-                        onClick={() => requestSeek(line.start, i)}
+                        onClick={() => !isEditing && requestSeek(line.start, i)}
                     >
-                        <div className="flex items-start gap-4">
-                            <span className={`text-[10px] font-mono mt-1.5 w-10 shrink-0 ${isActive ? 'text-sky-400' : 'text-slate-600'}`}>
-                                {formatTime(line.start)}
-                            </span>
-                            <div className="space-y-2 flex-1">
-                                {/* Primary Track (S1) */}
-                                <p className={`text-base leading-relaxed transition-colors ${isActive ? 'text-white font-semibold' : 'text-slate-200'}`}>
-                                    {line.text}
-                                </p>
-                                
-                                {/* Secondary Track (S2) */}
-                                {alts.s2 && (
-                                    <p className={`text-sm leading-relaxed transition-colors ${isActive ? 'text-emerald-400' : 'text-emerald-500/60'}`}>
-                                        {alts.s2.text}
-                                    </p>
-                                )}
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-start gap-4">
+                                <div className="flex flex-col items-center gap-1 w-10 shrink-0">
+                                    <span className={`text-[10px] font-mono mt-1.5 ${isActive ? 'text-sky-400' : 'text-slate-600'}`}>
+                                        {formatTime(isEditing ? editForm.start : line.start)}
+                                    </span>
+                                    {isEditing && (
+                                        <div className="flex flex-col gap-1 mt-2">
+                                            <button 
+                                                onClick={() => setEditForm(f => ({ ...f, start: f.start + 0.1 }))}
+                                                className="p-1.5 bg-slate-800 rounded hover:bg-sky-500 transition-colors"
+                                            >
+                                                <Plus size={10} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setEditForm(f => ({ ...f, start: Math.max(0, f.start - 0.1) }))}
+                                                className="p-1.5 bg-slate-800 rounded hover:bg-rose-500 transition-colors"
+                                            >
+                                                <Minus size={10} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
 
-                                {/* Tertiary Track (S3) */}
-                                {alts.s3 && (
-                                    <p className={`text-xs leading-relaxed transition-colors font-medium ${isActive ? 'text-amber-400' : 'text-amber-500/60'}`}>
-                                        {alts.s3.text}
-                                    </p>
-                                )}
+                                <div className="space-y-2 flex-1">
+                                    {isEditing ? (
+                                        <div className="space-y-3">
+                                            <textarea 
+                                                value={editForm.text}
+                                                onChange={(e) => setEditForm(f => ({ ...f, text: e.target.value }))}
+                                                className="w-full bg-slate-800 border-white/10 rounded-xl p-3 text-white text-base focus:border-sky-500 transition-all outline-none min-h-[100px] resize-none"
+                                                autoFocus
+                                            />
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={handleSaveEdit}
+                                                    className="flex-1 py-2.5 bg-sky-500 text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                                                >
+                                                    <Check size={14} strokeWidth={3} /> Save Line
+                                                </button>
+                                                <button 
+                                                    onClick={() => setEditingIndex(-1)}
+                                                    className="px-4 py-2.5 bg-slate-800 text-slate-400 rounded-xl text-[10px] font-black uppercase flex items-center justify-center hover:bg-rose-500/10 hover:text-rose-500 transition-all"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex justify-between items-start">
+                                                <p className={`text-base leading-relaxed transition-colors flex-1 ${isActive ? 'text-white font-semibold' : 'text-slate-200'}`}>
+                                                    {line.text}
+                                                </p>
+                                                {isModerator && !isEditing && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleStartEdit(i, line); }}
+                                                        className="p-2 text-slate-600 hover:text-sky-400 opacity-0 group-hover:opacity-100 transition-all"
+                                                        title="Quick Edit Line"
+                                                    >
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Alternative Tracks */}
+                                            {(alts.s2 || alts.s3) && (
+                                                <div className="pt-2 border-t border-white/5 space-y-1">
+                                                    {alts.s2 && (
+                                                        <p className={`text-sm leading-relaxed transition-colors ${isActive ? 'text-emerald-400' : 'text-emerald-500/60'}`}>
+                                                            {alts.s2.text}
+                                                        </p>
+                                                    )}
+                                                    {alts.s3 && (
+                                                        <p className={`text-xs leading-relaxed transition-colors font-medium ${isActive ? 'text-amber-400' : 'text-amber-500/60'}`}>
+                                                            {alts.s3.text}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
 
-                                {line.trans && !alts.s2 && !alts.s3 && (
-                                    <p className="text-xs text-slate-500 italic font-light">{line.trans}</p>
-                                )}
+                                            {line.trans && !alts.s2 && !alts.s3 && (
+                                                <p className="text-xs text-slate-500 italic font-light">{line.trans}</p>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -106,5 +193,6 @@ export const TranscriptBody: React.FC = () => {
 function formatTime(seconds: number) {
     const min = Math.floor(seconds / 60);
     const sec = Math.floor(seconds % 60);
-    return `${min}:${sec < 10 ? '0' + sec : sec}`;
+    const ms = Math.floor((seconds % 1) * 10);
+    return `${min}:${sec < 10 ? '0' + sec : sec}.${ms}`;
 }
