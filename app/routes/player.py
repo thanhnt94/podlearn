@@ -17,7 +17,7 @@ def view(lesson_id):
     available_tracks = [{
         'id': t.id,
         'language_code': t.language_code,
-        'uploader_name': t.uploader_name or 'System'
+        'uploader_name': t.uploader_name if t.uploader_id else 'YouTube'
     } for t in all_tracks]
 
     lesson_data = {
