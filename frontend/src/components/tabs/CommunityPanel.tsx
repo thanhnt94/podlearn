@@ -91,7 +91,11 @@ export const CommunityPanel: React.FC = () => {
                                 key={comment.id || idx}
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="group bg-white/5 border border-white/5 rounded-2xl p-4 hover:border-white/10 transition-all"
+                                whileHover={comment.video_timestamp !== null ? { scale: 1.01, borderColor: 'rgba(56, 189, 248, 0.3)' } : {}}
+                                onClick={() => comment.video_timestamp !== null && requestSeek(comment.video_timestamp)}
+                                className={`group bg-white/5 border border-white/5 rounded-2xl p-4 transition-all ${
+                                    comment.video_timestamp !== null ? 'cursor-pointer' : ''
+                                }`}
                             >
                                 <div className="flex items-start gap-3">
                                     <img 
@@ -103,13 +107,12 @@ export const CommunityPanel: React.FC = () => {
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="text-xs font-black text-slate-300 truncate tracking-tight">{comment.user.username}</span>
                                             {comment.video_timestamp !== null && (
-                                                <button 
-                                                    onClick={() => requestSeek(comment.video_timestamp)}
-                                                    className="flex items-center gap-1 px-2 py-0.5 bg-sky-500/10 text-sky-400 rounded-md hover:bg-sky-500 hover:text-slate-950 transition-all text-[9px] font-black font-mono"
+                                                <div 
+                                                    className="flex items-center gap-1 px-2 py-0.5 bg-sky-500/10 text-sky-400 rounded-md group-hover:bg-sky-500 group-hover:text-slate-950 transition-all text-[9px] font-black font-mono"
                                                 >
                                                     <Clock size={10} />
                                                     {formatTime(comment.video_timestamp)}
-                                                </button>
+                                                </div>
                                             )}
                                         </div>
                                         <p className="text-sm text-slate-400 leading-relaxed break-words">

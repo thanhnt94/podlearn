@@ -6,7 +6,6 @@ import { PlayerView } from './components/player/PlayerView';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { ExploreView } from './components/explore/ExploreView';
 import { StatsView } from './components/profile/StatsView';
-import { MasteryView } from './components/mastery/MasteryView';
 import { ImportView } from './components/dashboard/ImportView';
 import { SetListView, SetDetailView } from './components/dashboard/PlaylistViews';
 
@@ -62,9 +61,6 @@ const App: React.FC = () => {
 
           {/* Library Sets */}
           <Route path="/sets" element={<SetsWrapper />} />
-          
-          {/* Mastery / Flashcards */}
-          <Route path="/mastery" element={<MasteryView />} />
           
           {/* Explore / Search */}
           <Route path="/explore" element={<ExploreView />} />

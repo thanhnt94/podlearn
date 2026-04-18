@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { LessonCard } from './LessonCard';
 import { 
-    Flame, BookOpen, Search, 
+    Flame, Search, 
     ArrowUpRight, Sparkles, Bell
 } from 'lucide-react';
 
@@ -52,10 +52,10 @@ export const DashboardView: React.FC = () => {
                         </div>
                         <div className="bg-slate-900 border border-white/5 p-4 rounded-3xl flex items-center gap-4">
                             <div className="w-10 h-10 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center">
-                                <BookOpen size={20} />
+                                <ArrowUpRight size={20} />
                             </div>
                             <div>
-                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Mastery Progress</p>
+                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Library Completion</p>
                                 <p className="text-xl font-black text-white">{stats.completed_count}/{stats.total_lessons}</p>
                             </div>
                         </div>

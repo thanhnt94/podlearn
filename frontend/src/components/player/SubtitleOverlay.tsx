@@ -18,11 +18,13 @@ export const SubtitleOverlay: React.FC = () => {
         return findActiveLine(lines);
     };
 
-    const l1 = getLineForTrack('s1', s1Lines);
-    const l2 = getLineForTrack('s2', s2Lines);
-    const l3 = getLineForTrack('s3', s3Lines);
+    const activeTracks = [
+        { id: 's1' as const, line: getLineForTrack('s1', s1Lines) },
+        { id: 's2' as const, line: getLineForTrack('s2', s2Lines) },
+        { id: 's3' as const, line: getLineForTrack('s3', s3Lines) }
+    ].filter(t => !!t.line);
 
-    if (!l1 && !l2 && !l3) return null;
+    if (activeTracks.length === 0) return null;
 
     const convertHexToRgba = (hex: string, opacity: number) => {
         const r = parseInt(hex.slice(1, 3), 16);
@@ -31,21 +33,20 @@ export const SubtitleOverlay: React.FC = () => {
         return `rgba(${r}, ${g}, ${b}, ${opacity})`;
     };
 
-    const renderTrack = (sid: 's1' | 's2' | 's3', line: any) => {
-        if (!line) return null;
+    const renderLine = (sid: 's1' | 's2' | 's3', line: any) => {
         const s = settings[sid];
         const alignDefault = s.textAlign || 'center';
         
         return (
             <div 
-                className={`absolute inset-x-0 flex pointer-events-none transition-all duration-300 px-2 ${
+                key={sid}
+                className={`flex pointer-events-none transition-all duration-300 px-2 w-full ${
                     alignDefault === 'left' ? 'justify-start' : 
                     alignDefault === 'right' ? 'justify-end' : 'justify-center'
                 }`}
-                style={{ bottom: `${s.position}%` }}
             >
                 <div 
-                    className={`px-4 py-2 rounded-xl shadow-2xl font-bold border border-white/5 ${
+                    className={`px-4 py-2 rounded-xl shadow-2xl font-bold border border-white/5 max-w-[90%] sm:max-w-[80%] ${
                         alignDefault === 'left' ? 'text-left' : 
                         alignDefault === 'right' ? 'text-right' : 'text-center'
                     }`}
@@ -53,8 +54,9 @@ export const SubtitleOverlay: React.FC = () => {
                         fontSize: `clamp(10px, ${s.fontSize}cqw, 100px)`,
                         color: s.color,
                         backgroundColor: convertHexToRgba(s.bgColor, s.bgOpacity),
-                        lineHeight: 1.2,
-                        backdropFilter: 'blur(8px)'
+                        lineHeight: 1.3,
+                        backdropFilter: 'blur(8px)',
+                        textShadow: '0 2px 4px rgba(0,0,0,0.5)'
                     }}
                 >
                     {line.text}
@@ -63,12 +65,41 @@ export const SubtitleOverlay: React.FC = () => {
         );
     };
 
+    // Split into Top and Bottom groups
+    const bottomGroup = activeTracks
+        .filter(t => settings[t.id].position < 50)
+        .sort((a, b) => settings[a.id].position - settings[b.id].position);
+
+    const topGroup = activeTracks
+        .filter(t => settings[t.id].position >= 50)
+        .sort((a, b) => settings[b.id].position - settings[a.id].position); // Top-most first in Flex column
+
+    const minBottom = bottomGroup.length > 0 ? Math.min(...bottomGroup.map(t => settings[t.id].position)) : null;
+    const maxTop = topGroup.length > 0 ? Math.max(...topGroup.map(t => settings[t.id].position)) : null;
+
     return (
         <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden" 
              style={{ containerType: 'size' }}>
-            {renderTrack('s1', l1)}
-            {renderTrack('s2', l2)}
-            {renderTrack('s3', l3)}
+            
+            {/* Bottom Stack: Flex Col Reverse (lowest pos at bottom) */}
+            {bottomGroup.length > 0 && (
+                <div 
+                    className="absolute inset-x-0 flex flex-col-reverse gap-2 transition-all duration-300"
+                    style={{ bottom: `${minBottom}%` }}
+                >
+                    {bottomGroup.map(t => renderLine(t.id, t.line))}
+                </div>
+            )}
+
+            {/* Top Stack: Flex Col (highest pos at top) */}
+            {topGroup.length > 0 && (
+                <div 
+                    className="absolute inset-x-0 flex flex-col gap-2 transition-all duration-300"
+                    style={{ top: `${100 - (maxTop || 100)}%` }}
+                >
+                    {topGroup.map(t => renderLine(t.id, t.line))}
+                </div>
+            )}
         </div>
     );
 };

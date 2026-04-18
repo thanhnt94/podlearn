@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
 
-type MainTab = 'display' | 'notes' | 'library';
+type MainTab = 'display' | 'notes' | 'library' | 'social';
 interface YTTrack { lang_code: string; name: string; is_auto: boolean; }
 
 export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
@@ -16,7 +16,8 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         settings, setTrackSettings, setNoteSettings,
         availableTracks, trackIds, setTrackIds, setAvailableTracks,
         lessonId, videoId, aiInsights,
-        ttsTrackSource, setTTSTrackSource
+        ttsTrackSource, setTTSTrackSource,
+        saveAsDefaultPreferences, setLessonData
     } = usePlayerStore();
 
     const [activeMainTab, setActiveMainTab] = useState<MainTab>('display');
@@ -24,7 +25,9 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     
     // Status state
     const [isSaving, setIsSaving] = useState(false);
+    const [isSavingGlobal, setIsSavingGlobal] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success'>('idle');
+    const [globalSaveStatus, setGlobalSaveStatus] = useState<'idle' | 'success'>('idle');
     const [isLoadingSources, setIsLoadingSources] = useState(false);
     const [importingLang, setImportingLang] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -106,6 +109,23 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         } catch (err) { console.error(err); } finally { setIsSaving(false); }
     };
 
+    const handleSaveAsGlobalDefault = async () => {
+        setIsSavingGlobal(true);
+        try {
+            await saveAsDefaultPreferences();
+            setGlobalSaveStatus('success');
+            setTimeout(() => setGlobalSaveStatus('idle'), 3000);
+        } catch (err) { alert("Failed to save global default."); } finally { setIsSavingGlobal(false); }
+    };
+
+    const handleResetToGlobalDefault = async () => {
+        if (!confirm("Revert this video's styles to your global default?")) return;
+        try {
+            const res = await axios.get('/api/user/preferences');
+            setLessonData({ global_preferences: res.data, settings_json: "{}" });
+        } catch (err) { console.error(err); }
+    };
+
     useEffect(() => {
         if (activeMainTab === 'library' && isOpen) fetchYoutubeSources();
     }, [activeMainTab, isOpen]);
@@ -115,6 +135,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         { id: 'display', label: 'Display', icon: <Palette size={20} /> },
         { id: 'notes', label: 'Notes', icon: <StickyNote size={20} /> },
         { id: 'library', label: 'Library', icon: <Globe size={20} /> },
+        { id: 'social', label: 'Social', icon: <Layers size={20} /> },
     ];
 
     return (
@@ -284,6 +305,41 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                 </div>
                                             </div>
                                         </section>
+
+                                         <section className="bg-white/5 rounded-[2rem] p-6 border border-white/5 space-y-4">
+                                             <div className="flex items-center gap-3 mb-2">
+                                                 <div className="w-8 h-8 bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-400">
+                                                     <Save size={16} />
+                                                 </div>
+                                                 <div className="flex flex-col">
+                                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-white">Global Style Template</h4>
+                                                     <p className="text-[9px] text-slate-500">Apply these styles to all future videos</p>
+                                                 </div>
+                                             </div>
+                                             
+                                             <div className="grid grid-cols-2 gap-3">
+                                                 <button 
+                                                     onClick={handleSaveAsGlobalDefault}
+                                                     disabled={isSavingGlobal}
+                                                     className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
+                                                         globalSaveStatus === 'success' 
+                                                         ? 'bg-emerald-500 text-slate-950' 
+                                                         : 'bg-white/5 hover:bg-white/10 text-white border border-white/5'
+                                                     }`}
+                                                 >
+                                                     {isSavingGlobal ? <RefreshCw size={14} className="animate-spin" /> : globalSaveStatus === 'success' ? <Check size={14} /> : <Save size={14} />}
+                                                     {globalSaveStatus === 'success' ? 'TEMPLATE SAVED' : 'SAVE AS DEFAULT'}
+                                                 </button>
+
+                                                 <button 
+                                                     onClick={handleResetToGlobalDefault}
+                                                     className="flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-all border border-white/5"
+                                                 >
+                                                     <RefreshCw size={14} />
+                                                     RESET TO DEFAULT
+                                                 </button>
+                                             </div>
+                                         </section>
 
                                         {/* 4. Neural Learning / Hands-Free Section */}
                                         <section className="bg-sky-500/5 rounded-3xl p-6 border border-sky-500/10 space-y-6">
@@ -498,6 +554,80 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                         {site.name} <ExternalLink size={10} />
                                                     </a>
                                                 ))}
+                                            </div>
+                                       </section>
+                                    </motion.div>
+                               )}
+
+                               {activeMainTab === 'social' && (
+                                   <motion.div key="social" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-8">
+                                       <section className="bg-emerald-500/5 rounded-[2.5rem] p-6 border border-emerald-500/10 space-y-6">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex-1">
+                                                    <h3 className="text-sm font-bold text-white uppercase tracking-tight">Community Insight</h3>
+                                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Toggle all user comments</p>
+                                                </div>
+                                                <button 
+                                                    onClick={() => usePlayerStore.getState().setCommunitySettings({ enabled: !settings.community.enabled })}
+                                                    className={`px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all ${settings.community.enabled ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'}`}
+                                                >
+                                                    {settings.community.enabled ? 'ACTIVE' : 'OFF'}
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-4 pt-6 border-t border-white/5">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Display Mode</label>
+                                                    <div className="grid grid-cols-2 gap-2 bg-black/20 p-1 rounded-2xl">
+                                                        {(['danmaku', 'fixed'] as const).map(m => (
+                                                            <button 
+                                                                key={m}
+                                                                onClick={() => usePlayerStore.getState().setCommunitySettings({ mode: m })}
+                                                                className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${settings.community.mode === m ? 'bg-white text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                                                            >
+                                                                {m === 'danmaku' ? 'Floating (Danmaku)' : 'Fixed Overlay'}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-4 pt-4">
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center px-1">
+                                                            <h3 className="text-[10px] font-black uppercase text-slate-500">Text Size</h3>
+                                                            <span className="text-xs font-mono text-emerald-400">{(settings.community.fontSize * 10).toFixed(0)}%</span>
+                                                        </div>
+                                                        <input type="range" min="1" max="4" step="0.1" value={settings.community.fontSize} 
+                                                               onChange={(e) => usePlayerStore.getState().setCommunitySettings({ fontSize: parseFloat(e.target.value) })}
+                                                               className="w-full h-1.5 bg-slate-800 appearance-none rounded-full accent-emerald-500 cursor-pointer" />
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center px-1">
+                                                            <h3 className="text-[10px] font-black uppercase text-slate-500">Overlay Opacity</h3>
+                                                            <span className="text-xs font-mono text-emerald-400">{Math.round(settings.community.opacity * 100)}%</span>
+                                                        </div>
+                                                        <input type="range" min="0.1" max="1" step="0.05" value={settings.community.opacity} 
+                                                               onChange={(e) => usePlayerStore.getState().setCommunitySettings({ opacity: parseFloat(e.target.value) })}
+                                                               className="w-full h-1.5 bg-slate-800 appearance-none rounded-full accent-emerald-500 cursor-pointer" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                       </section>
+
+                                       <section className="bg-white/5 rounded-3xl p-6 border border-white/5">
+                                            <div className="flex items-start gap-4">
+                                                <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-slate-500">
+                                                    <Info size={20} />
+                                                </div>
+                                                <div className="flex-1 space-y-2">
+                                                    <h4 className="text-[10px] font-black text-white uppercase tracking-widest">How it works</h4>
+                                                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                                        Community comments are tied to specific timestamps. 
+                                                        <strong>Danmaku mode</strong> makes them fly across the player, while 
+                                                        <strong>Fixed mode</strong> shows them in a dedicated area at the top.
+                                                    </p>
+                                                </div>
                                             </div>
                                        </section>
                                    </motion.div>

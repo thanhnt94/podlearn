@@ -36,6 +36,10 @@ class User(UserMixin, db.Model):
     current_level = db.Column(db.Integer, default=1)
     total_listening_seconds = db.Column(db.Integer, default=0)
     total_shadowing_count = db.Column(db.Integer, default=0)
+    
+    # Global User Preferences (JSON)
+    # Stores default styles: {"s1": {...}, "s2": {...}, "syncOffset": 0, ...}
+    preferences_json = db.Column(db.Text, default='{}')
 
 
 

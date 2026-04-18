@@ -16,7 +16,7 @@ naming_convention = {
 }
 
 db = SQLAlchemy(metadata=MetaData(naming_convention=naming_convention))
-migrate = Migrate()
+migrate = Migrate(render_as_batch=True)
 login_manager = LoginManager()
 csrf = CSRFProtect()
 

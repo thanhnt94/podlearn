@@ -98,7 +98,6 @@ interface PlayerState {
   
   isNativeCCOn: boolean; // NEW: YouTube Native CC Toggle
   nativeCCLang: string;
-  isCommunityOn: boolean; // NEW: Community Toggle
   comments: any[];
   
   // NEW: Gamification Tracking
@@ -120,6 +119,12 @@ interface PlayerState {
         theme: 'classic' | 'cyber' | 'amber' | 'ghost';
         fontSize: number;
       };
+      community: {
+        enabled: boolean;
+        mode: 'danmaku' | 'fixed';
+        fontSize: number;
+        opacity: number;
+      };
       syncOffset: number;
   };
   
@@ -138,6 +143,7 @@ interface PlayerState {
   toggleNativeCC: () => void;
   setNativeCCLang: (lang: string) => void;
   toggleCommunity: () => void;
+  setCommunitySettings: (settings: Partial<PlayerState['settings']['community']>) => void;
   fetchComments: (videoId: string | number) => Promise<void>;
   addComment: (videoId: string | number, content: string, timestamp?: number) => Promise<void>;
   
@@ -167,6 +173,8 @@ interface PlayerState {
   fetchAIInsights: () => Promise<void>;
   analyzeLine: (index: number) => Promise<void>;
   
+  saveSettings: () => Promise<void>;
+  saveAsDefaultPreferences: () => Promise<void>;
   skipNextSentence: () => void;
   skipPrevSentence: () => void;
   updateSubtitleLine: (trackKey: 's1' | 's2' | 's3', index: number, data: Partial<SubtitleLine>) => Promise<void>;
@@ -198,7 +206,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isSeeking: false,
   isNativeCCOn: false,
   nativeCCLang: 'ja',
-  isCommunityOn: false,
   comments: [],
   
   handsFreeModeEnabled: false,
@@ -262,6 +269,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         alignment: 'bottomCenter',
         theme: 'classic',
         fontSize: 1.8
+    },
+    community: {
+        enabled: false,
+        mode: 'danmaku',
+        fontSize: 1.4,
+        opacity: 0.9
     },
     syncOffset: 0
   },
@@ -337,7 +350,26 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setShadowingResult: (result) => set({ shadowingResult: result }),
   toggleNativeCC: () => set(state => ({ isNativeCCOn: !state.isNativeCCOn })),
   setNativeCCLang: (lang) => set({ nativeCCLang: lang }),
-  toggleCommunity: () => set(state => ({ isCommunityOn: !state.isCommunityOn })),
+
+  toggleCommunity: () => {
+    const { settings } = get();
+    set({ 
+      settings: { 
+        ...settings, 
+        community: { ...settings.community, enabled: !settings.community.enabled } 
+      } 
+    });
+  },
+
+  setCommunitySettings: (newSettings: Partial<PlayerState['settings']['community']>) => {
+    const { settings } = get();
+    set({ 
+      settings: { 
+        ...settings, 
+        community: { ...settings.community, ...newSettings } 
+      } 
+    });
+  },
   
   fetchComments: async (video_id) => {
     try {
@@ -515,7 +547,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       notes: state.notes.map(n => n.id === id ? { ...n, content } : n)
   })),
   setLessonData: (data) => set((state) => {
-    let newSettings = state.settings;
+    let newSettings = { ...state.settings };
+    
+    // 1. Start with Global Preferences if provided in data (we'll fetch them in fetchLessonData)
+    if (data.global_preferences) {
+        newSettings = { ...newSettings, ...data.global_preferences };
+    }
+
+    // 2. Override with Lesson Specific Settings if they exist
     if (data.settings_json) {
         try {
             const saved = typeof data.settings_json === 'string' 
@@ -523,13 +562,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 : data.settings_json;
             if (saved && typeof saved === 'object') {
                 newSettings = {
-                    ...state.settings,
+                    ...newSettings,
                     ...saved,
-                    s1: { ...state.settings.s1, ...(saved.s1 || {}) },
-                    s2: { ...state.settings.s2, ...(saved.s2 || {}) },
-                    s3: { ...state.settings.s3, ...(saved.s3 || {}) },
-                    notes: { ...state.settings.notes, ...(saved.notes || {}) },
-                    syncOffset: saved.syncOffset !== undefined ? saved.syncOffset : state.settings.syncOffset
+                    s1: { ...newSettings.s1, ...(saved.s1 || {}) },
+                    s2: { ...newSettings.s2, ...(saved.s2 || {}) },
+                    s3: { ...newSettings.s3, ...(saved.s3 || {}) },
+                    notes: { ...newSettings.notes, ...(saved.notes || {}) },
+                    syncOffset: saved.syncOffset !== undefined ? saved.syncOffset : newSettings.syncOffset
                 };
             }
         } catch (e) { console.warn("Recovered from malformed settings_json", e); }
@@ -558,9 +597,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         });
     }
     try {
-        const metaRes = await axios.get(`/api/subtitles/fetch/${id}`);
+        // 1. Fetch Global Preferences First
+        const [metaRes, prefRes] = await Promise.all([
+            axios.get(`/api/subtitles/fetch/${id}`),
+            axios.get('/api/user/preferences').catch(() => ({ data: {} }))
+        ]);
+        
         if (get().lessonId !== id) return;
-        const m = metaRes.data;
+        
+        const m = { 
+            ...metaRes.data, 
+            global_preferences: prefRes.data 
+        };
+        
+        get().setLessonData(m);
         const trackIds = {
             s1: m.metadata?.s1_track_id || m.track_id,
             s2: m.metadata?.s2_track_id || null,
@@ -711,6 +761,34 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
     } catch (err) {
         console.error("Failed to update subtitle line", err);
+        throw err;
+    }
+  },
+  saveAsDefaultPreferences: async () => {
+    const { settings } = get();
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        await axios.post('/api/user/preferences', settings, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+    } catch (err) {
+        console.error("Failed to save default preferences", err);
+        throw err;
+    }
+  },
+  saveSettings: async () => {
+    const { lessonId, settings, trackIds } = get();
+    if (!lessonId) return;
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        await axios.post(`/api/lesson/${lessonId}/set-languages`, {
+            s1_track_id: trackIds.s1, 
+            s2_track_id: trackIds.s2, 
+            s3_track_id: trackIds.s3, 
+            settings: settings
+        }, { headers: { 'X-CSRF-Token': csrfToken } });
+    } catch (err) {
+        console.error("Failed to save settings", err);
         throw err;
     }
   }

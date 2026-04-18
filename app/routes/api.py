@@ -207,6 +207,29 @@ def get_badges():
         })
     return jsonify({'badges': badges_data})
 
+# --- User Preferences (Templates) ---
+
+@api_bp.route('/user/preferences', methods=['GET'])
+@login_required
+def get_preferences():
+    """Retrieve the user's global styling preferences."""
+    try:
+        import json
+        prefs = json.loads(current_user.preferences_json or '{}')
+        return jsonify(prefs)
+    except:
+        return jsonify({})
+
+@api_bp.route('/user/preferences', methods=['POST'])
+@login_required
+def save_preferences():
+    """Save current player settings as the user's global defaults."""
+    data = request.get_json() or {}
+    import json
+    current_user.preferences_json = json.dumps(data)
+    db.session.commit()
+    return jsonify({'success': True})
+
 @api_bp.route('/gamification/check-badges', methods=['POST'])
 @login_required
 def check_badges():

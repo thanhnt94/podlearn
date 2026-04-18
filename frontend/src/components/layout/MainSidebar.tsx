@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-    Home, Compass, BookOpen, User, 
+    Home, Compass, User, 
     PlusCircle, Flame, LogOut, ChevronRight, Headphones,
     Layers
 } from 'lucide-react';
@@ -18,7 +18,6 @@ export const MainSidebar: React.FC = () => {
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', path: '/', icon: <Home size={22} /> },
         { id: 'sets', label: 'Library Sets', path: '/sets', icon: <Layers size={22} /> },
-        { id: 'mastery', label: 'Mastery', path: '/mastery', icon: <BookOpen size={22} /> },
         { id: 'explore', label: 'Explore', path: '/explore', icon: <Compass size={22} /> },
         { id: 'profile', label: 'My Stats', path: '/profile', icon: <User size={22} /> },
     ];
@@ -36,8 +35,8 @@ export const MainSidebar: React.FC = () => {
             
             {/* Brand Header */}
             <div className={`p-6 mb-4 flex items-center ${isExpanded ? 'px-8' : 'px-0 justify-center'}`}>
-                <div className="flex items-center gap-4 group cursor-pointer shrink-0">
-                    <div className="w-12 h-12 bg-sky-500 rounded-2xl flex items-center justify-center shadow-lg shadow-sky-500/20 group-hover:rotate-12 transition-transform duration-500">
+                <Link to="/" className="flex items-center gap-4 group cursor-pointer shrink-0 no-underline outline-none">
+                    <div className="w-12 h-12 bg-sky-500 rounded-2xl flex items-center justify-center shadow-lg shadow-sky-500/20 group-hover:scale-110 transition-all duration-500">
                         <Headphones size={24} className="text-slate-950" fill="currentColor" />
                     </div>
                     <AnimatePresence>
@@ -48,12 +47,15 @@ export const MainSidebar: React.FC = () => {
                                 exit={{ opacity: 0, x: -10 }}
                                 className="whitespace-nowrap"
                             >
-                                <h1 className="text-xl font-black tracking-tighter text-white transition-colors group-hover:text-sky-400">PodLearn</h1>
-                                <div className="h-0.5 w-8 bg-sky-500 rounded-full mt-1 group-hover:w-12 transition-all" />
+                                <h1 className="text-3xl font-black tracking-tighter flex items-center leading-none">
+                                    <span className="text-white">Pod</span>
+                                    <span className="bg-clip-text text-transparent bg-gradient-to-br from-sky-400 to-cyan-600 ml-0.5">Learn</span>
+                                </h1>
+                                <div className="h-1.5 w-12 bg-sky-500 rounded-full mt-1.5 group-hover:w-20 transition-all duration-500" />
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </div>
+                </Link>
             </div>
 
             {/* Navigation */}

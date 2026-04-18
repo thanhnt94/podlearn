@@ -81,7 +81,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                     <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                         <div className="flex items-center gap-1.5 truncate max-w-[150px]">
                             <ShieldCheck size={12} className="text-sky-500" />
-                            PodLearn Library
+                            {video.channel_title || 'PodLearn Library'}
                         </div>
                         <div className="flex items-center gap-1.5 font-mono">
                             {progressPercent}% Done

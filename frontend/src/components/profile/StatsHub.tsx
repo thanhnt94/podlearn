@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Upload, Flame, Clock, Target, Star, Calendar } from 'lucide-react';
 import { useStatsHubData } from '../../hooks/useStatsHubData';
 import { format, parseISO } from 'date-fns';
+import { BadgeGrid } from '../dashboard/BadgeGrid';
 import 'react-calendar-heatmap/dist/styles.css';
 
 // Recharts Custom Tooltip for dark mode
@@ -184,6 +185,11 @@ export const StatsHub: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Achievements Section */}
+                <section className="bg-slate-900/30 border border-white/5 p-8 rounded-[3rem] shadow-2xl mt-12 mb-12">
+                    <BadgeGrid />
+                </section>
 
             </div>
         </div>
