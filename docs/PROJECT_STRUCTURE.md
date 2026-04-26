@@ -7,27 +7,26 @@ PodLearn được tổ chức theo kiến trúc Modular Monolith, tách biệt r
 ```text
 PodLearn/
 ├── app/                        # Backend: Mã nguồn chính (Python/Flask)
-│   ├── models/                 # SQLAlchemy Models (Thực thể Database)
-│   ├── routes/                 # Flask Blueprints (Controllers & API)
-│   ├── services/               # Logic nghiệp vụ & Tích hợp bên ngoài
+│   ├── models/                 # SQLAlchemy Models (20+ thực thể Database)
+│   ├── routes/                 # Flask Blueprints (15+ Controllers & API)
+│   ├── services/               # Logic nghiệp vụ (AI, Audio, Subtitles, SRS)
 │   ├── static/                 # Tài sản tĩnh cho SSR (Landing, Auth)
-│   ├── templates/              # Jinja2 Templates (Landing, Auth)
-│   ├── utils/                  # Hàm tiện ích (Time, Formatting)
-│   ├── __init__.py             # App Factory & Cấu hình Extensions
-│   ├── config.py               # Cấu hình môi trường
-│   └── extensions.py           # Khởi tạo Flask Extensions (DB, Migrate)
-├── docs/                       # Tài liệu kỹ thuật dự án
-├── frontend/                   # Frontend: Ứng dụng React SPA (Vite/TS)
+│   ├── templates/              # Jinja2 Templates (Landing, Auth, SPA Container)
+│   ├── utils/                  # Hàm tiện ích (Jinja Filters, Time)
+│   ├── __init__.py             # App Factory, Blueprint Registration & SSO
+│   ├── config.py               # Cấu hình môi trường (Dev/Prod/Test)
+│   └── extensions.py           # Khởi tạo Flask Extensions (DB, Migrate, CSRF)
+├── admin-studio/               # Frontend Quản trị: React SPA (Vite/TS)
+├── docs/                       # Tài liệu kỹ thuật chi tiết
+├── frontend/                   # Frontend chính: React SPA (Vite/TS)
 │   ├── src/                    # Mã nguồn React (Components, Store, Hooks)
 │   ├── public/                 # Tài sản công cộng cho Frontend
-│   ├── package.json            # Quản lý thư viện Node.js
-│   └── vite.config.ts          # Cấu hình công cụ build Vite
-├── migrations/                 # Các tệp Migration Database (Alembic)
-├── logs/                       # Tệp nhật ký hệ thống
-├── run_podlearn.py             # Điểm khởi chạy Backend (Port 5020)
-├── requirements.txt            # Danh sách thư viện Python
-├── .env                        # Chứa các biến môi trường (Secrets)
-└── README.md                   # Hướng dẫn tổng quan dự án
+│   └── vite.config.ts          # Cấu hình build Vite
+├── migrations/                 # Lịch sử Migration Database (Alembic)
+├── Storage/                    # Lưu trữ Media (Shadowing clips, Hands-free audio)
+├── run_podlearn.py             # Entry point khởi chạy Backend (Port 5020)
+├── requirements.txt            # Dependencies Python
+└── README.md                   # Hướng dẫn tổng quan
 ```
 
 ## 🏗️ Các Thành phần Chính

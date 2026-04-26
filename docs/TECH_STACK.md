@@ -14,10 +14,11 @@ PodLearn được xây dựng trên một nền tảng công nghệ mạnh mẽ,
 - **Xử lý ngôn ngữ (NLP)**:
     - **Tiếng Nhật**: `SudachiPy`, `SudachiDict`, `pykakasi`, `jamdict`.
     - **Dịch thuật**: `deep-translator` (Google API proxy).
+    - **AI Engine**: Gemini 2.0 Flash (cho phân tích sâu và giải thích ngữ pháp).
 - **Xử lý truyền thông**:
     - `yt-dlp`: Tải metadata và phụ đề YouTube.
-    - `Edge-TTS` & `gTTS`: Chuyển đổi văn bản thành giọng nói chất lượng cao.
-    - `pydub`: Cắt và xử lý tệp âm thanh cho Shadowing.
+    - `Edge-TTS`: Chuyển đổi văn bản thành giọng nói chất lượng cao (Sử dụng cho Hands-free & Shadowing).
+    - `pydub`: Cắt, ghép và trộn âm thanh chuyên nghiệp (Dùng cho Podcast Generator).
 
 ## 🎨 Frontend (React SPA)
 - **Runtime**: [Node.js](https://nodejs.org/) & [Vite 8](https://vitejs.dev/) làm công cụ build siêu nhanh.

@@ -6,92 +6,56 @@ PodLearn sử dụng cấu trúc cơ sở dữ liệu quan hệ (SQLite cho môi
 
 ```mermaid
 erDiagram
-    USERS ||--o{ LESSONS : "có"
-    USERS ||--o{ NOTES : "ghi chép"
-    USERS ||--o{ SENTENCE_SETS : "sở hữu"
+    USERS ||--o{ LESSONS : "học"
+    USERS ||--o{ NOTES : "ghi chú"
     USERS ||--o{ PLAYLISTS : "tạo"
-    USERS ||--o{ SHADOWING_HISTORY : "thực hiện"
+    USERS ||--o{ SHADOWING_RECORDS : "luyện nói"
+    USERS ||--o{ ACTIVITY_LOGS : "hoạt động"
+    USERS ||--o{ BADGES : "sở hữu"
+    USERS ||--o{ NOTIFICATIONS : "nhận"
     
     VIDEOS ||--o{ LESSONS : "chứa"
+    VIDEOS ||--o{ SUBTITLES : "có"
+    VIDEOS ||--o{ AI_INSIGHT_TRACKS : "phân tích"
     VIDEOS ||--o{ PLAYLIST_VIDEO : "thuộc về"
+    
     PLAYLISTS ||--o{ PLAYLIST_VIDEO : "chứa"
-    VIDEOS ||--o{ SUBTITLE_TRACKS : "có"
-    VIDEOS ||--o{ SENTENCES : "nguồn cho"
-    VIDEOS ||--o{ VIDEO_GLOSSARY : "wiki"
     
-    LESSONS ||--o{ NOTES : "chứa"
-    LESSONS ||--o{ SENTENCE_TOKENS : "phân tách câu"
+    LESSONS ||--o{ SENTENCES : "gồm"
+    LESSONS ||--o{ SENTENCE_TOKENS : "tách từ"
     
-    SENTENCE_SETS ||--o{ SENTENCES : "chứa"
+    SENTENCES ||--o{ VOCABULARY : "chứa từ"
+    SENTENCES ||--o{ GRAMMAR : "chứa cấu trúc"
     
-    SENTENCES }|--o{ VOCABULARY : "liên kết"
-    SENTENCES }|--o{ GRAMMAR : "liên kết"
+    AI_INSIGHT_TRACKS ||--o{ AI_INSIGHT_ITEMS : "chi tiết"
 ```
 
-## 📋 Các Bảng Chính
+## 📋 Chi tiết các Bảng
 
-### 1. `users` (Người dùng)
-- **`id`**: Khóa chính (Integer).
-- **`username`**: Tên đăng nhập (Unique).
-- **`email`**: Email liên lạc (Unique).
-- **`central_auth_id`**: UUID từ hệ thống CentralAuth (Đồng bộ SSO).
-- **`current_streak` / `longest_streak`**: Dữ liệu Gamification.
-- **`last_study_date`**: Ngày học cuối cùng để tính Streak.
+### 1. Core Models (Lõi)
+- **`users`**: Quản lý danh tính (CentralAuth ID), vai trò (admin/user), và dữ liệu Streak/Gamification.
+- **`videos`**: Metadata từ YouTube, trạng thái xử lý media, và quyền riêng tư.
+- **`lessons`**: Liên kết Người dùng - Video, theo dõi tiến độ hoàn thành và thời gian học.
 
-### 2. `videos` (Video)
-- **`youtube_id`**: ID duy nhất từ YouTube (vd: `dQw4w9WgXcQ`).
-- **`title`**: Tiêu đề video.
-- **`channel_title`**: Tên kênh YouTube.
-- **`channel_id`**: ID của kênh.
-- **`description`**: Mô tả từ YouTube.
-- **`thumbnail_url`**: Ảnh đại diện video.
-- **`duration_seconds`**: Độ dài video (giây).
-- **`status`**: Trạng thái xử lý (pending, processing, completed, failed).
-- **`visibility`**: Chế độ hiển thị (public, private).
+### 2. Subtitles & Language (Phụ đề & Ngôn ngữ)
+- **`subtitles`**: Lưu trữ các track phụ đề (S1: Gốc, S2/S3: Dịch) dưới dạng JSON hoặc văn bản.
+- **`sentences`**: Các câu mẫu quan trọng được người dùng lưu lại để ôn tập SRS.
+- **`sentence_tokens`**: Dữ liệu phân tách từ (segmentation) tùy chỉnh cho từng câu.
+- **`vocabulary` / `grammar`**: Kho lưu trữ các mục từ vựng và điểm ngữ pháp đã học.
+- **`glossaries`**: Wiki từ vựng cộng đồng cho từng video.
 
-### 3. `lessons` (Bài học)
-*Liên kết người dùng với một video cụ thể để theo dõi tiến độ.*
-- **`user_id`** / **`video_id`**: Khóa ngoại.
-- **`time_spent`**: Tổng thời gian đã học (giây).
-- **`is_completed`**: Đánh dấu hoàn thành bài học.
-- **`last_accessed`**: Lần cuối cùng mở bài học.
+### 3. Study & Progress (Học tập & Tiến độ)
+- **`notes`**: Ghi chú văn bản gắn liền với timestamp trong trình phát video.
+- **`shadowing_records`**: Lưu trữ điểm số (accuracy), văn bản nhận diện (STT) và tệp ghi âm luyện nói.
+- **`playlists`**: Danh sách phát video cá nhân (Sets).
+- **`shares`**: Quản lý quyền truy cập bài học/video giữa các người dùng.
 
-- **`sentences`**: Các câu học tập cụ thể, lưu trữ văn bản gốc, dịch, âm thanh (audio_url) và phân tích ngôn ngữ sâu (JSON).
+### 4. AI Insights (Phân tích Chuyên sâu)
+- **`ai_insight_tracks`**: Quản lý trạng thái phân tích AI cho toàn bộ một Video.
+- **`ai_insight_items`**: Kết quả phân tích 8 lớp cho từng dòng phụ đề (Dịch, Ngữ pháp, Văn hóa, Mẹo nhớ, v.v.).
 
-### 5. `playlists` (Bộ sưu tập/Sets)
-- **`id`**: Khóa chính.
-- **`name`**: Tên bộ sưu tập.
-- **`description`**: Mô tả bộ sưu tập.
-- **`owner_id`**: Người tạo (Khóa ngoại `users.id`).
-- **`created_at`**: Thời gian tạo.
-
-### 6. `playlist_video` (Bảng trung gian)
-- **`playlist_id`**: Liên kết `playlists`.
-- **`video_id`**: Liên kết `videos`.
-
-### 5. `shadowing_history` (Lịch sử Luyện nói)
-- **`accuracy_score`**: Điểm độ chính xác (0-100).
-- **`spoken_text`**: Văn bản người dùng đã nói (từ speech-to-text).
-- **`start_time` / `end_time`**: Tọa độ thời gian trong video.
-
-### 6. `video_glossary` (Wiki Từ vựng)
-- **`term`**: Từ vựng/Thuật ngữ.
-- **`definition`**: Định nghĩa cộng đồng.
-- **`last_updated_by`**: Người dùng cập nhật cuối cùng.
-
-### 7. Các bảng hỗ trợ khác
-- **`subtitles`**: Lưu trữ nội dung phụ đề (JSON).
-- **`notes`**: Ghi chú theo dòng thời gian trong player.
-- **`sentence_tokens`**: Lưu trữ cách phân tách từ (segmentation) tùy chỉnh của người dùng cho từng dòng.
-- **`share_requests`**: Quản lý việc chia sẻ workspace giữa các người dùng.
-
-### 8. AI Insights (Phân tích Chuyên sâu)
-- **`ai_insight_tracks`**: Theo dõi trạng thái phân tích cho toàn bộ video.
-    - **`video_id`**: Khóa ngoại liên kết bảng `videos`.
-    - **`status`**: Trạng thái (pending, processing, completed).
-    - **`language_code`**: Ngôn ngữ mục tiêu của phân tích.
-- **`ai_insight_items`**: Lưu trữ nội dung phân tích chi tiết cho từng câu (line).
-    - **`track_id`**: Liên kết với `ai_insight_tracks`.
-    - **`subtitle_index`**: Chỉ mục của dòng phụ đề trong video.
-    - **`short_explanation`**, **`grammar_analysis`**, **`nuance_style`**, **`context_notes`**: Các cột dữ liệu phân tích cố định.
-    - **`data_json`**: Chứa các thẻ kiến thức mở rộng (Vocabulary, Similar Sentences, Culture, Mnemonic, v.v.) dưới dạng JSON.
+### 5. Gamification & System (Hệ thống & Trò chơi hóa)
+- **`badges`**: Các huy hiệu đạt được khi hoàn thành mục tiêu học tập.
+- **`activity_logs`**: Nhật ký hoạt động chi tiết của người dùng.
+- **`notifications`**: Thông báo hệ thống, lời mời chia sẻ.
+- **`settings`**: Cấu hình cá nhân hóa (Giao diện, AI, TTS).

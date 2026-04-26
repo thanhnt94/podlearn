@@ -49,6 +49,11 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                             <CheckCircle2 size={12} strokeWidth={3} /> Completed
                         </div>
                     )}
+                    {lesson.is_locked && (
+                        <div className="bg-amber-500 text-slate-950 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg">
+                            <Lock size={12} strokeWidth={3} /> 10m Limit
+                        </div>
+                    )}
                     {video.visibility === 'public' && (
                         <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg backdrop-blur-md">
                             <Globe size={12} strokeWidth={3} /> Featured

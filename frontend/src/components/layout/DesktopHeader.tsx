@@ -42,9 +42,8 @@ export const DesktopHeader: React.FC = () => {
                         <p className="text-xs font-bold text-white">{(window as any).__PODLEARN_DATA__?.username || 'User'}</p>
                         {(() => {
                             const role = (window as any).__PODLEARN_DATA__?.role || 'free';
-                            if (role === 'admin') return <p className="text-[10px] text-sky-400 font-black uppercase tracking-wider">Administrator</p>;
-                            if (role === 'moderator') return <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Moderator</p>;
-                            if (role === 'pro') return <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Pro User</p>;
+                            if (role === 'admin') return <p className="text-[10px] text-sky-400 font-black uppercase tracking-wider">Admin</p>;
+                            if (role === 'vip') return <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">VIP User</p>;
                             return <p className="text-[10px] text-slate-500 font-medium">Free User</p>;
                         })()}
                     </div>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
     Home, Compass, User, 
     PlusCircle, Flame, LogOut, ChevronRight, Headphones,
-    Layers
+    Layers, Lock
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +12,9 @@ export const MainSidebar: React.FC = () => {
     const navigate = useNavigate();
     const isPlayerRoute = location.pathname.includes('/player/');
     const [isHovered, setIsHovered] = useState(false);
+    
+    const userData = (window as any).__PODLEARN_DATA__ || {};
+    const isVip = userData.is_at_least_vip || userData.is_admin;
 
     const isExpanded = isPlayerRoute ? isHovered : true;
 
@@ -112,11 +115,15 @@ export const MainSidebar: React.FC = () => {
                      
                      <button 
                         onClick={() => navigate('/import')}
-                        className={`flex items-center bg-gradient-to-br from-sky-500 to-cyan-600 text-slate-950 rounded-2xl font-black transition-all active:scale-95 shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20 ${
+                        className={`flex items-center rounded-2xl font-black transition-all active:scale-95 shadow-lg ${
+                         !isVip 
+                            ? 'bg-slate-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-60' 
+                            : 'bg-gradient-to-br from-sky-500 to-cyan-600 text-slate-950 shadow-sky-500/10 hover:shadow-sky-500/20'
+                         } ${
                          isExpanded ? 'w-full gap-4 px-4 py-4 text-[11px] uppercase tracking-widest' : 'w-12 h-12 justify-center p-0'
-                     }`}>
-                        <PlusCircle size={20} />
-                        {isExpanded && <span className="whitespace-nowrap">Import New</span>}
+                      }`}>
+                        {isVip ? <PlusCircle size={20} /> : <Lock size={18} />}
+                        {isExpanded && <span className="whitespace-nowrap">{isVip ? 'Import New' : 'VIP Required'}</span>}
                      </button>
                 </div>
             </nav>

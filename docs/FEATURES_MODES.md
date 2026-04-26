@@ -35,35 +35,33 @@ Môi trường cốt lõi nơi việc học diễn ra.
     - **Shadowing Flow Sync**: Tự động tạm dừng video để người học lật thẻ nghiên cứu trước khi qua câu tiếp theo.
 - **Ghi chú Dòng thời gian**: Chụp lại các ý tưởng hoặc cấu trúc hay ngay tại thời điểm xuất hiện trong video.
 
-## 3. Các Chế độ Học Mastery (Ôn tập)
-Sau khi các câu hoặc mẫu câu được lưu lại, chúng có thể được ôn tập chuyên sâu.
+## 3. Subtitle Sync Studio (Ultra v4.0)
+Trình biên tập phụ đề chuyên nghiệp tích hợp trực tiếp trong trình phát video.
+- **Timeline Đa luồng**: Hiển thị đồng thời 3 track phụ đề (Primary, VN, EN) với màu sắc phân biệt.
+- **Thao tác Trực quan**: 
+    - Kéo thả để điều chỉnh thời gian bắt đầu/kết thúc hoặc di chuyển cả khối phụ đề.
+    - **Split & Merge**: Tách một dòng tại vị trí đầu phát (playhead) hoặc gộp nhiều dòng lại thành một.
+- **Đồng bộ Thông minh (Snap)**: Tự động căn chỉnh thời gian của các track dịch khớp hoàn toàn với track chính chỉ bằng một cú click.
+- **Công cụ Kiểm soát**: Điều chỉnh tốc độ phát, kích thước chữ và mức độ Zoom timeline để thao tác chính xác đến từng miligiây.
 
-### A. Sentence Mastery (Làm chủ câu)
-- Tập trung vào cấu trúc toàn diện của câu.
-- **Luyện viết**: Gõ lại câu dựa trên âm thanh và nghĩa.
-- **Luyện nói**: Nghe và lặp lại các câu đã lưu một cách cô đọng.
+## 4. Hands-free Mode (Podcast Generator)
+Chuyển đổi trải nghiệm học từ Video sang Audio-only, tối ưu cho việc học khi đang di chuyển.
+- **Podcast interleaved**: Tự động trích xuất âm thanh gốc từ YouTube và lồng ghép bản dịch bằng giọng đọc AI (Edge TTS).
+- **Cắt ghép Thông minh**: Sử dụng thuật toán phát hiện khoảng lặng (silence detection) để cắt âm thanh gốc khớp chính xác với từng câu thoại.
+- **Học thụ động hiệu quả**: Giúp người học ôn tập kiến thức thông qua việc nghe lặp đi lặp lại bản gốc kèm nghĩa dịch mà không cần nhìn màn hình.
 
-### B. Grammar Mastery (Làm chủ Ngữ pháp)
-- Đi sâu vào các quy tắc cụ thể (vd: "Đảo ngữ", "Giả định cách").
-- **Phân tích Cấu trúc**: Xem giải thích chi tiết tại sao cấu trúc đó được sử dụng.
-- **Nhận diện Mẫu**: Luyện tập nhận diện và sử dụng cùng một điểm ngữ pháp trong các ngữ cảnh khác nhau.
+## 5. Các Chế độ Học Mastery (Ôn tập SRS)
+Sau khi các câu hoặc mẫu câu được lưu lại, chúng có thể được ôn tập chuyên sâu thông qua thuật toán lặp lại ngắt quãng (Spaced Repetition).
+- **Sentence Mastery**: Luyện viết và luyện nói dựa trên các câu đã lưu.
+- **Vocabulary/Grammar Mastery**: Ôn tập các mục từ vựng và ngữ pháp theo ngữ cảnh video gốc.
+- **Adaptive Flow**: Tự động điều chỉnh tần suất xuất hiện của các thẻ dựa trên độ khó và kết quả trả lời của người học.
 
-### C. Vocabulary Mastery (Làm chủ Từ vựng)
-- Tập trung vào các từ đơn lẻ trong ngữ cảnh của câu gốc.
-- **Hệ thống Ôn tập Ngắt quãng (SRS)**: Thuật toán Adaptive Flow giúp tối ưu hóa thời gian ghi nhớ.
-- **Sử dụng Ngữ cảnh**: Xem tất cả các câu từ lịch sử học tập nơi từ đó xuất hiện.
+## 6. Quản trị & Hệ thống (Admin Studio React)
+Giao diện quản trị hiện đại dành cho người vận hành hệ thống.
+- **Quản lý Video**: Theo dõi trạng thái tải media, xử lý phụ đề và phân tích AI.
+- **Dashboard Quản trị**: Biểu đồ thống kê hoạt động người dùng và hiệu suất hệ thống.
+- **Điều phối AI**: Quản lý các yêu cầu phân tích chuyên sâu hàng loạt qua Gemini API.
 
-## 4. Quản lý Nội dung & Wiki Cộng đồng
-- **Nhập từ YouTube**: Nhập bất kỳ video YouTube nào qua URL. Hệ thống tự động lấy phụ đề có sẵn.
-- **Tùy chỉnh Phân tách từ**: Chỉnh sửa tay cách tách câu (segmentation) cho các ngôn ngữ phức tạp như tiếng Nhật.
-- **Collaborative Wiki**: Xây dựng bộ từ điển (Glossary) chung cho video cùng cộng đồng người học.
-
-## 5. Gamification (Trò chơi hóa)
-- **Hệ thống Streak**: Khuyến khích thói quen học tập hàng ngày.
-- **Mục tiêu Cá nhân**: Thiết lập mục tiêu thời gian học hoặc số lượng cấu trúc mới mỗi ngày.
-
-## 6. Bảng Quản trị (Admin Panel)
-Dành cho người quản trị để quản lý tài nguyên hệ thống.
-- **Quản lý Người dùng**: Theo dõi hoạt động và phân quyền.
-- **Điều phối Video**: Sửa chữa metadata hoặc quản lý các bản phụ đề lỗi.
-- **Giám sát Hệ thống**: Kiểm tra trạng thái kết nối với các dịch vụ bên ngoài (CentralAuth, YouTube API).
+## 7. Gamification & Cộng đồng
+- **Hệ thống Badge & Streak**: Khuyến khích thói quen học tập bền vững.
+- **Collaborative Wiki**: Xây dựng kho từ vựng chung cho video cùng cộng đồng người học.

@@ -21,6 +21,17 @@ def ping():
     yesterday = today - timedelta(days=1)
 
     if listening_seconds > 0:
+        # Membership lockout check for Free users
+        if lesson_id and current_user.role == 'free':
+            lesson = Lesson.query.get(lesson_id)
+            if lesson and (lesson.time_spent or 0) >= 600:
+                return jsonify({
+                    'success': False, 
+                    'error': 'Video locked', 
+                    'is_locked': True,
+                    'message': 'Giới hạn học tập cho tài khoản Miễn phí đã hết.'
+                }), 403
+
         log = ActivityLog(
             user_id=current_user.id,
             activity_type='LISTEN_PODCAST',

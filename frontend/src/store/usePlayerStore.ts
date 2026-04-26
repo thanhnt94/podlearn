@@ -52,6 +52,8 @@ interface PlayerState {
   mode: 'watch' | 'shadowing' | 'loop';
   isLoaded: boolean;
   isCompleted: boolean;
+  isLocked: boolean; // NEW: Lock for membership limits
+  lockMessage: string | null;
   sidebarWidth: number;
   seekToTime: number | null;
   isRecording: boolean;
@@ -247,6 +249,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   mode: 'watch',
   isLoaded: false,
   isCompleted: false,
+  isLocked: false,
+  lockMessage: null,
   sidebarWidth: 400,
   seekToTime: null,
   isRecording: false,
@@ -443,12 +447,21 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                body: JSON.stringify(payload)
            });
            if (!response.ok) {
-               // Re-add on failure
-               set(s => ({
-                   sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
-                   sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
-                   sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds
-               }));
+               const errorData = await response.json().catch(() => ({}));
+               if (response.status === 403 && errorData.is_locked) {
+                   set({ 
+                       isLocked: true, 
+                       lockMessage: errorData.message || 'Giới hạn học tập đã hết.',
+                       isPlaying: false 
+                   });
+               } else {
+                   // Re-add on failure (network error etc)
+                   set(s => ({
+                       sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
+                       sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
+                       sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds
+                   }));
+               }
            } else {
                // Success: trigger badge check
                useAppStore.getState().checkNewBadges();
@@ -597,6 +610,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (!(state.lessonId === id && state.isLoaded && state.videoId)) {
         set({ 
           isLoaded: false, lessonId: id, videoId: null, 
+          isLocked: false, lockMessage: null,
           subtitles: [], s1Lines: [], s2Lines: [], s3Lines: [], 
           activeLineIndex: -1, availableTracks: [] 
         });
@@ -651,7 +665,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
         const notesRes = await axios.get(`/api/lesson/${id}/notes`);
         if (notesRes.data.notes && get().lessonId === id) set({ notes: notesRes.data.notes });
-    } catch (err) { console.error("Fetch lesson failed", err); set({ isLoaded: true }); }
+    } catch (err: any) { 
+        console.error("Fetch lesson failed", err); 
+        if (err.response && err.response.status === 403 && err.response.data?.is_locked) {
+            set({ 
+                isLocked: true, 
+                lockMessage: err.response.data.message || 'Giới hạn học tập đã hết.',
+                isLoaded: true 
+            });
+        } else {
+            set({ isLoaded: true }); 
+        }
+    }
   },
   completeLesson: async () => {
     const { lessonId } = get();

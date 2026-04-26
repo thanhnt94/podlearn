@@ -19,11 +19,11 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def moderator_required(f):
+def vip_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_at_least_moderator:
-            return jsonify({"error": "Moderator access required"}), 403
+        if not current_user.is_authenticated or not current_user.is_at_least_vip:
+            return jsonify({"error": "VIP access required"}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -121,8 +121,8 @@ def update_user(user_id):
         user.full_name = full_name
         
     if role:
-        if role not in ['free', 'pro', 'moderator', 'admin']:
-            return jsonify({"error": "Invalid role"}), 400
+        if role not in ['free', 'vip', 'admin']:
+            return jsonify({"error": "Invalid role. Use: free, vip, admin"}), 400
         user.role = role
         
     if password:

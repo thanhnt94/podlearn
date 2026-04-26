@@ -486,12 +486,12 @@ const SubtitleBlock: React.FC<{
     return (
         <div 
             ref={blockRef} 
-            className={`subtitle-block absolute top-6 bottom-6 rounded-2xl border px-6 flex items-center transition-all cursor-grab active:cursor-grabbing ${colors[color]} ${isActive ? 'brightness-125 border-white/40 z-30 shadow-lg' : 'opacity-70 hover:opacity-100'} ${isSelected ? 'ring-2 ring-white z-40 scale-y-105 shadow-2xl bg-white/5' : ''} ${isDragging ? 'shadow-2xl z-50 cursor-grabbing' : ''}`}
+            className={`subtitle-block absolute top-3 bottom-3 rounded-2xl border px-6 flex items-center transition-all cursor-grab active:cursor-grabbing ${colors[color]} ${isActive ? 'brightness-125 border-white/40 z-30 shadow-lg' : 'opacity-70 hover:opacity-100'} ${isSelected ? 'ring-2 ring-white z-40 scale-y-105 shadow-2xl bg-white/5' : ''} ${isDragging ? 'shadow-2xl z-50 cursor-grabbing' : ''}`}
             style={{ left: `${line.start * zoom}px`, width: `${(line.end - line.start) * zoom}px`, minWidth: '4px' }}
             onMouseDown={(e) => handleMouseDown(e, 'move')}
         >
             <div className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize hover:bg-white/20 rounded-l-2xl" onMouseDown={(e) => handleMouseDown(e, 'left')} />
-            <span className="font-bold line-clamp-3 leading-tight overflow-hidden pointer-events-none select-none tracking-tight" style={{ fontSize: `${fontSize}px` }}>{line.text}</span>
+            <span className="font-bold line-clamp-[15] leading-tight overflow-hidden pointer-events-none select-none tracking-tight" style={{ fontSize: `${fontSize}px` }}>{line.text}</span>
             <div className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize hover:bg-white/20 rounded-r-2xl" onMouseDown={(e) => handleMouseDown(e, 'right')} />
         </div>
     );

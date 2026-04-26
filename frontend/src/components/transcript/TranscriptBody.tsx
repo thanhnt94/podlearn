@@ -14,7 +14,7 @@ export const TranscriptBody: React.FC = () => {
     const [editingIndex, setEditingIndex] = useState<number | -1>(-1);
     const [editForm, setEditForm] = useState({ text: '', start: 0 });
 
-    const isModerator = (window as any).__PODLEARN_DATA__?.is_at_least_moderator || (window as any).__PODLEARN_DATA__?.is_admin;
+    const isVip = (window as any).__PODLEARN_DATA__?.is_at_least_vip || (window as any).__PODLEARN_DATA__?.is_admin;
 
     // Helper to find matching lines from other tracks using temporal overlap
     const getAlternativeLines = (s1Line: any) => {
@@ -154,7 +154,7 @@ export const TranscriptBody: React.FC = () => {
                                                 <p className={`text-base leading-relaxed transition-colors flex-1 ${isActive ? 'text-white font-semibold' : 'text-slate-200'}`}>
                                                     {line.text}
                                                 </p>
-                                                {isModerator && !isEditing && (
+                                                {isVip && !isEditing && (
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); handleStartEdit(i, line); }}
                                                         className="p-2 text-slate-600 hover:text-sky-400 opacity-0 group-hover:opacity-100 transition-all"

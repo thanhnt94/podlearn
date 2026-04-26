@@ -30,10 +30,11 @@ PodLearn là một ứng dụng web hiện đại được thiết kế để gi
 
 1.  **Trình phát Video Thông minh:** Hỗ trợ phụ đề đa ngôn ngữ, click-to-lookup, ghi chú dòng thời gian và **Điều hướng Câu chính xác** (Smart Skip).
 2.  **Shadowing Studio & AI Insights:** Chế độ luyện nói ngắt quãng tích hợp phân tích ngôn ngữ 8 lớp (Ngữ pháp, Từ vựng, Sắc thái, Văn hóa, Mẹo nhớ...) cho từng câu thoại.
-3.  **Hành trình Mastery:** Lưu trữ và luyện tập các mẫu câu, ngữ pháp và từ vựng thông qua hệ thống thẻ học (Flashcards) với thuật toán SRS Adaptive Flow.
-4.  **Bộ sưu tập & Library Sets:** Quản lý video theo danh sách phát (Playlists) cá nhân, phân loại nội dung học tập thông minh.
-5.  **Phân tích ngôn ngữ chuyên sâu:** Tự động tách từ, tra từ điển offline và giải thích ngữ cảnh chuyên sâu bằng AI (Gemini 2.0 Flash).
+3.  **Subtitle Sync Studio (Ultra v4.0):** Trình biên tập phụ đề chuyên nghiệp với timeline trực quan, cho phép cắt, ghép và đồng bộ thời gian chính xác cho nhiều track phụ đề.
+4.  **Hands-free Mode (Podcast Generator):** Tự động tạo tệp âm thanh podcast từ video YouTube, lồng ghép giọng đọc AI (TTS) cho các bản dịch để học mọi lúc mọi nơi.
+5.  **Hành trình Mastery:** Lưu trữ và luyện tập các mẫu câu, ngữ pháp và từ vựng thông qua hệ thống thẻ học (Flashcards) với thuật toán SRS Adaptive Flow.
 6.  **Dashboard V3 Hybrid:** Giao diện điều khiển tập trung, tối ưu hóa cho việc quản lý tiến độ và Streak.
+7.  **Admin Studio React:** Hệ thống quản trị hiện đại dựa trên React SPA, giúp quản lý video, người dùng và AI Insights hiệu quả.
 
 ---
 

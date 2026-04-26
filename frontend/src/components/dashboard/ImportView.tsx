@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
     Plus, 
     Loader2, AlertCircle, CheckCircle2, 
-    Sparkles, Globe, ArrowLeft, Video as Youtube
+    Sparkles, Globe, ArrowLeft, Video as Youtube, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -13,6 +13,9 @@ export const ImportView: React.FC = () => {
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
+    
+    const userData = (window as any).__PODLEARN_DATA__ || {};
+    const isVip = userData.is_at_least_vip || userData.is_admin;
 
     const handleImport = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -119,9 +122,9 @@ export const ImportView: React.FC = () => {
 
                         <button 
                             type="submit"
-                            disabled={isLoading || !youtubeUrl || status.type === 'success'}
+                            disabled={isLoading || !youtubeUrl || status.type === 'success' || !isVip}
                             className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-lg active:scale-[0.98] ${
-                                isLoading || status.type === 'success'
+                                isLoading || status.type === 'success' || !isVip
                                 ? 'bg-slate-800 text-slate-600 cursor-not-allowed border border-white/5'
                                 : 'bg-sky-500 text-slate-950 hover:bg-sky-400 hover:shadow-sky-500/20'
                             }`}
@@ -130,10 +133,31 @@ export const ImportView: React.FC = () => {
                                 <><Loader2 size={18} className="animate-spin" /> Analyzing Signals...</>
                             ) : status.type === 'success' ? (
                                 <><CheckCircle2 size={18} /> Initialized</>
+                            ) : !isVip ? (
+                                <><Lock size={18} /> VIP Required</>
                             ) : (
                                 'Process & Import'
                             )}
                         </button>
+
+                        {!isVip && (
+                            <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex flex-col items-center gap-3 text-center">
+                                <Sparkles className="text-amber-400" size={24} />
+                                <div className="space-y-1">
+                                    <h4 className="text-amber-400 text-xs font-black uppercase tracking-widest">Upgrade to VIP</h4>
+                                    <p className="text-slate-400 text-[10px] font-medium leading-relaxed">
+                                        Tính năng thêm video mới chỉ dành cho thành viên VIP. Tài khoản Miễn phí có thể học các video đã có sẵn trong hệ thống (giới hạn 10 phút/video).
+                                    </p>
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => navigate('/')}
+                                    className="px-6 py-2 bg-amber-500 text-slate-950 text-[10px] font-black rounded-lg hover:bg-amber-400 transition-all"
+                                >
+                                    NÂNG CẤP NGAY
+                                </button>
+                            </div>
+                        )}
 
                         {/* Status Messages */}
                         <AnimatePresence mode="wait">

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
     BookOpen, Mic2, FileText, MessageSquare, 
-    ArrowLeft, Settings, Check, Sparkles, Users, RefreshCw, MoveHorizontal
+    ArrowLeft, Settings, Check, Sparkles, Users, RefreshCw, MoveHorizontal,
+    Lock, CreditCard
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -39,7 +40,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     sidebarWidth, setSidebarWidth,
     isPlaying, addListeningTime, flushTrackingData,
     initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount,
-    handsFreeModeEnabled, toggleHandsFreeMode, handsFreeStatus, handsFreeProgress
+    handsFreeModeEnabled, toggleHandsFreeMode, handsFreeStatus, handsFreeProgress,
+    isLocked, lockMessage
   } = usePlayerStore();
 
   const formatSessionTime = (seconds: number) => {
@@ -132,6 +134,38 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
   }, [isResizing, setSidebarWidth]);
 
   if (!isLoaded || !videoId) {
+      // Handle locked state before full load if necessary
+      if (isLocked) {
+          return (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950 px-6">
+                  <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative overflow-hidden">
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
+                      <div className="mx-auto w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 border border-amber-500/20">
+                          <Lock size={40} />
+                      </div>
+                      <div className="space-y-2">
+                          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Video đã khóa</h2>
+                          <p className="text-slate-400 text-sm leading-relaxed">{lockMessage}</p>
+                      </div>
+                      <div className="pt-4 flex flex-col gap-3">
+                          <button 
+                             onClick={() => navigate('/')}
+                             className="w-full py-4 bg-amber-500 text-slate-950 font-black rounded-xl hover:bg-amber-400 transition-all flex items-center justify-center gap-2"
+                          >
+                             <CreditCard size={18} /> NÂNG CẤP VIP NGAY
+                          </button>
+                          <button 
+                             onClick={() => navigate('/')}
+                             className="w-full py-3 text-slate-500 font-bold text-xs uppercase tracking-widest hover:text-white transition-colors"
+                          >
+                             Quay lại trang chủ
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          );
+      }
+
       return (
           <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#020617] overflow-hidden">
               {/* Subtle background grain/noise for premium feel */}
@@ -162,8 +196,41 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
   }
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row h-full bg-slate-950 overflow-hidden">
-      
+    <div className="flex-1 flex flex-col md:flex-row h-full bg-slate-950 overflow-hidden relative">
+      {/* Mid-watch Lockout Overlay */}
+      <AnimatePresence>
+          {isLocked && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm px-6"
+              >
+                  <motion.div 
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    className="max-w-md w-full bg-slate-900 border border-white/10 rounded-3xl p-8 text-center space-y-6 shadow-2xl relative overflow-hidden"
+                  >
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
+                      <div className="mx-auto w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 border border-amber-500/20">
+                          <Lock size={40} />
+                      </div>
+                      <div className="space-y-2">
+                          <h2 className="text-2xl font-black text-white uppercase tracking-wider">Hết hạn học thử</h2>
+                          <p className="text-slate-400 text-sm leading-relaxed">{lockMessage}</p>
+                      </div>
+                      <div className="pt-4 flex flex-col gap-3">
+                          <button 
+                             onClick={() => navigate('/')}
+                             className="w-full py-4 bg-amber-500 text-slate-950 font-black rounded-xl hover:bg-amber-400 transition-all flex items-center justify-center gap-2"
+                          >
+                             <CreditCard size={18} /> NÂNG CẤP VIP NGAY
+                          </button>
+                      </div>
+                  </motion.div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+
       {/* 1. MAIN AREA (LEFT) - Balanced Cinema Focus */}
       <div className="flex-none md:flex-1 flex flex-col bg-black md:bg-[#020617] relative overflow-hidden">
           {/* Header (Integrated) - Flexible on Mobile, Floating on Desktop */}

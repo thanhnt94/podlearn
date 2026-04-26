@@ -27,7 +27,7 @@
             csrf_token: "{{ csrf_token() }}",
             is_admin: {{ 'true' if current_user.is_admin else 'false' }},
             role: "{{ current_user.role }}",
-            is_at_least_moderator: {{ 'true' if current_user.is_at_least_moderator else 'false' }},
+            is_at_least_vip: {{ 'true' if current_user.is_at_least_vip else 'false' }},
             initial_settings: {{ (lesson.settings_json or '{}')|safe if lesson else '{}' }}
         };
     </script>

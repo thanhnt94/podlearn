@@ -101,17 +101,15 @@ export const MemberHub: React.FC = () => {
   const getRoleStyle = (role: string) => {
     switch(role) {
       case 'admin': return 'bg-sky-500/10 border-sky-500/20 text-sky-400';
-      case 'moderator': return 'bg-amber-500/10 border-amber-500/20 text-amber-500';
-      case 'pro': return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500';
+      case 'vip': return 'bg-amber-500/10 border-amber-500/20 text-amber-500';
       default: return 'bg-white/5 border-white/5 text-slate-400';
     }
   };
 
   const getRoleLabel = (role: string) => {
     switch(role) {
-      case 'admin': return 'Administrator';
-      case 'moderator': return 'Moderator';
-      case 'pro': return 'Pro User';
+      case 'admin': return 'Admin';
+      case 'vip': return 'VIP User';
       default: return 'Free User';
     }
   };
@@ -294,9 +292,8 @@ export const MemberHub: React.FC = () => {
                     className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white appearance-none"
                   >
                     <option value="free">Free User</option>
-                    <option value="pro">Pro User</option>
-                    <option value="moderator">Moderator</option>
-                    <option value="admin">Administrator</option>
+                    <option value="vip">VIP User</option>
+                    <option value="admin">Admin</option>
                   </select>
                 </div>
               </div>
@@ -362,9 +359,8 @@ export const MemberHub: React.FC = () => {
                     className="w-full bg-slate-900/60 border border-white/5 p-4 rounded-2xl outline-none focus:border-sky-500/50 transition-all text-white appearance-none"
                   >
                     <option value="free">Free User</option>
-                    <option value="pro">Pro User</option>
-                    <option value="moderator">Moderator</option>
-                    <option value="admin">Administrator</option>
+                    <option value="vip">VIP User</option>
+                    <option value="admin">Admin</option>
                   </select>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from .admin_api import moderator_required
+from .admin_api import vip_required
 from ..extensions import db
 from ..models.subtitle import SubtitleTrack
 
@@ -8,11 +8,11 @@ subtitle_api_bp = Blueprint('subtitle_api', __name__, url_prefix='/api/subtitles
 
 @subtitle_api_bp.route('/<int:track_id>/line/<int:line_index>', methods=['PATCH'])
 @login_required
-@moderator_required
+@vip_required
 def quick_edit_subtitle_line(track_id, line_index):
     """
     Update a single line's text or timing in a subtitle track.
-    Requires at least Moderator role.
+    Requires at least VIP role.
     """
     track = SubtitleTrack.query.get_or_404(track_id)
     data = request.get_json() or {}
@@ -53,7 +53,7 @@ def quick_edit_subtitle_line(track_id, line_index):
 
 @subtitle_api_bp.route('/<int:track_id>/shift', methods=['POST'])
 @login_required
-@moderator_required
+@vip_required
 def shift_subtitle_track(track_id):
     """
     Shift all lines in a subtitle track by a given offset in seconds.
@@ -91,7 +91,7 @@ def shift_subtitle_track(track_id):
 
 @subtitle_api_bp.route('/<int:track_id>/line/<int:line_index>/split', methods=['POST'])
 @login_required
-@moderator_required
+@vip_required
 def split_subtitle_line(track_id, line_index):
     track = SubtitleTrack.query.get_or_404(track_id)
     data = request.get_json() or {}
@@ -121,7 +121,7 @@ def split_subtitle_line(track_id, line_index):
 
 @subtitle_api_bp.route('/<int:track_id>/line/<int:line_index>/merge', methods=['POST'])
 @login_required
-@moderator_required
+@vip_required
 def merge_subtitle_line(track_id, line_index):
     track = SubtitleTrack.query.get_or_404(track_id)
     lines = list(track.content_json)
@@ -150,7 +150,7 @@ def merge_subtitle_line(track_id, line_index):
 
 @subtitle_api_bp.route('/<int:track_id>/line/<int:line_index>', methods=['DELETE'])
 @login_required
-@moderator_required
+@vip_required
 def delete_subtitle_line(track_id, line_index):
     track = SubtitleTrack.query.get_or_404(track_id)
     lines = list(track.content_json)

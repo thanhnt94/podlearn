@@ -6,61 +6,51 @@ PodLearn sử dụng hệ thống định tuyến (routing) dựa trên các Fla
 
 | Blueprint | Tiền tố (Prefix) | Mục đích |
 | :--- | :--- | :--- |
-| `auth` | `/auth` | Quản lý đăng ký, đăng nhập và hồ sơ người dùng (SSR). |
-| `dashboard` | `/` | Trang chủ và container phục vụ React SPA. |
-| `api` | `/api` | Các JSON endpoints cho React SPA giao tiếp. |
-| `player` | `/player` | Môi trường trình phát video tương tác (SSR/Legacy). |
-| `practice` | `/practice` | Các phiên học Mastery (Sentences, Grammar, Vocab). |
-| `admin` | `/admin` | Trang quản trị hệ thống. |
-| `share` | `/share` | Quản lý chia sẻ video giữa các người dùng. |
+| `auth` | `/auth` | Đăng ký, Đăng nhập, Hồ sơ (SSR). |
+| `dashboard` | `/` | Container cho React SPA & Landing Page. |
+| `admin` | `/admin` | Trang quản trị hệ thống (Phục vụ React SPA). |
+| `admin_api` | `/api/admin` | API dành riêng cho Admin Studio. |
+| `api` | `/api` | API lõi cho Player & Dashboard. |
+| `subtitle_api` | `/api/subtitles` | Xử lý chuyên sâu về phụ đề (Download, Save, Sync). |
+| `tracking` | `/api/tracking` | Theo dõi thời gian học và hành vi người dùng. |
+| `handsfree` | `/api/handsfree` | Tạo và quản lý tệp âm thanh Podcast. |
+| `community` | `/api/community` | Khám phá video công khai và Wiki Glossary. |
+| `practice` | `/practice` | Các chế độ ôn tập SRS (Sentences, Vocab). |
+| `auth_center` | `/auth-center` | Giao tiếp với CentralAuth SSO. |
+| `share` | `/share` | Chia sẻ bài học và Workspace. |
 
 ## 🚀 Các Endpoints Quan trọng (JSON API)
 
-### 1. Dashboard & Khởi tạo (SPA)
-- `GET /api/dashboard/init`: Endpoint hợp nhất để khởi tạo toàn bộ Dashboard. Trả về:
-    - `lessons`: Danh sách bài học của người dùng.
-    - `community_videos`: Video công khai gợi ý.
-    - `notifications`: Lời mời chia sẻ/học nhóm.
-    - `sets`: Các bộ Mastery (Ngữ pháp, Từ vựng).
-    - `stats`: Thống kê Streak và tiến độ.
-- `POST /api/lesson/<int:lesson_id>/track-time`: Cập nhật thời gian học và tính toán Streak.
+### 1. Phụ đề & Biên tập (Subtitle API)
+- `GET /api/subtitles/track/<video_id>`: Lấy toàn bộ các track phụ đề của một video.
+- `POST /api/subtitles/save-track`: Lưu thay đổi cho một track phụ đề (S1/S2/S3).
+- `POST /api/subtitles/shift`: Dịch chuyển thời gian (offset) cho toàn bộ track.
+- `POST /api/subtitles/split`: Tách một dòng phụ đề tại timestamp chỉ định.
+- `POST /api/subtitles/merge`: Gộp các dòng phụ đề được chọn.
 
-### 2. Bộ sưu tập & Playlists (Library Sets)
-- `GET /api/playlists`: Liệt kê tất cả danh sách phát của người dùng.
-- `POST /api/playlists`: Tạo danh sách phát mới.
-- `DELETE /api/playlists/<int:id>`: Xóa danh sách phát.
-- `GET /api/playlists/<int:id>/details`: Lấy danh sách video bên trong một Playlist cụ thể.
-- `POST /api/playlists/<int:id>/videos`: Thêm một video vào Playlist.
-- `DELETE /api/playlists/<int:id>/videos/<int:video_id>`: Xóa video khỏi Playlist.
+### 2. Hands-free (Podcast Generator)
+- `POST /api/handsfree/generate`: Bắt đầu tiến trình tạo podcast interleaved (Original + TTS).
+- `GET /api/handsfree/status/<task_id>`: Theo dõi tiến độ tạo tệp âm thanh.
+- `GET /api/handsfree/audio/<video_id>`: Lấy URL tệp âm thanh đã tạo hoặc stream trực tiếp.
 
-### 2. Phân tích Ngôn ngữ & Từ vựng
-- `POST /api/vocab/analyze`: Phân tích câu (tách từ, tra từ điển offline) bằng Sudachi.
-- `POST /api/vocab/tokens/save`: Lưu cấu hình tách từ (segmentation) tùy chỉnh của người dùng.
-- `GET /api/vocab/list/<int:lesson_id>`: Lấy danh sách từ vựng được trích xuất cho một bài học.
-- `POST /api/vocab/update-wiki`: Cập nhật định nghĩa cộng đồng cho một từ vựng trong video.
+### 3. Tracking & Gamification
+- `POST /api/tracking/heartbeat`: Gửi tín hiệu online và cập nhật thời gian học.
+- `GET /api/tracking/stats`: Lấy dữ liệu Streak, Badge và Progress.
 
-### 3. Shadowing & Phát âm
-- `POST /api/score-pronunciation`: Gửi tệp âm thanh hoặc văn bản để AI chấm điểm phát âm.
-- `GET /api/lesson/<int:lesson_id>/shadowing-stats`: Lấy thống kê luyện nói cho từng dòng trong bài học.
+### 4. Admin API (Quản trị)
+- `GET /api/admin/users`: Danh sách người dùng hệ thống.
+- `GET /api/admin/videos`: Quản lý kho video và trạng thái xử lý AI.
+- `POST /api/admin/ai/analyze-all`: Kích hoạt phân tích AI hàng loạt cho video.
 
-### 4. AI Insights & Deep Analysis (On-demand)
-- `GET /api/ai/insights/<video_id>`: Lấy danh sách tất cả các phân tích AI đã lưu cho một video.
-- `POST /api/ai/insights/<video_id>/line/<int:line_index>`: Kích hoạt AI (Gemini) để phân tích sâu một câu thoại cụ thể (8 thẻ kiến thức).
-
-### 4. Dịch thuật & Media
-- `POST /api/translate`: Proxy dịch thuật qua server để tránh lỗi CORS.
-- `GET /api/youtube/subtitles-list/<video_id>`: Lấy danh sách phụ đề có sẵn trên YouTube.
-- `POST /api/youtube/subtitles-download/<int:lesson_id>`: Tải và xử lý phụ đề từ YouTube về database.
-
-### 5. SSO & Đồng bộ Hệ sinh thái (Internal)
-Các route này được bảo vệ bởi `X-Client-Secret`:
-- `POST /api/sso-internal/user-list`: Danh sách người dùng để đồng bộ hóa.
-- `POST /api/sso-internal/link-user`: Liên kết tài khoản local với CentralAuth UUID.
-- `POST /api/sso-internal/delete-user`: Xóa người dùng theo yêu cầu từ CentralAuth.
+### 5. AI Insights
+- `POST /api/ai/insights/<video_id>/line/<index>`: Phân tích sâu 8 lớp cho một dòng phụ đề cụ thể.
+- `GET /api/ai/insights/<video_id>`: Lấy kết quả phân tích đã cache cho toàn bộ video.
 
 ## 🧠 Các Dịch vụ Backend (Services)
 Các logic phức tạp được xử lý tại `app/services/`:
 - `subtitle_service`: Xử lý phân tích và định dạng phụ đề (VTT/JSON).
 - `vocab_service`: Tích hợp các bộ từ điển tiếng Nhật offline và online.
 - `shadowing_service`: Logic chấm điểm và quản lý lịch sử phát âm.
-- `audio_service`: Tạo và xử lý tệp âm thanh (TTS/Cắt ghép).
+- `audio_service` / `handsfree_service`: Tạo và xử lý tệp âm thanh (TTS/Cắt ghép/Podcast).
+- `ai_service`: Giao tiếp với Gemini API cho phân tích chuyên sâu.
+- `gamification_service`: Quản lý Streak, Badge và phần thưởng.

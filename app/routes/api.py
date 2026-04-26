@@ -369,10 +369,16 @@ def get_dashboard_init():
     print(f"DEBUG: Found {len(lessons)} lessons for user.")
     lessons_data = []
     for l in lessons:
+        # Lockout logic for Free users
+        is_locked = False
+        if current_user.role == 'free' and (l.time_spent or 0) >= 600:
+            is_locked = True
+
         lessons_data.append({
             'id': l.id,
             'time_spent': l.time_spent or 0,
             'is_completed': l.is_completed,
+            'is_locked': is_locked,
             'last_accessed': l.last_accessed.isoformat() if l.last_accessed else None,
             'video': {
                 'id': l.video.id,
@@ -1101,6 +1107,14 @@ def fetch_subtitles(lesson_id):
     }
 
     if track:
+        # Membership lockout check
+        if current_user.role == 'free' and (lesson.time_spent or 0) >= 600:
+            return jsonify({
+                'error': 'Video locked',
+                'message': 'Giới hạn 10 phút học cho thành viên Miễn phí đã hết. Vui lòng nâng cấp VIP để tiếp tục học video này.',
+                'is_locked': True
+            }), 403
+
         # Compatibility fix: Ensure 'end' is present for all lines
         lines = []
         for line in track.content_json:
@@ -1326,6 +1340,13 @@ def import_video():
 
     if not url:
         return jsonify({'error': 'URL is required'}), 400
+
+    # Permission check: Only VIP and Admin can import videos
+    if not current_user.is_at_least_vip:
+        return jsonify({
+            'error': 'Unauthorized', 
+            'message': 'Chỉ thành viên VIP mới có quyền thêm video mới vào hệ thống.'
+        }), 403
 
     video_id_str = extract_video_id(url)
     if not video_id_str:
