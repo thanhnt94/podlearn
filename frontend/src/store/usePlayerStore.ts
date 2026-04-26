@@ -178,6 +178,8 @@ interface PlayerState {
   skipNextSentence: () => void;
   skipPrevSentence: () => void;
   updateSubtitleLine: (trackKey: 's1' | 's2' | 's3', index: number, data: Partial<SubtitleLine>) => Promise<void>;
+  shiftSubtitleTrack: (trackKey: 's1' | 's2' | 's3', offsetMs: number) => void;
+  saveTrackShifts: (trackKey: 's1' | 's2' | 's3', totalOffsetMs: number) => Promise<void>;
 
   // Hands-Free Actions
   toggleHandsFreeMode: () => void;
@@ -764,6 +766,42 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         throw err;
     }
   },
+
+  shiftSubtitleTrack: (trackKey, offsetMs) => {
+    const offset = offsetMs / 1000;
+    const stateKey = trackKey === 's1' ? 's1Lines' : trackKey === 's2' ? 's2Lines' : 's3Lines';
+    
+    set(state => {
+        const lines = (state[stateKey] as SubtitleLine[]).map(l => ({
+            ...l,
+            start: Math.max(0, l.start + offset),
+            end: Math.max(0, l.end + offset)
+        }));
+        
+        const updates: any = { [stateKey]: lines };
+        if (trackKey === 's1') {
+            updates.subtitles = lines;
+        }
+        return updates;
+    });
+  },
+
+  saveTrackShifts: async (trackKey, totalOffsetMs) => {
+    const { trackIds } = get();
+    const trackId = trackIds[trackKey];
+    if (!trackId) return;
+
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        await axios.post(`/api/subtitles/${trackId}/shift`, { offset: totalOffsetMs / 1000 }, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+    } catch (err) {
+        console.error("Failed to save track shift", err);
+        throw err;
+    }
+  },
+
   saveAsDefaultPreferences: async () => {
     const { settings } = get();
     try {

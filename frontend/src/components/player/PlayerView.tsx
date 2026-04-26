@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     BookOpen, Mic2, FileText, MessageSquare, 
-    ArrowLeft, Settings, Check, Sparkles, Users, RefreshCw
+    ArrowLeft, Settings, Check, Sparkles, Users, RefreshCw, MoveHorizontal
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +16,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import { SettingsDrawer } from '../layout/SettingsDrawer';
 import { InsightsPanel } from '../tabs/InsightsPanel';
 import { CommunityPanel } from '../tabs/CommunityPanel';
+import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 
 type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights' | 'community';
 
@@ -23,6 +24,7 @@ export const PlayerView: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('transcript');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSyncStudioOpen, setIsSyncStudioOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
   const { 
@@ -212,6 +214,13 @@ export const PlayerView: React.FC = () => {
                           </button>
                       ))}
                   </div>
+                  <button 
+                    onClick={() => setIsSyncStudioOpen(true)} 
+                    className="p-2 text-slate-400 hover:text-sky-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
+                    title="Open Sync Studio"
+                  >
+                      <MoveHorizontal size={20} />
+                  </button>
                   <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <Settings size={20} />
                   </button>
@@ -316,6 +325,11 @@ export const PlayerView: React.FC = () => {
 
       <HandsFreeEngine />
       <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <AnimatePresence>
+        {isSyncStudioOpen && (
+          <SubtitleSyncStudio isOpen={isSyncStudioOpen} onClose={() => setIsSyncStudioOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

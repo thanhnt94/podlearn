@@ -16,12 +16,19 @@ export const TranscriptBody: React.FC = () => {
 
     const isModerator = (window as any).__PODLEARN_DATA__?.is_at_least_moderator || (window as any).__PODLEARN_DATA__?.is_admin;
 
-    // Helper to find matching lines from other tracks
-    const getAlternativeLines = (time: number) => {
-        const findMatch = (lines: any[]) => lines.find(l => Math.abs(l.start - time) < 0.5);
+    // Helper to find matching lines from other tracks using temporal overlap
+    const getAlternativeLines = (s1Line: any) => {
+        const findBestMatch = (lines: any[]) => {
+            if (!lines || lines.length === 0) return undefined;
+            
+            // Strategy: Find any line that overlaps with the s1Line's duration
+            // Overlap condition: (StartA <= EndB) and (EndA >= StartB)
+            return lines.find(l => (s1Line.start <= l.end) && (s1Line.end >= l.start));
+        };
+        
         return {
-            s2: findMatch(s2Lines),
-            s3: findMatch(s3Lines)
+            s2: findBestMatch(s2Lines),
+            s3: findBestMatch(s3Lines)
         };
     };
 
@@ -76,7 +83,7 @@ export const TranscriptBody: React.FC = () => {
     return (
         <div ref={scrollContainerRef} className="space-y-4">
             {subtitles.map((line, i) => {
-                const alts = getAlternativeLines(line.start);
+                const alts = getAlternativeLines(line);
                 const isActive = i === activeLineIndex;
                 const isEditing = i === editingIndex;
 

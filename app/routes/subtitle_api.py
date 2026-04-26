@@ -50,3 +50,41 @@ def quick_edit_subtitle_line(track_id, line_index):
         'message': f'Line {line_index} updated successfully.',
         'line': line
     })
+
+@subtitle_api_bp.route('/<int:track_id>/shift', methods=['POST'])
+@login_required
+@moderator_required
+def shift_subtitle_track(track_id):
+    """
+    Shift all lines in a subtitle track by a given offset in seconds.
+    Positive offset shifts later, negative shifts earlier.
+    """
+    track = SubtitleTrack.query.get_or_404(track_id)
+    data = request.get_json() or {}
+    offset = float(data.get('offset', 0))
+    
+    if offset == 0:
+        return jsonify({'success': True, 'message': 'Offset is zero, no change.'})
+        
+    if not isinstance(track.content_json, list):
+        return jsonify({'error': 'Subtitle track content is not a valid list'}), 400
+        
+    lines = []
+    for line in track.content_json:
+        new_line = dict(line)
+        if 'start' in new_line:
+            new_line['start'] = max(0, float(new_line['start']) + offset)
+        if 'end' in new_line:
+            new_line['end'] = max(0, float(new_line['end']) + offset)
+        lines.append(new_line)
+        
+    from sqlalchemy.orm.attributes import flag_modified
+    track.content_json = lines
+    flag_modified(track, 'content_json')
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Shifted {len(lines)} lines by {offset}s.',
+        'track_id': track_id
+    })
