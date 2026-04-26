@@ -22,7 +22,7 @@ const SetsWrapper: React.FC = () => {
 };
 
 // Wrapper for Player to handle fetching data from URL params
-const PlayerRouteWrapper: React.FC = () => {
+const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' }> = ({ mode = 'player' }) => {
   const { id } = useParams<{ id: string }>();
   const { fetchLessonData, setLessonData, lessonId } = usePlayerStore();
 
@@ -46,7 +46,7 @@ const PlayerRouteWrapper: React.FC = () => {
 
   return (
     <PlayerErrorBoundary key={id}>
-        <PlayerView />
+        <PlayerView initialStudioMode={mode === 'studio'} />
     </PlayerErrorBoundary>
   );
 };
@@ -72,7 +72,8 @@ const App: React.FC = () => {
           <Route path="/import" element={<ImportView />} />
           
           {/* Player View */}
-          <Route path="/player/lesson/:id" element={<PlayerRouteWrapper />} />
+          <Route path="/player/lesson/:id" element={<PlayerRouteWrapper mode="player" />} />
+          <Route path="/player/lesson/syncstudio/:id" element={<PlayerRouteWrapper mode="studio" />} />
           
           {/* Fallback */}
           <Route path="*" element={<DashboardView />} />

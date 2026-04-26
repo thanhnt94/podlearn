@@ -20,15 +20,19 @@ import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 
 type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights' | 'community';
 
-export const PlayerView: React.FC = () => {
+interface PlayerViewProps {
+  initialStudioMode?: boolean;
+}
+
+export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('transcript');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSyncStudioOpen, setIsSyncStudioOpen] = useState(false);
+  const isSyncStudioOpen = initialStudioMode;
   const [isResizing, setIsResizing] = useState(false);
   
   const { 
-    isLoaded, videoId, lessonTitle,
+    isLoaded, videoId, lessonTitle, lessonId,
     playbackRate, setPlaybackRate,
     activeLineIndex, subtitles,
     isCompleted, completeLesson,
@@ -215,7 +219,7 @@ export const PlayerView: React.FC = () => {
                       ))}
                   </div>
                   <button 
-                    onClick={() => setIsSyncStudioOpen(true)} 
+                    onClick={() => navigate(`/player/lesson/syncstudio/${lessonId}`)} 
                     className="p-2 text-slate-400 hover:text-sky-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
                     title="Open Sync Studio"
                   >
@@ -327,7 +331,7 @@ export const PlayerView: React.FC = () => {
       <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <AnimatePresence>
         {isSyncStudioOpen && (
-          <SubtitleSyncStudio isOpen={isSyncStudioOpen} onClose={() => setIsSyncStudioOpen(false)} />
+          <SubtitleSyncStudio isOpen={isSyncStudioOpen} onClose={() => navigate(`/player/lesson/${lessonId}`)} />
         )}
       </AnimatePresence>
     </div>

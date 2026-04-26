@@ -178,6 +178,9 @@ interface PlayerState {
   skipNextSentence: () => void;
   skipPrevSentence: () => void;
   updateSubtitleLine: (trackKey: 's1' | 's2' | 's3', index: number, data: Partial<SubtitleLine>) => Promise<void>;
+  splitSubtitleLine: (track: 's1' | 's2' | 's3', index: number, time: number) => Promise<void>;
+  mergeSubtitleLine: (track: 's1' | 's2' | 's3', index: number) => Promise<void>;
+  deleteSubtitleLine: (track: 's1' | 's2' | 's3', index: number) => Promise<void>;
   shiftSubtitleTrack: (trackKey: 's1' | 's2' | 's3', offsetMs: number) => void;
   saveTrackShifts: (trackKey: 's1' | 's2' | 's3', totalOffsetMs: number) => Promise<void>;
 
@@ -704,6 +707,57 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             set({ aiInsights: newInsights });
         }
     } catch (e) { console.error("Failed to analyze line", e); throw e; }
+  },
+  splitSubtitleLine: async (trackKey, index, time) => {
+    const { trackIds } = get();
+    const trackId = trackIds[trackKey];
+    if (!trackId) return;
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        const res = await axios.post(`/api/subtitles/${trackId}/line/${index}/split`, { time }, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+        if (res.data.success) {
+            const stateKey = trackKey === 's1' ? 's1Lines' : trackKey === 's2' ? 's2Lines' : 's3Lines';
+            set({ [stateKey]: res.data.lines });
+        } else {
+            alert(res.data.error || "Split failed");
+        }
+    } catch (e) { console.error("Split failed", e); alert("Split failed"); }
+  },
+  mergeSubtitleLine: async (trackKey, index) => {
+    const { trackIds } = get();
+    const trackId = trackIds[trackKey];
+    if (!trackId) return;
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        const res = await axios.post(`/api/subtitles/${trackId}/line/${index}/merge`, {}, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+        if (res.data.success) {
+            const stateKey = trackKey === 's1' ? 's1Lines' : trackKey === 's2' ? 's2Lines' : 's3Lines';
+            set({ [stateKey]: res.data.lines });
+        } else {
+            alert(res.data.error || "Merge failed");
+        }
+    } catch (e) { console.error("Merge failed", e); alert("Merge failed"); }
+  },
+  deleteSubtitleLine: async (trackKey, index) => {
+    const { trackIds } = get();
+    const trackId = trackIds[trackKey];
+    if (!trackId) return;
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        const res = await axios.delete(`/api/subtitles/${trackId}/line/${index}`, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+        if (res.data.success) {
+            const stateKey = trackKey === 's1' ? 's1Lines' : trackKey === 's2' ? 's2Lines' : 's3Lines';
+            set({ [stateKey]: res.data.lines });
+        } else {
+            alert(res.data.error || "Delete failed");
+        }
+    } catch (e) { console.error("Delete failed", e); alert("Delete failed"); }
   },
   skipNextSentence: () => {
     const { subtitles, currentTime, requestSeek } = get();

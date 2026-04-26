@@ -7,6 +7,7 @@ player_bp = Blueprint('player', __name__)
 
 
 @player_bp.route('/lesson/<int:lesson_id>')
+@player_bp.route('/lesson/syncstudio/<int:lesson_id>')
 @login_required
 def view(lesson_id):
     """Serve the modern SPA for the lesson player route."""

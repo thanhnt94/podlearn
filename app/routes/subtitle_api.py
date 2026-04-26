@@ -88,3 +88,81 @@ def shift_subtitle_track(track_id):
         'message': f'Shifted {len(lines)} lines by {offset}s.',
         'track_id': track_id
     })
+
+@subtitle_api_bp.route('/<int:track_id>/line/<int:line_index>/split', methods=['POST'])
+@login_required
+@moderator_required
+def split_subtitle_line(track_id, line_index):
+    track = SubtitleTrack.query.get_or_404(track_id)
+    data = request.get_json() or {}
+    split_time = float(data.get('time', 0))
+    
+    lines = list(track.content_json)
+    if line_index < 0 or line_index >= len(lines):
+        return jsonify({'error': 'Invalid line index'}), 400
+        
+    line = lines[line_index]
+    if not (line['start'] <= split_time <= line['end']):
+        split_time = (line['start'] + line['end']) / 2
+        
+    # Split the line: first part keeps text, second part is empty
+    line1 = {**line, 'end': split_time}
+    line2 = {**line, 'start': split_time, 'text': ''}
+    
+    lines[line_index] = line1
+    lines.insert(line_index + 1, line2)
+    
+    from sqlalchemy.orm.attributes import flag_modified
+    track.content_json = lines
+    flag_modified(track, 'content_json')
+    db.session.commit()
+    
+    return jsonify({'success': True, 'lines': lines})
+
+@subtitle_api_bp.route('/<int:track_id>/line/<int:line_index>/merge', methods=['POST'])
+@login_required
+@moderator_required
+def merge_subtitle_line(track_id, line_index):
+    track = SubtitleTrack.query.get_or_404(track_id)
+    lines = list(track.content_json)
+    
+    if line_index < 0 or line_index >= len(lines) - 1:
+        return jsonify({'error': 'No next line to merge with'}), 400
+        
+    line1 = lines[line_index]
+    line2 = lines[line_index + 1]
+    
+    merged_line = {
+        'start': line1['start'],
+        'end': line2['end'],
+        'text': f"{line1['text']} {line2['text']}".strip()
+    }
+    
+    lines[line_index] = merged_line
+    lines.pop(line_index + 1)
+    
+    from sqlalchemy.orm.attributes import flag_modified
+    track.content_json = lines
+    flag_modified(track, 'content_json')
+    db.session.commit()
+    
+    return jsonify({'success': True, 'lines': lines})
+
+@subtitle_api_bp.route('/<int:track_id>/line/<int:line_index>', methods=['DELETE'])
+@login_required
+@moderator_required
+def delete_subtitle_line(track_id, line_index):
+    track = SubtitleTrack.query.get_or_404(track_id)
+    lines = list(track.content_json)
+    
+    if line_index < 0 or line_index >= len(lines):
+        return jsonify({'error': 'Invalid line index'}), 400
+        
+    lines.pop(line_index)
+    
+    from sqlalchemy.orm.attributes import flag_modified
+    track.content_json = lines
+    flag_modified(track, 'content_json')
+    db.session.commit()
+    
+    return jsonify({'success': True, 'lines': lines})
