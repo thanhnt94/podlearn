@@ -256,9 +256,9 @@ export const LearningFocusBar: React.FC = () => {
                                     key={`${activeLineIndex}-${idx}`}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="flex flex-col items-center justify-end group cursor-help relative min-h-[60px]"
-                                    onMouseEnter={(e) => handleTokenMouseEnter(e, word)}
-                                    onMouseLeave={handleTokenMouseLeave}
+                                    className={`flex flex-col items-center justify-end group relative min-h-[60px] ${word.pos === '助詞' ? 'cursor-default opacity-60' : 'cursor-help'}`}
+                                    onMouseEnter={word.pos === '助詞' ? undefined : ((e) => handleTokenMouseEnter(e, word))}
+                                    onMouseLeave={word.pos === '助詞' ? undefined : handleTokenMouseLeave}
                                 >
                                     {showFurigana && word.furigana && (
                                         <span className="text-[10px] font-bold text-sky-400/80 mb-1 pointer-events-none select-none">

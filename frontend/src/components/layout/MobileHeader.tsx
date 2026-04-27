@@ -1,8 +1,12 @@
-import { Search, Headphones } from 'lucide-react';
+import { Search, Headphones, Plus } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
+import { useNavigate } from 'react-router-dom';
 
 export const MobileHeader: React.FC = () => {
-    const username = (window as any).__PODLEARN_DATA__?.username || 'User';
+    const navigate = useNavigate();
+    const userData = (window as any).__PODLEARN_DATA__ || {};
+    const username = userData.username || 'User';
+    const isVip = userData.is_at_least_vip || userData.is_admin;
 
     return (
         <header className="md:hidden sticky top-0 z-[100] bg-slate-950/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
@@ -14,7 +18,15 @@ export const MobileHeader: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-4 text-slate-400">
-                <button className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                <button 
+                    onClick={() => isVip && navigate('/import')} 
+                    className={`p-2 rounded-full transition-colors ${
+                        isVip ? 'bg-sky-500/10 text-sky-400 hover:bg-sky-500/20' : 'bg-slate-800 text-slate-600 opacity-50'
+                    }`}
+                >
+                    <Plus size={20} strokeWidth={2.5} />
+                </button>
+                <button className="p-2 hover:bg-white/5 rounded-full transition-colors hidden sm:block">
                     <Search size={22} />
                 </button>
                 <NotificationBell />

@@ -309,8 +309,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           </div>
           
           {/* Video Wrapper - Maximized but constrained to view height */}
-          <div className="flex-1 w-full flex flex-col items-center justify-center p-2 md:p-4 relative min-h-0 overflow-hidden z-10">
-               <div className="w-full h-full max-w-[1700px] md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 bg-black relative">
+          <div className="w-full aspect-video md:aspect-auto md:flex-1 flex flex-col items-center justify-center p-0 md:p-4 relative min-h-0 overflow-hidden z-10">
+               <div className="w-full h-full max-w-[1700px] md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border-b border-white/5 md:border bg-black relative">
                   {handsFreeModeEnabled ? (
                       <PodcastOverlay />
                   ) : (

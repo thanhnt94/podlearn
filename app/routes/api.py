@@ -485,8 +485,8 @@ def analyze_vocab():
                 custom_tokens = [t.token for t in db_tokens]
 
         if custom_tokens:
-            # Enriched from offline dicts using the manual tokens (Strict filtering enabled)
-            results = vocab_service.get_definitions_for_terms(custom_tokens, priority=priority, strict=True)
+            # Enriched from offline dicts using the manual tokens
+            results = vocab_service.get_definitions_for_terms(custom_tokens, priority=priority)
             # Map back to the expected 'analyzed' format for frontend
             formatted = []
             for r in results:
@@ -1873,25 +1873,35 @@ def analyze_sentence_api():
                 surface = db_token.token  # Always display the surface form
                 lemma = db_token.lemma_override  # The linked dictionary form
                 
+                is_skip = lemma and lemma.strip().lower() == 'skip'
+                
                 furigana = None
-                if r.get('reading') and r['reading'] != surface:
+                if not is_skip and r.get('reading') and r['reading'] != surface:
                     furigana = katakana_to_hiragana(r['reading'])
+
+                # If user manually typed 'skip', treat it as a meaningless particle so frontend dims it.
+                pos_val = '助詞' if is_skip else (getattr(db_token, 'pos', None) or "manual")
 
                 formatted.append({
                     "surface": surface,
                     "original": surface,
                     "lemma": lemma or surface,
                     "lemma_override": lemma,
-                    "reading": r['reading'],
+                    "reading": "" if is_skip else r.get('reading', ''),
                     "furigana": furigana,
-                    "pos": "manual",
-                    "meanings": r['meanings'] if isinstance(r['meanings'], list) else [r['definition']],
-                    "source": r['source']
+                    "pos": pos_val,
+                    "meanings": [] if is_skip else (r.get('meanings', []) if isinstance(r.get('meanings'), list) else [r.get('definition', '')]),
+                    "source": 'none' if is_skip else r.get('source', '')
                 })
             return jsonify({'words': formatted, 'is_manual': True})
 
+        # Fetch custom vocab for priority segmentation
+        from ..models.glossary import VideoGlossary
+        custom_vocab_records = VideoGlossary.query.filter_by(lesson_id=lesson_id).all() if lesson_id else []
+        custom_vocab_set = {v.term for v in custom_vocab_records} if custom_vocab_records else None
+
         # 2. Fallback to automatic segmentation
-        words = analyze_japanese_text(text, priority='mazii_offline', include_all=True)
+        words = analyze_japanese_text(text, priority='mazii_offline', include_all=True, custom_vocab=custom_vocab_set)
         return jsonify({'words': words, 'is_manual': False})
     else:
         # Fallback for other languages: simple space-based splitting for now
@@ -1910,20 +1920,25 @@ def generate_all_vocab():
 
     lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
     
-    # Get the primary track (usually S1)
-    if not lesson.s1_track_id:
+    # Get the primary track (usually S1 or S2)
+    track_id = lesson.s1_track_id or lesson.s2_track_id
+    if not track_id:
         return jsonify({"error": "No subtitle track selected for this lesson."}), 400
         
     from ..services.subtitle_service import get_lines_as_dicts
     from ..services.vocab_service import analyze_japanese_text
     from ..models.sentence_token import SentenceToken
     from ..models.subtitle import SubtitleTrack
+    from ..models.glossary import VideoGlossary
 
-    track = SubtitleTrack.query.get(lesson.s1_track_id)
+    track = SubtitleTrack.query.get(track_id)
     if not track:
         return jsonify({"error": "Subtitle track not found."}), 404
         
     lines = get_lines_as_dicts(track)
+    
+    custom_vocab_records = VideoGlossary.query.filter_by(lesson_id=lesson_id).all()
+    custom_vocab_set = {v.term for v in custom_vocab_records} if custom_vocab_records else None
     
     # 1. Clear existing tokens to start fresh
     SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
@@ -1936,7 +1951,7 @@ def generate_all_vocab():
             continue
             
         try:
-            words = analyze_japanese_text(text, priority=priority, include_all=True)
+            words = analyze_japanese_text(text, priority=priority, include_all=True, custom_vocab=custom_vocab_set)
             for order, w in enumerate(words):
                 surface = w['surface']
                 lemma = w.get('lemma', surface)
@@ -1947,6 +1962,7 @@ def generate_all_vocab():
                     line_index=idx,
                     token=surface,
                     lemma_override=lemma_val,
+                    pos=w.get('pos'),
                     order_index=order
                 ))
         except Exception as e:

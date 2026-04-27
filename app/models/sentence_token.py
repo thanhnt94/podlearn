@@ -9,6 +9,7 @@ class SentenceToken(db.Model):
     line_index = db.Column(db.Integer, nullable=False)
     token = db.Column(db.String(255), nullable=False)        # Surface form (displayed text, e.g. 食べた)
     lemma_override = db.Column(db.String(255), nullable=True) # Dictionary form override (e.g. 食べる)
+    pos = db.Column(db.String(50), nullable=True)             # Part of speech (e.g. 助詞) to maintain styling
     order_index = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
