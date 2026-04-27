@@ -191,7 +191,7 @@ export const VideoSection: React.FC = () => {
   }, [volume, isReady]);
 
   return (
-    <div id="player-container" className="relative w-full aspect-video bg-black group overflow-hidden">
+    <div id="player-container" className="relative w-full h-full bg-black group overflow-hidden">
       {/* YouTube Iframe Placeholder */}
       <div 
         ref={playerRef}

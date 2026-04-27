@@ -362,10 +362,10 @@ def get_lines_as_dicts(track: SubtitleTrack) -> list[dict]:
         return [
             {
                 'index': idx,
-                'start': entry['start'],
-                'duration': entry['duration'],
-                'end': entry.get('end', round(entry['start'] + entry['duration'], 3)),
-                'text': entry['text'],
+                'start': entry.get('start', 0),
+                'duration': entry.get('duration', round(entry.get('end', 0) - entry.get('start', 0), 3)),
+                'end': entry.get('end', round(entry.get('start', 0) + entry.get('duration', 0), 3)),
+                'text': entry.get('text', ''),
             }
             for idx, entry in enumerate(track.content_json)
         ]

@@ -517,6 +517,7 @@ def analyze_vocab():
 def save_custom_tokens():
     """
     Saves a custom list of tokens (segmentation) for a specific line.
+    Accepts tokens as either plain strings or objects {surface, lemma_override}.
     """
     try:
         data = request.json
@@ -532,11 +533,20 @@ def save_custom_tokens():
         
         # Add new ones with sequence index
         for i, t in enumerate(tokens):
-            if not t.strip(): continue
+            # Support both plain strings and {surface, lemma_override} objects
+            if isinstance(t, dict):
+                surface = (t.get('surface') or '').strip()
+                lemma = (t.get('lemma_override') or '').strip() or None
+            else:
+                surface = t.strip()
+                lemma = None
+            
+            if not surface: continue
             st = SentenceToken(
                 lesson_id=lesson_id, 
                 line_index=line_index, 
-                token=t.strip(),
+                token=surface,
+                lemma_override=lemma,
                 order_index=i
             )
             db.session.add(st)
@@ -547,7 +557,16 @@ def save_custom_tokens():
         logger.error(f"[VOCAB ERROR] Token save failed: {e}")
         return jsonify({"error": str(e)}), 500
 
-@api_bp.route('/vocab/tokens/clear', methods=['DELETE'])
+@api_bp.route('/vocab/scan-status/<int:lesson_id>', methods=['GET'])
+@login_required
+def get_scan_status(lesson_id):
+    from ..models.sentence_token import SentenceToken
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    has_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id).first() is not None
+    return jsonify({
+        'has_tokens': has_tokens,
+        'lesson_id': lesson_id
+    })
 @login_required
 def clear_custom_tokens():
     """
@@ -583,60 +602,7 @@ def clear_all_custom_tokens():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@api_bp.route('/vocab/generate-all', methods=['POST'])
-def generate_all_vocab():
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        lesson_id = data.get('lesson_id')
-        priority = data.get('priority', 'mazii_online') 
-        
-        if not lesson_id:
-            return jsonify({"error": "Missing lesson_id"}), 400
-            
-        lesson = Lesson.query.get(lesson_id)
-        if not lesson:
-            return jsonify({"error": "Lesson not found"}), 404
-            
-        track = SubtitleTrack.query.filter_by(video_id=lesson.video_id).first()
-        if not track:
-            return jsonify({"error": "No subtitles found for this video"}), 404
-            
-        # Access content directly from content_json (no need to json.loads if it's already list/dict)
-        content = track.content_json
-        if not content:
-            return jsonify({"error": "Subtitle content is empty"}), 400
-            
-        texts = [line.get('text', '') for line in content]
-        
-        results = vocab_service.analyze_batch_japanese(texts, priority=priority)
-        
-        lesson = Lesson.query.get(lesson_id)
-        video_id = lesson.video_id if lesson else None
-        
-        for res in results:
-            term = res['lemma']
-            # Check for existing
-            existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
-            if existing:
-                existing.frequency = res.get('count', 1)
-                # Keep existing definition/reading if already set
-            else:
-                item = VideoGlossary(
-                    lesson_id=lesson_id,
-                    video_id=video_id,
-                    term=term,
-                    reading=res.get('reading', ''),
-                    definition=", ".join(res.get('meanings', [])),
-                    source=res.get('source', 'offline'),
-                    frequency=res.get('count', 1)
-                )
-                db.session.add(item)
-            
-        db.session.commit()
-        return jsonify({"status": "success", "count": len(results), "source": priority})
-    except Exception as e:
-        logger.error(f"[VOCAB ERROR] Batch generation failed: {e}")
-        return jsonify({"error": str(e)}), 500
+
 
 @api_bp.route('/vocab/sync-batch', methods=['POST'])
 def sync_vocab_batch():
@@ -1097,7 +1063,7 @@ def fetch_subtitles(lesson_id):
         'is_completed': lesson.is_completed,
         'total_time_spent': lesson.time_spent,
         'metadata': {
-            'original_lang': lesson.original_lang_code,
+            'original_lang': lesson.original_lang_code or lesson.video.language_code,
             'target_lang': lesson.target_lang_code,
             's1_track_id': lesson.s1_track_id,
             's2_track_id': lesson.s2_track_id,
@@ -1337,6 +1303,7 @@ def import_video():
     """
     data = request.get_json() or {}
     url = data.get('youtube_url', '').strip()
+    language_code = data.get('language_code', 'en')
 
     if not url:
         return jsonify({'error': 'URL is required'}), 400
@@ -1362,7 +1329,8 @@ def import_video():
             title="Processing...", 
             status='pending', 
             owner_id=None, 
-            visibility='private'
+            visibility='private',
+            language_code=language_code
         )
         db.session.add(video)
         db.session.commit()
@@ -1867,5 +1835,140 @@ def analyze_ai_line(video_id, line_index):
                 "mistakes": result.get('common_mistakes', '')
             }
         })
-    else:
         return jsonify({"error": "AI analysis failed."}), 500
+
+@api_bp.route('/video/analyze-sentence', methods=['POST'])
+@login_required
+def analyze_sentence_api():
+    """Analyze a Japanese sentence to split into words with reading/furigana."""
+    data = request.get_json() or {}
+    text = data.get('text', '').strip()
+    lang = data.get('lang', 'ja')
+    lesson_id = data.get('lesson_id')
+    active_line_index = data.get('active_line_index')
+
+    if not text:
+        return jsonify({'words': []})
+
+    if lang == 'ja':
+        from ..services.vocab_service import analyze_japanese_text, get_definitions_for_terms
+        from ..models.sentence_token import SentenceToken
+
+        # 1. Try to get saved tokens first
+        db_tokens = []
+        if lesson_id is not None:
+            db_tokens = SentenceToken.query.filter_by(
+                lesson_id=lesson_id, 
+                line_index=active_line_index
+            ).order_by(SentenceToken.order_index.asc()).all()
+
+        if db_tokens:
+            from ..services.vocab_service import katakana_to_hiragana
+            # Use lemma_override for dictionary lookup when available
+            lookup_terms = [t.lemma_override or t.token for t in db_tokens]
+            results = get_definitions_for_terms(lookup_terms, priority='mazii_offline')
+            formatted = []
+            for i, r in enumerate(results):
+                db_token = db_tokens[i]
+                surface = db_token.token  # Always display the surface form
+                lemma = db_token.lemma_override  # The linked dictionary form
+                
+                furigana = None
+                if r.get('reading') and r['reading'] != surface:
+                    furigana = katakana_to_hiragana(r['reading'])
+
+                formatted.append({
+                    "surface": surface,
+                    "original": surface,
+                    "lemma": lemma or surface,
+                    "lemma_override": lemma,
+                    "reading": r['reading'],
+                    "furigana": furigana,
+                    "pos": "manual",
+                    "meanings": r['meanings'] if isinstance(r['meanings'], list) else [r['definition']],
+                    "source": r['source']
+                })
+            return jsonify({'words': formatted, 'is_manual': True})
+
+        # 2. Fallback to automatic segmentation
+        words = analyze_japanese_text(text, priority='mazii_offline', include_all=True)
+        return jsonify({'words': words, 'is_manual': False})
+    else:
+        # Fallback for other languages: simple space-based splitting for now
+        words = [{"surface": w, "reading": None} for w in text.split()]
+        return jsonify({'words': words})
+@api_bp.route('/vocab/generate-all', methods=['POST'])
+@login_required
+def generate_all_vocab():
+    """Scan the entire lesson and save verified tokens for all lines."""
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    priority = data.get('priority', 'mazii_offline')
+
+    if not lesson_id:
+        return jsonify({"error": "Missing lesson_id"}), 400
+
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    
+    # Get the primary track (usually S1)
+    if not lesson.s1_track_id:
+        return jsonify({"error": "No subtitle track selected for this lesson."}), 400
+        
+    from ..services.subtitle_service import get_lines_as_dicts
+    from ..services.vocab_service import analyze_japanese_text
+    from ..models.sentence_token import SentenceToken
+    from ..models.subtitle import SubtitleTrack
+
+    track = SubtitleTrack.query.get(lesson.s1_track_id)
+    if not track:
+        return jsonify({"error": "Subtitle track not found."}), 404
+        
+    lines = get_lines_as_dicts(track)
+    
+    # 1. Clear existing tokens to start fresh
+    SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
+    
+    # 2. Analyze and save for each line
+    new_tokens = []
+    for idx, line in enumerate(lines):
+        text = line.get('text', '').strip()
+        if not text:
+            continue
+            
+        try:
+            words = analyze_japanese_text(text, priority=priority, include_all=True)
+            for order, w in enumerate(words):
+                surface = w['surface']
+                lemma = w.get('lemma', surface)
+                # Only store lemma_override if it differs from surface
+                lemma_val = lemma if lemma != surface else None
+                new_tokens.append(SentenceToken(
+                    lesson_id=lesson_id,
+                    line_index=idx,
+                    token=surface,
+                    lemma_override=lemma_val,
+                    order_index=order
+                ))
+        except Exception as e:
+            logger.error(f"Failed to analyze line {idx}: {e}")
+            continue
+            
+    if new_tokens:
+        db.session.bulk_save_objects(new_tokens)
+        db.session.commit()
+    
+    return jsonify({"success": True, "count": len(new_tokens)})
+
+@api_bp.route('/vocab/tokens/clear-all', methods=['DELETE'])
+@login_required
+def clear_all_tokens():
+    """Remove all manual segmentation for a lesson."""
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    if not lesson_id:
+        return jsonify({"error": "Missing lesson_id"}), 400
+    
+    from ..models.sentence_token import SentenceToken
+    SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
+    db.session.commit()
+    return jsonify({"success": True})

@@ -11,6 +11,7 @@ import axios from 'axios';
 export const ImportView: React.FC = () => {
     const navigate = useNavigate();
     const [youtubeUrl, setYoutubeUrl] = useState('');
+    const [selectedLanguage, setSelectedLanguage] = useState('ja');
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
     
@@ -27,7 +28,10 @@ export const ImportView: React.FC = () => {
         try {
             const data = (window as any).__PODLEARN_DATA__ || {};
             const res = await axios.post('/api/video/import', 
-                { youtube_url: youtubeUrl },
+                { 
+                    youtube_url: youtubeUrl,
+                    language_code: selectedLanguage 
+                },
                 { headers: { 'X-CSRF-Token': data.csrf_token } }
             );
 
@@ -117,6 +121,32 @@ export const ImportView: React.FC = () => {
                                     disabled={isLoading || status.type === 'success'}
                                     className="w-full bg-slate-950/50 border border-white/5 rounded-2xl pl-12 pr-6 py-5 text-sm focus:border-sky-500/50 outline-none transition-all placeholder:text-slate-800 font-medium"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Video Native Language</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {[
+                                    { code: 'ja', name: 'Japanese', icon: '🇯🇵' },
+                                    { code: 'en', name: 'English', icon: '🇺🇸' },
+                                    { code: 'ko', name: 'Korean', icon: '🇰🇷' },
+                                    { code: 'zh', name: 'Chinese', icon: '🇨🇳' }
+                                ].map((lang) => (
+                                    <button
+                                        key={lang.code}
+                                        type="button"
+                                        onClick={() => setSelectedLanguage(lang.code)}
+                                        className={`flex items-center gap-3 px-4 py-4 rounded-2xl border transition-all ${
+                                            selectedLanguage === lang.code
+                                            ? 'bg-sky-500/10 border-sky-500/50 text-white'
+                                            : 'bg-slate-950/30 border-white/5 text-slate-500 hover:border-white/10'
+                                        }`}
+                                    >
+                                        <span className="text-lg">{lang.icon}</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{lang.name}</span>
+                                    </button>
+                                ))}
                             </div>
                         </div>
 

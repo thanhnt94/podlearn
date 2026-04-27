@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     BookOpen, Mic2, FileText, MessageSquare, 
     ArrowLeft, Settings, Check, Sparkles, Users, RefreshCw, MoveHorizontal,
-    Lock, CreditCard
+    Lock, CreditCard, Scissors
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,8 @@ import { SettingsDrawer } from '../layout/SettingsDrawer';
 import { InsightsPanel } from '../tabs/InsightsPanel';
 import { CommunityPanel } from '../tabs/CommunityPanel';
 import { SubtitleSyncStudio } from './SubtitleSyncStudio';
+import { LearningFocusBar } from './LearningFocusBar';
+import { VocabStudio } from './VocabStudio';
 
 type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights' | 'community';
 
@@ -41,7 +43,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     isPlaying, addListeningTime, flushTrackingData,
     initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount,
     handsFreeModeEnabled, toggleHandsFreeMode, handsFreeStatus, handsFreeProgress,
-    isLocked, lockMessage
+    isLocked, lockMessage,
+    isVocabStudioOpen, setVocabStudioOpen
   } = usePlayerStore();
 
   const formatSessionTime = (seconds: number) => {
@@ -232,7 +235,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
       </AnimatePresence>
 
       {/* 1. MAIN AREA (LEFT) - Balanced Cinema Focus */}
-      <div className="flex-none md:flex-1 flex flex-col bg-black md:bg-[#020617] relative overflow-hidden">
+      <div className="flex-none md:flex-1 flex flex-col bg-black md:bg-[#020617] relative overflow-hidden z-10 min-h-0">
           {/* Header (Integrated) - Flexible on Mobile, Floating on Desktop */}
           <div className="relative md:absolute md:top-0 md:left-0 md:right-0 flex items-center justify-between px-4 py-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl shrink-0 z-20">
               <div className="flex items-center gap-3">
@@ -292,6 +295,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                   >
                       <MoveHorizontal size={20} />
                   </button>
+                  <button 
+                    onClick={() => setVocabStudioOpen(true)} 
+                    className="p-2 text-slate-400 hover:text-amber-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
+                    title="Open Vocab Studio"
+                  >
+                      <Scissors size={20} />
+                  </button>
                   <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <Settings size={20} />
                   </button>
@@ -299,14 +309,19 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           </div>
           
           {/* Video Wrapper - Maximized but constrained to view height */}
-          <div className="flex-1 w-full flex flex-col items-center justify-center p-0 md:p-8 lg:p-12 relative">
-               <div className="w-full max-w-[1700px] aspect-video md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 bg-black relative">
+          <div className="flex-1 w-full flex flex-col items-center justify-center p-2 md:p-4 relative min-h-0 overflow-hidden z-10">
+               <div className="w-full h-full max-w-[1700px] md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 bg-black relative">
                   {handsFreeModeEnabled ? (
                       <PodcastOverlay />
                   ) : (
                       <VideoSection />
                   )}
                </div>
+          </div>
+          
+          {/* Focus Area (Analysis) */}
+          <div className="shrink-0 relative z-[500] h-[160px]">
+              <LearningFocusBar />
           </div>
       </div>
 
@@ -395,6 +410,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
       </div>
 
       <HandsFreeEngine />
+      <VocabStudio isOpen={isVocabStudioOpen} onClose={() => setVocabStudioOpen(false)} />
       <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <AnimatePresence>
         {isSyncStudioOpen && (

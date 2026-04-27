@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Book, Plus, Check, Search, Loader2, Activity, Globe, Languages, ChevronDown, Trash2, ChevronLeft, ChevronRight, Scissors, X, RotateCcw, GripVertical, Zap } from 'lucide-react';
+import { Book, Plus, Check, Search, Loader2, Activity, Globe, Languages, ChevronDown, Trash2, ChevronLeft, ChevronRight, Scissors, X, RotateCcw, GripVertical, Zap, Layout } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import axios from 'axios';
@@ -41,7 +41,7 @@ export const VocabPanel: React.FC = () => {
     const { 
         lessonId, s1Lines, activeLineIndex, requestSeek, 
         setPlaying, setLockedPaused, setSeeking,
-        addNote, fetchNotes
+        addNote, fetchNotes, setVocabStudioOpen
     } = usePlayerStore();
     
     // States
@@ -297,7 +297,7 @@ export const VocabPanel: React.FC = () => {
         if (!lessonId) return;
         setIsScanning(true);
         try {
-            await axios.post('/api/vocab/generate-all', { lesson_id: lessonId, priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority });
+            await usePlayerStore.getState().scanFullLesson(dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority);
             await fetchSavedVocab();
         } catch (err) {
             console.error("Scan failed", err);
@@ -456,6 +456,14 @@ export const VocabPanel: React.FC = () => {
                                     <ChevronRight size={20} />
                                 </button>
                             </div>
+
+                            <button 
+                                onClick={() => setVocabStudioOpen(true)}
+                                className="w-full flex items-center justify-center gap-3 py-4 bg-sky-500/10 border border-sky-500/30 rounded-2xl text-sky-400 text-[10px] font-black uppercase tracking-widest hover:bg-sky-500 hover:text-slate-950 transition-all group"
+                            >
+                                <Layout size={14} className="group-hover:scale-110 transition-transform" />
+                                Launch Full Vocab Studio
+                            </button>
                             
                             <div className="py-2">
                                 <p className="text-lg font-bold text-white text-center leading-relaxed">

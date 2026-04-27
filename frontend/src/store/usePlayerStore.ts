@@ -47,6 +47,8 @@ interface PlayerState {
   s3Lines: SubtitleLine[];
   notes: Note[];
   activeLineIndex: number;
+  isVocabStudioOpen: boolean;
+  setVocabStudioOpen: (open: boolean) => void;
   
   // UI / Interaction
   mode: 'watch' | 'shadowing' | 'loop';
@@ -107,6 +109,21 @@ interface PlayerState {
   sessionListeningSeconds: number;
   sessionShadowingCount: number;
   sessionShadowingSeconds: number;
+  
+  // NEW: Learning Focus Area (Bottom Area)
+  analyzedWords: { 
+    surface: string, 
+    original: string,
+    reading: string | null, 
+    furigana?: string | null,
+    meanings?: string[],
+    pos?: string, 
+    lemma?: string 
+  }[];
+  showFurigana: boolean;
+  lastAnalyzedIndex: number;
+  hasTokens: boolean;
+  isManualAnalysis: boolean;
   
   settings: {
       s1: TrackSettings;
@@ -175,6 +192,13 @@ interface PlayerState {
   fetchAIInsights: () => Promise<void>;
   analyzeLine: (index: number) => Promise<void>;
   
+  // NEW: Focus Area Actions
+  setAnalyzedWords: (words: any[]) => void;
+  toggleFurigana: () => void;
+  fetchAnalyzedWords: (text: string, lang: string) => Promise<void>;
+  checkScanStatus: (id?: number) => Promise<void>;
+  scanFullLesson: (priority: string) => Promise<void>;
+  
   saveSettings: () => Promise<void>;
   saveAsDefaultPreferences: () => Promise<void>;
   skipNextSentence: () => void;
@@ -234,6 +258,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   sessionListeningSeconds: 0,
   sessionShadowingCount: 0,
   sessionShadowingSeconds: 0,
+  
+  analyzedWords: [],
+  showFurigana: true,
+  lastAnalyzedIndex: -1,
+  hasTokens: false,
+  isManualAnalysis: false,
+  isVocabStudioOpen: false,
+  setVocabStudioOpen: (open) => set({ isVocabStudioOpen: open }),
   
   lessonId: null,
   lessonTitle: null,
@@ -322,7 +354,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
 
     if (newIndex !== -1 && newIndex !== activeLineIndex) {
-      set({ activeLineIndex: newIndex });
+      set({ activeLineIndex: newIndex, lastAnalyzedIndex: newIndex });
+      
+      // Auto-analyze for focus area
+      const targetLine = subtitles[newIndex];
+      if (targetLine && targetLine.text) {
+          get().fetchAnalyzedWords(targetLine.text, get().originalLang);
+      }
     }
   },
 
@@ -351,8 +389,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       lastSeekTime: Date.now(),
       currentTime: time,
       activeLineIndex: targetIndex !== -1 ? targetIndex : get().activeLineIndex,
-      isSeeking: true 
+      isSeeking: true,
+      lastAnalyzedIndex: targetIndex !== -1 ? targetIndex : get().activeLineIndex
     });
+
+    if (targetIndex !== -1) {
+        get().fetchAnalyzedWords(subtitles[targetIndex].text, get().originalLang);
+    }
   },
   setSeeking: (isSeeking) => set({ isSeeking }),
   setRecording: (isRecording) => set({ isRecording }),
@@ -616,10 +659,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         });
     }
     try {
-        // 1. Fetch Global Preferences First
-        const [metaRes, prefRes] = await Promise.all([
+        // 1. Fetch Global Preferences and Scan Status First
+        const [metaRes, prefRes, _] = await Promise.all([
             axios.get(`/api/subtitles/fetch/${id}`),
-            axios.get('/api/user/preferences').catch(() => ({ data: {} }))
+            axios.get('/api/user/preferences').catch(() => ({ data: {} })),
+            get().checkScanStatus(id)
         ]);
         
         if (get().lessonId !== id) return;
@@ -732,6 +776,55 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             set({ aiInsights: newInsights });
         }
     } catch (e) { console.error("Failed to analyze line", e); throw e; }
+  },
+  setAnalyzedWords: (words) => set({ analyzedWords: words }),
+  toggleFurigana: () => set(s => ({ showFurigana: !s.showFurigana })),
+  checkScanStatus: async (id) => {
+    const lessonId = id || get().lessonId;
+    if (!lessonId) return;
+    try {
+      const res = await axios.get(`/api/vocab/scan-status/${lessonId}`);
+      set({ hasTokens: res.data.has_tokens });
+    } catch (e) { console.error("Failed check scan status", e); }
+  },
+  scanFullLesson: async (priority) => {
+    const { lessonId, fetchAnalyzedWords, subtitles, activeLineIndex } = get();
+    if (!lessonId) return;
+    try {
+        await axios.post('/api/vocab/generate-all', { 
+            lesson_id: lessonId, 
+            priority: priority || 'mazii_offline' 
+        });
+        set({ hasTokens: true });
+        // Refresh analysis for current line if needed
+        const currentLine = subtitles[activeLineIndex];
+        if (currentLine) {
+            await fetchAnalyzedWords(currentLine.text, 'ja');
+        }
+    } catch (e) {
+        console.error("Scan failed", e);
+        throw e;
+    }
+  },
+  fetchAnalyzedWords: async (text, lang) => {
+    const { lessonId, activeLineIndex } = get();
+    if (!text || activeLineIndex === -1) return;
+    try {
+      const res = await axios.post('/api/video/analyze-sentence', { 
+        text, 
+        lang, 
+        lesson_id: lessonId,
+        active_line_index: activeLineIndex
+      });
+      set({ 
+        analyzedWords: res.data.words || [],
+        isManualAnalysis: res.data.is_manual || false,
+        lastAnalyzedIndex: activeLineIndex
+      });
+    } catch (e) {
+      console.error("Analysis failed", e);
+      set({ analyzedWords: [{"surface": text, "original": text, "reading": null}] });
+    }
   },
   splitSubtitleLine: async (trackKey, index, time) => {
     const { trackIds } = get();
@@ -893,6 +986,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         throw err;
     }
   },
+
   saveSettings: async () => {
     const { lessonId, settings, trackIds } = get();
     if (!lessonId) return;

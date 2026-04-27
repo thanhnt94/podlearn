@@ -116,17 +116,33 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
     tokens = tk.tokenize(text, _sudachi_mode)
     dict_paths = get_dict_paths()
     
-    # Priority order
+    # Explicit Priority Order
+    dict_order = ['mazii_offline', 'javidict', 'suge', 'jamdict']
     order = []
-    if priority in dict_paths:
+    
+    # 1. Start with requested priority if it's in our known list
+    if priority in dict_order:
         order.append(priority)
-    other_dicts = [k for k in dict_paths.keys() if k != priority]
-    order.extend(other_dicts)
+    
+    # 2. Add remaining standard dicts in order
+    for d in dict_order:
+        if d not in order and d in dict_paths:
+            order.append(d)
+            
+    # 3. Add any other unknown dicts found in folder
+    for d in dict_paths:
+        if d not in order:
+            order.append(d)
 
     for token in tokens:
         lemma = token.dictionary_form()
         pos_tuple = token.part_of_speech()
         pos = pos_tuple[0]
+        surface = token.surface()
+        
+        # Tagger reading (usually Katakana)
+        tagger_reading_katakana = token.reading_form()
+        tagger_reading = katakana_to_hiragana(tagger_reading_katakana) if tagger_reading_katakana else ''
         
         if not include_all:
             if pos in ['補助記号', '空白', '助詞', '助動詞', '記号']:
@@ -139,6 +155,10 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
         
         for d_name in order:
             res = query_offline_dict(dict_paths[d_name], lemma)
+            if not res:
+                # Try querying with surface if lemma fails (for some inflected forms)
+                res = query_offline_dict(dict_paths[d_name], surface)
+            
             if res:
                 item_result = res
                 source = d_name
@@ -146,14 +166,22 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
         
         if not item_result:
             if strict: continue
-            item_result = {'reading': '', 'meanings': []}
+            item_result = {'reading': tagger_reading, 'meanings': []}
             source = 'none'
 
+        # Determine best reading for Furigana
+        # If tagger reading is different from surface, it's likely Kanji
+        furigana = None
+        if tagger_reading and tagger_reading != surface:
+            furigana = tagger_reading
+
         results.append({
-            'original': token.surface(),
+            'surface': surface,
+            'original': surface,
             'lemma': lemma,
             'word': lemma,
-            'reading': item_result.get('reading', ''),
+            'reading': item_result.get('reading', tagger_reading) or tagger_reading,
+            'furigana': furigana,
             'pos': pos,
             'meanings': item_result.get('meanings', []),
             'definition': "\n".join(item_result.get('meanings', [])),
@@ -161,6 +189,11 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
         })
             
     return results
+
+def katakana_to_hiragana(text: str) -> str:
+    """Helper to convert Katakana to Hiragana."""
+    if not text: return ''
+    return "".join(chr(ord(c) - 96) if "\u30a1" <= c <= "\u30f6" else c for c in text)
 
 def analyze_batch_japanese(texts, priority='mazii_offline'):
     """Segment a batch of texts and count lemma frequencies using Sudachi."""
@@ -188,3 +221,49 @@ def analyze_batch_japanese(texts, priority='mazii_offline'):
     # Return as list of dicts with count
     return [{'lemma': lemma, 'count': count, 'reading': '', 'meanings': [], 'source': 'offline'} 
             for lemma, count in counts.items()]
+def get_definitions_for_terms(terms, priority=None):
+    """Batch query definitions for a list of terms (strings)."""
+    dict_paths = get_dict_paths()
+    
+    # Explicit Priority Order
+    dict_order = ['mazii_offline', 'javidict', 'suge', 'jamdict']
+    order = []
+    if priority in dict_order:
+        order.append(priority)
+    for d in dict_order:
+        if d not in order and d in dict_paths:
+            order.append(d)
+    for d in dict_paths:
+        if d not in order:
+            order.append(d)
+            
+    results = []
+    for term in terms:
+        item_result = None
+        source = 'none'
+        
+        for d_name in order:
+            res = query_offline_dict(dict_paths[d_name], term)
+            if res:
+                item_result = res
+                source = d_name
+                break
+        
+        if item_result:
+            meanings = item_result.get('meanings', [])
+            results.append({
+                'word': term,
+                'reading': item_result.get('reading', ''),
+                'meanings': meanings,
+                'definition': ', '.join(meanings) if meanings else 'No definition found offline.',
+                'source': source
+            })
+        else:
+            results.append({
+                'word': term,
+                'reading': '',
+                'meanings': [],
+                'definition': 'No definition found offline.',
+                'source': 'none'
+            })
+    return results

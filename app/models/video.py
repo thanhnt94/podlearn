@@ -20,6 +20,7 @@ class Video(db.Model):
     
     thumbnail_url = db.Column(db.String(500))
     duration_seconds = db.Column(db.Integer)
+    language_code = db.Column(db.String(10), default='en') # e.g., 'ja', 'en', 'vi'
     status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
