@@ -2045,6 +2045,22 @@ def clear_all_tokens():
     db.session.commit()
     return jsonify({"success": True})
 
+@api_bp.route('/vocab/tokens/clear', methods=['DELETE'])
+@login_required
+def clear_line_tokens():
+    """Remove manual segmentation for a specific line in a lesson."""
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    line_index = data.get('line_index')
+    
+    if lesson_id is None or line_index is None:
+        return jsonify({"error": "Missing parameters"}), 400
+    
+    from app.modules.study.models import SentenceToken
+    SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
+    db.session.commit()
+    return jsonify({"success": True})
+
 # --- Video Management (Admin/Collaborator) ---
 
 @api_bp.route('/video/<int:video_id>/admin-data', methods=['GET'])

@@ -6,6 +6,54 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { soundEffects } from '../../services/SoundEffectsService';
 
+const TokenEditChip = ({ token, isLast, onMerge, onDelete, onClick }: any) => {
+    const isSkip = token.lemma_override === 'skip';
+
+    return (
+        <div 
+            onClick={onClick}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl group relative transition-all duration-300 border cursor-pointer ${
+                isSkip 
+                ? 'bg-slate-900/40 border-white/5 opacity-50 scale-95' 
+                : 'bg-slate-900 border-white/10 hover:border-amber-500/40 hover:shadow-[0_0_20px_rgba(245,158,11,0.1)]'
+            }`}
+        >
+            <div className="min-w-[30px] px-1 flex flex-col items-center">
+                <span className={`text-sm font-bold tracking-tight transition-colors ${isSkip ? 'text-slate-500' : 'text-amber-200 group-hover:text-white'}`}>
+                    {token.surface}
+                </span>
+                {token.lemma_override && token.lemma_override !== 'skip' && (
+                    <span className="text-[9px] text-amber-500/40 font-black uppercase tracking-widest -mt-0.5">
+                        {token.lemma_override}
+                    </span>
+                )}
+                {isSkip && (
+                    <span className="text-[8px] text-rose-500/60 font-black uppercase tracking-[0.2em] -mt-0.5">SKIP</span>
+                )}
+            </div>
+
+            <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
+                {!isLast && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onMerge(); }} 
+                        className="p-1.5 text-slate-500 hover:text-sky-400 hover:bg-sky-400/10 rounded-lg transition-all"
+                        title="Merge with next"
+                    >
+                        <GripVertical size={14} />
+                    </button>
+                )}
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(); }} 
+                    className="p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
+                    title="Remove token"
+                >
+                    <X size={14} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export const LearningFocusBar: React.FC = () => {
     const { 
         analyzedWords, 
@@ -25,6 +73,29 @@ export const LearningFocusBar: React.FC = () => {
     const [isEditing, setIsEditing] = React.useState(false);
     const [editTokens, setEditTokens] = React.useState<any[]>([]);
     const [isScanningGlobal, setIsScanningGlobal] = React.useState(false);
+
+    const [editingIdx, setEditingIdx] = React.useState<number | null>(null);
+    const [editValue, setEditValue] = React.useState('');
+    const [editSkip, setEditSkip] = React.useState(false);
+
+    const openEditor = (idx: number) => {
+        const token = editTokens[idx];
+        setEditingIdx(idx);
+        setEditValue(token.surface);
+        setEditSkip(token.lemma_override === 'skip');
+    };
+
+    const applyTokenChanges = () => {
+        if (editingIdx === null) return;
+        const newTokens = [...editTokens];
+        newTokens[editingIdx] = { 
+            ...newTokens[editingIdx], 
+            surface: editValue.trim(), 
+            lemma_override: editSkip ? 'skip' : (newTokens[editingIdx].lemma_override === 'skip' ? null : newTokens[editingIdx].lemma_override)
+        };
+        setEditTokens(newTokens);
+        setEditingIdx(null);
+    };
 
     // Tooltip State
     const [hoveredToken, setHoveredToken] = React.useState<{word: any, rect: DOMRect} | null>(null);
@@ -264,34 +335,82 @@ export const LearningFocusBar: React.FC = () => {
                     <div className="w-full h-full overflow-y-auto no-scrollbar px-16 flex items-center justify-center">
                         <div className="flex flex-wrap items-end justify-center gap-x-3 gap-y-4 py-4">
                             {isEditing ? (
-                                <div className="flex flex-wrap items-center justify-center gap-3 p-4 bg-amber-500/5 rounded-2xl border border-amber-500/20 w-full">
+                                <div className="flex flex-wrap items-center justify-center gap-3 p-4 bg-amber-500/5 rounded-2xl border border-amber-500/20 w-full relative">
                                     {editTokens.map((token, i) => (
-                                        <div key={i} className="flex flex-col gap-1 px-2 py-1 bg-slate-900 border border-amber-500/20 rounded-lg group">
-                                            <div className="flex items-center gap-2">
-                                                <input 
-                                                    type="text" 
-                                                    value={token.surface} 
-                                                    onChange={(e) => {
-                                                        const newTokens = [...editTokens];
-                                                        newTokens[i] = { ...newTokens[i], surface: e.target.value };
-                                                        setEditTokens(newTokens);
-                                                    }}
-                                                    className="bg-transparent text-sm font-bold text-amber-200 outline-none w-16 text-center"
-                                                />
-                                                {i < editTokens.length - 1 && (
-                                                    <button onClick={() => handleMergeTokens(i)} className="text-slate-600 hover:text-sky-400">
-                                                        <GripVertical size={12} />
-                                                    </button>
-                                                )}
-                                                <button onClick={() => setEditTokens(editTokens.filter((_, idx) => idx !== i))} className="text-slate-600 hover:text-red-500">
-                                                    <X size={12} />
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <TokenEditChip 
+                                            key={i}
+                                            token={token}
+                                            isLast={i === editTokens.length - 1}
+                                            onClick={() => openEditor(i)}
+                                            onMerge={() => handleMergeTokens(i)}
+                                            onDelete={() => setEditTokens(editTokens.filter((_, idx) => idx !== i))}
+                                        />
                                     ))}
-                                    <button onClick={resetEditing} className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 hover:text-white transition-colors">
+                                    <button onClick={resetEditing} className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 hover:text-white transition-colors ml-4">
                                         <RotateCcw size={12} /> Reset
                                     </button>
+
+                                    {/* MODAL EDITOR OVERLAY */}
+                                    {createPortal(
+                                        <AnimatePresence>
+                                            {editingIdx !== null && (
+                                                <motion.div 
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[2000] flex items-center justify-center p-4"
+                                                    onClick={() => setEditingIdx(null)}
+                                                >
+                                                    <motion.div 
+                                                        initial={{ scale: 0.9, y: 20 }}
+                                                        animate={{ scale: 1, y: 0 }}
+                                                        className="bg-slate-900 border border-white/10 rounded-[40px] p-10 shadow-2xl w-full max-w-md flex flex-col gap-8"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <div className="flex justify-between items-center">
+                                                            <h2 className="text-white text-xl font-black uppercase tracking-[0.2em]">Edit Word</h2>
+                                                            <button 
+                                                                onClick={() => setEditSkip(!editSkip)}
+                                                                className={`px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                                                                    editSkip ? 'bg-rose-500 text-white' : 'bg-white/5 text-slate-500 hover:bg-white/10'
+                                                                }`}
+                                                            >
+                                                                {editSkip ? 'Skipped' : 'Skip this word'}
+                                                            </button>
+                                                        </div>
+
+                                                        <input 
+                                                            autoFocus
+                                                            type="text"
+                                                            value={editValue}
+                                                            onChange={(e) => setEditValue(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') applyTokenChanges();
+                                                                if (e.key === 'Escape') setEditingIdx(null);
+                                                            }}
+                                                            className="bg-slate-950 border border-white/5 text-3xl font-black text-amber-200 px-8 py-6 rounded-[30px] outline-none text-center focus:border-amber-500/40 transition-all shadow-inner"
+                                                        />
+
+                                                        <div className="flex gap-4">
+                                                            <button 
+                                                                onClick={applyTokenChanges}
+                                                                className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-5 rounded-[25px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-amber-500/20"
+                                                            >
+                                                                Save Changes
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setEditingIdx(null)}
+                                                                className="px-8 bg-white/5 hover:bg-white/10 text-white font-black py-5 rounded-[25px] uppercase tracking-[0.2em] transition-all"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </motion.div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>,
+                                        document.body
+                                    )}
                                 </div>
                             ) : (
                                 <AnimatePresence mode="popLayout">
@@ -341,7 +460,11 @@ export const LearningFocusBar: React.FC = () => {
                         <div className="bg-gradient-to-b from-white/5 to-transparent p-8 pb-4">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="space-y-1">
-                                    <h4 className="text-3xl font-black text-white tracking-tight">{hoveredToken.word.surface}</h4>
+                                    <h4 className="text-3xl font-black text-white tracking-tight">
+                                        {hoveredToken.word.lemma && hoveredToken.word.lemma !== 'skip' 
+                                            ? hoveredToken.word.lemma 
+                                            : hoveredToken.word.surface}
+                                    </h4>
                                     <div className="flex items-center gap-3">
                                         <span className="text-[11px] text-sky-400 font-black tracking-widest uppercase bg-sky-400/10 px-2.5 py-1 rounded-lg border border-sky-400/20">
                                             {hoveredToken.word.reading || '...'}

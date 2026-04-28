@@ -225,11 +225,15 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
             
             best_pos = "名詞"
             best_reading = res.get('reading', '')
+            best_lemma = surface
             
             for t in token_pos_map:
                 if t['start'] >= start and t['end'] <= end:
                     best_pos = t['pos']
                     if not best_reading: best_reading = t['reading']
+                    # Use the lemma of the first token in the match as the "dictionary form"
+                    if t['start'] == start:
+                        best_lemma = t['lemma']
             
             # Check if this dictionary match should be dimmed
             is_polite_ending = surface in SKIP_WORDS or best_pos in SKIP_POS
@@ -241,8 +245,8 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
             final_results.append({
                 'surface': surface,
                 'original': surface,
-                'lemma': 'skip' if is_polite_ending else surface,
-                'word': 'skip' if is_polite_ending else surface,
+                'lemma': 'skip' if is_polite_ending else best_lemma,
+                'word': 'skip' if is_polite_ending else best_lemma,
                 'reading': best_reading,
                 'furigana': furigana,
                 'pos': '助詞' if is_polite_ending else best_pos,

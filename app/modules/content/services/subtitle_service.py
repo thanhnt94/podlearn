@@ -24,13 +24,16 @@ YT_CACHE_TTL = 3600 # 1 hour
 
 def _get_ytdlp_opts(extra_opts=None):
     """Centralized yt-dlp options with cookies."""
-    # Robust path resolution: find run_podlearn.py location
+    # Robust path resolution: find project root
     current_file = os.path.abspath(__file__)
-    # Go up from app/services/subtitle_service.py to the root PodLearn folder
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+    # Go up from app/modules/content/services/subtitle_service.py to PodLearn root (5 levels)
+    base_dir = current_file
+    for _ in range(5):
+        base_dir = os.path.dirname(base_dir)
+    
     cookie_path = os.path.join(base_dir, 'youtube_cookies.txt')
 
-    print(f"\n[YT-CONFIG] Base Dir detected: {base_dir}")
+    print(f"\n[YT-CONFIG] Project Root detected: {base_dir}")
     print(f"[YT-CONFIG] Checking for cookies at: {cookie_path}")
 
     opts = {
@@ -42,7 +45,6 @@ def _get_ytdlp_opts(extra_opts=None):
         'connect_timeout': 5,
         'extractor_args': {
             'youtube': {
-                # Removing explicit client overrides to let yt-dlp use its full internal logic
                 'skip': [] 
             }
         },
@@ -55,9 +57,10 @@ def _get_ytdlp_opts(extra_opts=None):
         'ignoreerrors': True,
         'ignore_no_formats_error': True,
         'noplaylist': True,
-        'check_formats': False,                 # CRITICAL: Don't verify video formats (fixes 'Format not available')
-        'listsubtitles': True,                  # Force retrieval of metadata
-        'writesubtitles': True,                 # Ensure they are available in info dict
+        'check_formats': False,
+        'listsubtitles': True,
+        'writesubtitles': True,
+        'writeautomaticsub': True,              # CRITICAL: Include auto-generated subs
         'prefer_ffmpeg': True,
         'youtube_include_dash_manifest': True,
         'youtube_include_hls_manifest': True,
