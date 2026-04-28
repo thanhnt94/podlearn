@@ -180,7 +180,7 @@ def save_gemini_settings():
 @login_required
 @admin_required
 def get_gemini_models():
-    from ..services.ai_service import list_available_models
+    from ..modules.content.services.ai_service import list_available_models
     models = list_available_models()
     return jsonify({'success': True, 'models': models})
 
@@ -188,7 +188,7 @@ def get_gemini_models():
 @login_required
 @admin_required
 def trigger_ai_analysis(video_id):
-    from ..services.ai_service import generate_full_video_analysis
+    from ..modules.content.services.ai_service import generate_full_video_analysis
     
     video = Video.query.get_or_404(video_id)
     # Get the Japanese track (assuming priority for analysis)

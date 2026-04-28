@@ -18,9 +18,20 @@ class SoundEffectsService {
         return SoundEffectsService.instance;
     }
 
-    public play(type: 'success' | 'failure' | 'pop' | 'ding'): void {
+    public vibrate(pattern: number | number[]): void {
+        if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(pattern);
+        }
+    }
+
+    public play(type: 'success' | 'failure' | 'pop' | 'ding' | 'levelup'): void {
         if (!this.audioContext) return;
         
+        // Trigger haptic for certain types
+        if (type === 'success' || type === 'levelup') this.vibrate(20);
+        if (type === 'failure') this.vibrate([20, 50, 20]);
+        if (type === 'pop') this.vibrate(10);
+
         const oscillator = this.audioContext.createOscillator();
         const gainNode = this.audioContext.createGain();
 
@@ -64,6 +75,17 @@ class SoundEffectsService {
                 gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
                 oscillator.start(now);
                 oscillator.stop(now + 0.3);
+                break;
+            case 'levelup':
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(261.63, now); // C4
+                oscillator.frequency.exponentialRampToValueAtTime(523.25, now + 0.1);
+                oscillator.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
+                oscillator.frequency.exponentialRampToValueAtTime(1046.50, now + 0.4); // C6
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                oscillator.start(now);
+                oscillator.stop(now + 0.6);
                 break;
         }
     }

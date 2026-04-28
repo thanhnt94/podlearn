@@ -1,6 +1,6 @@
 from flask import Blueprint, redirect, url_for, request, flash, current_app, session
 from flask_login import login_user, logout_user, current_user
-from ..services.sso_service import SSOService
+from ..modules.identity.services.sso_service import SSOService
 
 auth_center_bp = Blueprint('auth_center', __name__, url_prefix='/auth-center')
 

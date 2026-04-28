@@ -2,22 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     X, Palette, Save, Check, Clock, StickyNote, 
     Globe, Download, Trash2, RefreshCw, Upload, ExternalLink, 
-    Layers, Info, Lightbulb
+    Layers, Info, Lightbulb, ShieldCheck, UserPlus, Lock, Unlock,
+    Languages, Edit3, Shield, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
 
-type MainTab = 'display' | 'notes' | 'library' | 'social';
+type MainTab = 'display' | 'notes' | 'library' | 'social' | 'project';
 interface YTTrack { lang_code: string; name: string; is_auto: boolean; }
 
 export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
     const { 
         settings, setTrackSettings, setNoteSettings,
-        availableTracks, trackIds, setTrackIds, setAvailableTracks,
         lessonId, videoId, aiInsights,
         ttsTrackSource, setTTSTrackSource,
-        saveAsDefaultPreferences, setLessonData
+        saveAsDefaultPreferences,
+        availableTracks, setAvailableTracks, fetchAvailableTracks, translateTrack, exportTrack, updateTrackName,
+        trackIds, setTrackIds
     } = usePlayerStore();
 
     const [activeMainTab, setActiveMainTab] = useState<MainTab>('display');
@@ -36,6 +38,16 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const [ytTracks, setYtTracks] = useState<YTTrack[]>([]);
     const [uploadLang, setUploadLang] = useState('en');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [adminData, setAdminData] = useState<{
+        title: string;
+        language_code: string;
+        visibility: string;
+        collaborators: { user_id: number; username: string; role: string }[];
+    } | null>(null);
+    const [isLoadingAdmin, setIsLoadingAdmin] = useState(false);
+    const [collabUsername, setCollabUsername] = useState('');
+    const [editingTrackId, setEditingTrackId] = useState<number | null>(null);
+    const [editTrackName, setEditTrackName] = useState('');
 
     const refreshAvailableTracks = async () => {
         if (!lessonId) return;
@@ -87,14 +99,6 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         } catch (err) { alert("Upload failed."); } finally { setIsUploading(false); }
     };
 
-    const handleDeleteTrack = async (id: number) => {
-        if (!confirm("Delete track?")) return;
-        try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.delete(`/api/subtitles/${id}`, { headers: { 'X-CSRF-Token': data.csrf_token } });
-            await refreshAvailableTracks();
-        } catch (err) { console.error(err); }
-    };
 
     const handleSaveSettings = async () => {
         if (!lessonId) return;
@@ -118,16 +122,70 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         } catch (err) { alert("Failed to save global default."); } finally { setIsSavingGlobal(false); }
     };
 
+    const fetchAdminData = async () => {
+        if (!videoId) return;
+        setIsLoadingAdmin(true);
+        try {
+            const res = await axios.get(`/api/video/${videoId}/admin-data`);
+            setAdminData(res.data);
+            await fetchAvailableTracks();
+        } catch (err) { console.error(err); } finally { setIsLoadingAdmin(false); }
+    };
+
+    const handleUpdateMetadata = async (updates: any) => {
+        if (!videoId) return;
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.post(`/api/video/${videoId}/metadata`, updates, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            setAdminData(prev => prev ? { ...prev, ...updates } : null);
+        } catch (err) { alert("Update failed."); }
+    };
+
     const handleResetToGlobalDefault = async () => {
         if (!confirm("Revert this video's styles to your global default?")) return;
         try {
             const res = await axios.get('/api/user/preferences');
-            setLessonData({ global_preferences: res.data, settings_json: "{}" });
+            usePlayerStore.getState().setLessonData({ global_preferences: res.data, settings_json: "{}" });
         } catch (err) { console.error(err); }
+    };
+
+    const handleAddCollaborator = async () => {
+        if (!videoId || !collabUsername) return;
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.post(`/api/video/${videoId}/collaborators/add`, { username: collabUsername }, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            setCollabUsername('');
+            await fetchAdminData();
+        } catch (err) { alert("User not found or already added."); }
+    };
+
+    const handleRemoveCollaborator = async (uid: number) => {
+        if (!videoId || !confirm("Remove collaborator?")) return;
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.post(`/api/video/${videoId}/collaborators/remove`, { user_id: uid }, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            await fetchAdminData();
+        } catch (err) { console.error(err); }
+    };
+
+    const handleSaveTrackName = async (tid: number) => {
+        await updateTrackName(tid, editTrackName);
+        setEditingTrackId(null);
+    };
+
+
+    const handleDeleteTrack = async (tid: number) => {
+        if (!confirm("!!! DELETE TRACK !!!\n\nThis will permanently remove this subtitle file. Are you sure?")) return;
+        try {
+            const data = (window as any).__PODLEARN_DATA__;
+            await axios.delete(`/api/subtitles/${tid}`, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            await fetchAvailableTracks();
+        } catch (err) { alert("Failed to delete track."); }
     };
 
     useEffect(() => {
         if (activeMainTab === 'library' && isOpen) fetchYoutubeSources();
+        if (activeMainTab === 'project' && isOpen) fetchAdminData();
     }, [activeMainTab, isOpen]);
 
     // Categories UI
@@ -136,6 +194,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         { id: 'notes', label: 'Notes', icon: <StickyNote size={20} /> },
         { id: 'library', label: 'Library', icon: <Globe size={20} /> },
         { id: 'social', label: 'Social', icon: <Layers size={20} /> },
+        { id: 'project', label: 'Project', icon: <ShieldCheck size={20} /> },
     ];
 
     return (
@@ -224,7 +283,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                                         </optgroup>
                                                                     )}
                                                                     <optgroup label="Standard Tracks">
-                                                                        {availableTracks.map(t => <option key={t.id} value={t.id}>{t.language_code.toUpperCase()} ({t.uploader_name})</option>)}
+                                                                        {availableTracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                                                     </optgroup>
                                                                 </select>
                                                             </div>
@@ -471,7 +530,10 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                            <div className="grid gap-3">
                                                {availableTracks.map(t => (
                                                    <div key={t.id} className="group bg-white/5 border border-white/5 rounded-2xl p-4 flex items-center justify-between hover:bg-white/10 transition-all">
-                                                       <div><div className="text-xs font-bold text-white uppercase">{t.language_code}</div><div className="text-[9px] text-slate-600 tracking-tight">{t.uploader_name} • {t.line_count} lines</div></div>
+                                                       <div>
+                                                           <div className="text-xs font-bold text-white uppercase">{t.name || t.language_code}</div>
+                                                           <div className="text-[9px] text-slate-600 tracking-tight">{t.uploader_name} • {t.line_count} lines</div>
+                                                       </div>
                                                        <button onClick={() => handleDeleteTrack(t.id)} className="p-2 opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all"><Trash2 size={16} /></button>
                                                    </div>
                                                ))}
@@ -630,6 +692,183 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                 </div>
                                             </div>
                                        </section>
+                                   </motion.div>
+                               )}
+
+                               {activeMainTab === 'project' && (
+                                   <motion.div key="project" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-8 pb-20">
+                                       {isLoadingAdmin ? (
+                                           <div className="py-20 text-center"><RefreshCw className="animate-spin mx-auto text-slate-700" /></div>
+                                       ) : adminData ? (
+                                           <>
+                                               <section className="bg-white/5 rounded-[2.5rem] p-6 border border-white/5 space-y-6">
+                                                   <div className="flex items-center gap-3">
+                                                       <ShieldCheck className="text-sky-400" size={20} />
+                                                       <h3 className="text-sm font-bold text-white uppercase tracking-tight">Project Governance</h3>
+                                                   </div>
+
+                                                   <div className="space-y-4">
+                                                       <div className="space-y-2">
+                                                           <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Video Title</label>
+                                                           <input 
+                                                               type="text" value={adminData.title} 
+                                                               onChange={(e) => setAdminData({ ...adminData, title: e.target.value })}
+                                                               onBlur={() => handleUpdateMetadata({ title: adminData.title })}
+                                                               className="w-full bg-slate-950 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:border-sky-500/50 outline-none text-white"
+                                                           />
+                                                       </div>
+
+                                                       <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-2">
+                                                                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Native Language</label>
+                                                                <select 
+                                                                    value={adminData.language_code} 
+                                                                    onChange={(e) => handleUpdateMetadata({ language_code: e.target.value })}
+                                                                    className="w-full bg-slate-950 border border-white/10 rounded-2xl px-4 py-3 text-xs focus:border-sky-500/50 outline-none text-white appearance-none"
+                                                                >
+                                                                    <option value="ja">Japanese</option>
+                                                                    <option value="en">English</option>
+                                                                    <option value="vi">Vietnamese</option>
+                                                                    <option value="zh">Chinese</option>
+                                                                    <option value="ko">Korean</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Discovery Status</label>
+                                                                <button 
+                                                                    onClick={() => handleUpdateMetadata({ visibility: adminData.visibility === 'public' ? 'private' : 'public' })}
+                                                                    className={`w-full py-3 rounded-2xl text-[10px] font-black uppercase border transition-all flex items-center justify-center gap-2 ${adminData.visibility === 'public' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-white/10'}`}
+                                                                >
+                                                                    {adminData?.visibility === 'public' ? <><Unlock size={14}/> Public</> : <><Lock size={14}/> Private</>}
+                                                                </button>
+                                                            </div>
+                                                       </div>
+                                                   </div>
+                                               </section>
+
+                                               <section className="bg-white/5 rounded-[2.5rem] p-6 border border-white/5 space-y-6">
+                                                   <div className="flex items-center justify-between">
+                                                       <div className="flex items-center gap-3">
+                                                           <Globe className="text-sky-400" size={20} />
+                                                           <h3 className="text-sm font-bold text-white uppercase tracking-tight">Subtitle Tracks</h3>
+                                                       </div>
+                                                       <span className="text-[10px] text-slate-500 font-black">{(availableTracks || []).length} Available</span>
+                                                   </div>
+
+                                                   <div className="space-y-3">
+                                                       {(availableTracks || []).map(track => {
+                                                            const isTranslating = track.status === 'translating';
+                                                            const progressPercent = track.total_lines > 0 ? Math.round((track.progress / track.total_lines) * 100) : 0;
+                                                            
+                                                            return (
+                                                                <div key={track.id} className="bg-slate-950/50 rounded-2xl p-4 border border-white/5 space-y-3">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex-1 min-w-0">
+                                                                            {editingTrackId === track.id ? (
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <input 
+                                                                                        autoFocus value={editTrackName} onChange={e => setEditTrackName(e.target.value)}
+                                                                                        className="bg-black border border-sky-500/50 text-xs px-2 py-1 rounded w-full outline-none text-white"
+                                                                                    />
+                                                                                    <button onClick={() => handleSaveTrackName(track.id)} className="text-emerald-500"><Check size={14}/></button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className={`text-xs font-bold truncate ${track.is_original ? 'text-sky-400' : 'text-slate-200'}`}>{track.name}</span>
+                                                                                    {track.is_original && <Shield size={10} className="text-sky-500/50" />}
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="text-[9px] text-slate-500 font-black uppercase mt-1">{track.language_code} • By {track.uploader_name}</div>
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-1">
+                                                                            {['s1', 's2', 's3'].map(slot => (
+                                                                                <button
+                                                                                    key={slot}
+                                                                                    onClick={() => setTrackIds({ [slot]: track.id })}
+                                                                                    className={`px-2 py-1 rounded text-[8px] font-black uppercase transition-all ${trackIds[slot as keyof typeof trackIds] === track.id ? 'bg-sky-500 text-slate-950' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                                                                                >
+                                                                                    {slot}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                                                                        <div className="flex gap-2">
+                                                                            <button onClick={() => { setEditingTrackId(track.id); setEditTrackName(track.name); }} className="p-1.5 text-slate-500 hover:text-white"><Edit3 size={14}/></button>
+                                                                            <button onClick={() => translateTrack(track.id, 'vi', `${track.name} (VN)`)} className="p-1.5 text-sky-500 hover:bg-sky-500/10 rounded-lg"><Languages size={14}/></button>
+                                                                            <button onClick={() => exportTrack(track.id, 'srt')} className="p-1.5 text-slate-500 hover:text-white"><FileText size={14}/></button>
+                                                                        </div>
+                                                                        <button onClick={() => handleDeleteTrack(track.id)} className="p-1.5 text-slate-700 hover:text-red-500"><Trash2 size={14}/></button>
+                                                                    </div>
+
+                                                                    {isTranslating && (
+                                                                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                                            <div className="h-full bg-sky-500 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                       })}
+                                                   </div>
+                                               </section>
+
+                                               <section className="bg-sky-500/5 rounded-[2.5rem] p-6 border border-sky-500/10 space-y-6">
+                                                   <div className="flex items-center justify-between">
+                                                       <div className="flex items-center gap-2">
+                                                           <UserPlus className="text-sky-400" size={16} />
+                                                           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Collaborators</h3>
+                                                       </div>
+                                                       <span className="text-[10px] font-mono text-sky-400/60">{(adminData?.collaborators || []).length} Members</span>
+                                                   </div>
+
+                                                   <div className="flex gap-2">
+                                                       <input 
+                                                           type="text" placeholder="Username..." value={collabUsername}
+                                                           onChange={(e) => setCollabUsername(e.target.value)}
+                                                           className="flex-1 bg-black/40 border border-white/5 rounded-xl px-4 py-2 text-xs outline-none focus:border-sky-500/30"
+                                                       />
+                                                       <button onClick={handleAddCollaborator} className="px-4 py-2 bg-sky-500 text-slate-950 rounded-xl text-[10px] font-black uppercase active:scale-95 transition-all">Add</button>
+                                                   </div>
+
+                                                   <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                                                       {(adminData?.collaborators || []).map(c => (
+                                                           <div key={c.user_id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
+                                                               <div className="flex items-center gap-3">
+                                                                   <div className="w-6 h-6 bg-sky-500/20 rounded-lg flex items-center justify-center text-[10px] font-black text-sky-400">{c.username[0].toUpperCase()}</div>
+                                                                   <span className="text-xs font-medium text-slate-200">{c.username}</span>
+                                                               </div>
+                                                               <button onClick={() => handleRemoveCollaborator(c.user_id)} className="p-1.5 text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
+                                                           </div>
+                                                       ))}
+                                                   </div>
+                                               </section>
+
+                                               <section className="p-6 bg-red-500/5 rounded-[2.5rem] border border-red-500/10 space-y-4">
+                                                   <div className="flex items-center gap-2 text-red-400">
+                                                       <Trash2 size={16} />
+                                                       <h4 className="text-[10px] font-black uppercase tracking-widest">Danger Zone</h4>
+                                                   </div>
+                                                   <p className="text-[9px] text-slate-600 leading-relaxed">Permanently delete this project. This action is irreversible and affects all students.</p>
+                                                   <button 
+                                                        onClick={async () => {
+                                                            if (confirm("!!! PERMANENT GLOBAL DELETE !!!\n\nAre you sure?")) {
+                                                                const data = (window as any).__PODLEARN_DATA__;
+                                                                await axios.delete(`/api/video/${videoId}`, { headers: { 'X-CSRF-Token': data.csrf_token } });
+                                                                onClose();
+                                                                window.location.href = '/';
+                                                            }
+                                                        }}
+                                                        className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-2xl text-[10px] font-black uppercase transition-all"
+                                                   >
+                                                       Wipe Project Global
+                                                   </button>
+                                               </section>
+                                           </>
+                                       ) : (
+                                           <div className="py-20 text-center text-slate-500 text-xs">Permission Denied</div>
+                                       )}
                                    </motion.div>
                                )}
                            </AnimatePresence>

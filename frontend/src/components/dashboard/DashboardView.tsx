@@ -5,6 +5,7 @@ import {
     Flame, Search, 
     ArrowUpRight, Sparkles, Bell
 } from 'lucide-react';
+import { InviteManagerModal } from './InviteManagerModal';
 
 export const DashboardView: React.FC = () => {
     const { 
@@ -12,6 +13,8 @@ export const DashboardView: React.FC = () => {
         fetchDashboard, deleteLesson, deleteVideoGlobal,
         toggleVideoVisibility
     } = useAppStore();
+
+    const [isInboxOpen, setIsInboxOpen] = React.useState(false);
 
     useEffect(() => {
         fetchDashboard();
@@ -74,7 +77,10 @@ export const DashboardView: React.FC = () => {
                                 <p className="text-xs text-indigo-200/60 font-medium">Collaborate on podcasts with your peers and tutors.</p>
                             </div>
                         </div>
-                        <button className="px-6 py-3 bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all flex items-center gap-2">
+                        <button 
+                            onClick={() => setIsInboxOpen(true)}
+                            className="px-6 py-3 bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all flex items-center gap-2"
+                        >
                             Review Inbox <ArrowUpRight size={14} />
                         </button>
                     </div>
@@ -121,6 +127,12 @@ export const DashboardView: React.FC = () => {
                     </div>
                 </section>
             </div>
+
+            <InviteManagerModal 
+                isOpen={isInboxOpen} 
+                onClose={() => setIsInboxOpen(false)} 
+                invites={notifications} 
+            />
         </div>
     );
 };

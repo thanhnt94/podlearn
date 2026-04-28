@@ -77,9 +77,9 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes.import_handler import import_bp
     from .routes.share_routes import share_bp
     from .routes.tracking import tracking_bp
-    from .routes.community import community_bp
+    # from .routes.community import community_bp (REMOVED: Moved to modular engagement)
     from .routes.handsfree_routes import handsfree_bp
-    from .routes.subtitle_api import subtitle_api_bp
+    # from .routes.subtitle_api import subtitle_api_bp (REMOVED: Moved to modular content)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -92,9 +92,9 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(import_bp)
     app.register_blueprint(share_bp)
     app.register_blueprint(tracking_bp, url_prefix='/api/tracking')
-    app.register_blueprint(community_bp, url_prefix='/api/community')
+    # app.register_blueprint(community_bp, url_prefix='/api/community') (REMOVED: Moved to modular engagement)
     app.register_blueprint(handsfree_bp, url_prefix='/api/handsfree')
-    app.register_blueprint(subtitle_api_bp)
+    # app.register_blueprint(subtitle_api_bp) (REMOVED: Moved to modular content)
     
     # ── Modular Monolith Initialization ────────────────────────
     from .modules.identity import setup_module as setup_identity
@@ -359,7 +359,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
         # 4. Seed Default Badges
         try:
-            from .services.gamification_service import GamificationService
+            from .modules.engagement.services.gamification_service import GamificationService
             GamificationService.seed_default_badges()
         except Exception as e:
             app.logger.error(f"Failed to seed badges: {e}")

@@ -1,2 +1,3 @@
-﻿class DefaultConfig:
+class DefaultConfig:
+    """Study module configuration."""
     pass

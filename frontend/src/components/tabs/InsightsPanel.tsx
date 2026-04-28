@@ -97,10 +97,17 @@ export const InsightsPanel: React.FC = () => {
                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
                     <Sparkles size={16} className="text-white" />
                  </div>
-                 <div>
+                  <div>
                     <h2 className="text-white font-black text-sm uppercase tracking-widest text-[11px]">AI Sentence Analysis</h2>
-                    <p className="text-slate-500 text-[9px] font-bold uppercase tracking-wider">Shadowing Learning Flow</p>
-                 </div>
+                    <div className="flex items-center gap-2">
+                        <p className="text-slate-500 text-[9px] font-bold uppercase tracking-wider">Shadowing Learning Flow</p>
+                        {currentInsight?.grammar?.includes('[MOCK]') && (
+                            <span className="px-2 py-0.5 bg-amber-500/20 text-amber-500 text-[8px] font-black uppercase tracking-tighter rounded-md border border-amber-500/30 animate-pulse">
+                                Mock Mode
+                            </span>
+                        )}
+                    </div>
+                  </div>
             </div>
 
             <div className="flex-1 flex flex-col overflow-hidden p-6">

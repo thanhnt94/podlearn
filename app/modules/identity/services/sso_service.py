@@ -1,8 +1,8 @@
 from flask import current_app, session
-from ..extensions import db
+from app.extensions import db
 from app.modules.identity.models import User
 from app.modules.engagement.models import AppSetting
-from ..utils.sso_helper import EcosystemAuth
+from app.utils.sso_helper import EcosystemAuth
 
 class SSOService:
     """

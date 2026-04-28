@@ -1,7 +1,7 @@
 import re
 import difflib
 import pykakasi
-from ..extensions import db
+from app.extensions import db
 from app.modules.study.models import Lesson
 from app.modules.engagement.models import ShadowingHistory
 

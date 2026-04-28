@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from ..extensions import db
 from app.modules.content.models import Video
 from app.modules.study.models import Lesson
-from ..services.youtube_service import extract_video_id, fetch_video_info
+from ..modules.content.services.youtube_service import extract_video_id, fetch_video_info
 from app.modules.study.models import Sentence, SentenceSet
 
 dashboard_bp = Blueprint('dashboard', __name__)

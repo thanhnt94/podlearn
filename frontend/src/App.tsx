@@ -11,6 +11,16 @@ import { SetListView, SetDetailView } from './components/dashboard/PlaylistViews
 import { FlashcardReview } from './components/mastery/FlashcardReview';
 
 import { PlayerErrorBoundary } from './components/common/PlayerErrorBoundary';
+import axios from 'axios';
+
+// Global Axios Config for CSRF
+axios.interceptors.request.use((config) => {
+  const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token;
+  if (csrfToken && ['post', 'put', 'delete', 'patch'].includes(config.method || '')) {
+    config.headers['X-CSRF-Token'] = csrfToken;
+  }
+  return config;
+});
 
 // Wrapper for Sets to handle list vs detail
 const SetsWrapper: React.FC = () => {

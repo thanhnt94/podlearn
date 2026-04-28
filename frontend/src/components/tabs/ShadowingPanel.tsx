@@ -31,12 +31,12 @@ export const ShadowingPanel: React.FC = () => {
     const pendingEvalRef = useRef(false);
     const autoNextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const activeLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
+    const activeLine = (activeLineIndex !== -1 && subtitles) ? subtitles[activeLineIndex] : null;
 
     // Stats lookup: Python backend uses str(round(float(start_time), 3))
     // which produces "12.3" not "12.300", so we match that behavior
     const statsKey = activeLine ? String(Math.round(activeLine.start * 1000) / 1000) : '';
-    const currentStats = shadowingStats[statsKey] || { count: 0, avg: 0, best: 0 };
+    const currentStats = (shadowingStats && shadowingStats[statsKey]) || { count: 0, avg: 0, best: 0 };
 
     // ─── INIT: Speech Recognition & Shadowing Mode ──────────────────
     useEffect(() => {
@@ -172,7 +172,7 @@ export const ShadowingPanel: React.FC = () => {
     const handleNextSentence = () => {
         const { subtitles, activeLineIndex } = usePlayerStore.getState();
         setShadowingResult(null);
-        if (activeLineIndex < subtitles.length - 1) {
+        if (subtitles && activeLineIndex < subtitles.length - 1) {
             const nextLine = subtitles[activeLineIndex + 1];
             requestSeek(nextLine.start, activeLineIndex + 1);
             // Small delay to let the seek complete before playing

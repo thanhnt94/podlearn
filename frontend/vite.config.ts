@@ -13,9 +13,9 @@ export default defineConfig({
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
       output: {
-        entryFileNames: `assets/[name]-v16.js`,
-        chunkFileNames: `assets/[name]-v16.js`,
-        assetFileNames: `assets/[name]-v16.[ext]`
+        entryFileNames: `assets/[name]-v22.js`,
+        chunkFileNames: `assets/[name]-v22.js`,
+        assetFileNames: `assets/[name]-v22.[ext]`
       }
     },
   },

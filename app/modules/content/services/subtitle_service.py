@@ -10,8 +10,9 @@ import time
 import webvtt
 import yt_dlp
 
-from ..extensions import db
+from app.extensions import db
 from app.modules.content.models import SubtitleTrack
+from deep_translator import GoogleTranslator
 
 logger = logging.getLogger(__name__)
 
@@ -336,10 +337,13 @@ def get_subtitle_track(video_id: int, youtube_id: str, language_code: str) -> Su
         # 3) Save to DB
         track = cached  
         if not track:
+            base_name = f"{language_code.upper()}_Original"
             track = SubtitleTrack(
                 video_id=video_id,
                 language_code=language_code,
                 is_auto_generated=True,
+                is_original=True,
+                name=generate_unique_track_name(video_id, base_name)
             )
             db.session.add(track)
             db.session.flush()
@@ -354,10 +358,74 @@ def get_subtitle_track(video_id: int, youtube_id: str, language_code: str) -> Su
         logger.error(f'Failed to save fetched subtitles for {youtube_id}/{language_code}: {e}')
         return None
 
+def generate_unique_track_name(video_id: int, base_name: str) -> str:
+    """Ensure a subtitle track name is unique for a given video."""
+    existing_names = {t.name for t in SubtitleTrack.query.filter_by(video_id=video_id).all()}
+    if base_name not in existing_names:
+        return base_name
+    
+    counter = 1
+    new_name = f"{base_name} ({counter})"
+    while new_name in existing_names:
+        counter += 1
+        new_name = f"{base_name} ({counter})"
+    return new_name
+
+def translate_track_content(track_id: int, target_lang: str = 'vi', source_lang: str = 'auto'):
+    """Translate all lines in a track line-by-line in background."""
+    from app.extensions import db
+    from app.modules.content.models import SubtitleTrack
+    import threading
+    
+    def _run_translation(tid, t_lang, s_lang):
+        with db.app.app_context():
+            track = SubtitleTrack.query.get(tid)
+            if not track or not track.content_json:
+                return
+            
+            lines = track.content_json
+            track.total_lines = len(lines)
+            track.status = 'translating'
+            db.session.commit()
+            
+            translator = GoogleTranslator(source=s_lang, target=t_lang)
+            translated_lines = []
+            
+            # Process line by line to keep timelines 100% intact
+            for i, line in enumerate(lines):
+                try:
+                    text = line.get('text', '').strip()
+                    if text:
+                        # Single line translation as requested
+                        t_text = translator.translate(text)
+                    else:
+                        t_text = ""
+                    
+                    new_line = dict(line)
+                    new_line['text'] = t_text
+                    translated_lines.append(new_line)
+                    
+                    # Update progress every 5 lines to reduce DB load
+                    if i % 5 == 0 or i == len(lines) - 1:
+                        track.progress = i + 1
+                        db.session.commit()
+                except Exception as e:
+                    logger.error(f"Translation error at line {i}: {e}")
+                    # Fallback to original text if error
+                    translated_lines.append(dict(line))
+            
+            track.content_json = translated_lines
+            track.status = 'completed'
+            track.progress = len(lines)
+            db.session.commit()
+
+    # Start thread
+    thread = threading.Thread(target=_run_translation, args=(track_id, target_lang, source_lang))
+    thread.daemon = True
+    thread.start()
+
 def get_lines_as_dicts(track: SubtitleTrack) -> list[dict]:
-    """Convert a track's lines to a list of dicts for JSON response. 
-    Uses content_json field.
-    """
+    # ... existing implementation ...
     if track.content_json and len(track.content_json) > 0:
         return [
             {
@@ -371,3 +439,74 @@ def get_lines_as_dicts(track: SubtitleTrack) -> list[dict]:
         ]
 
     return []
+
+def translate_track_content(lines: list[dict], target_lang: str = 'vi', source_lang: str = 'auto') -> list[dict]:
+    """Translate all lines in a track using Google Translate."""
+    if not lines:
+        return []
+    
+    translator = GoogleTranslator(source=source_lang, target=target_lang)
+    translated_lines = []
+    
+    # Process in chunks to avoid API limits (approx 4000 chars per request)
+    chunk_text = []
+    chunk_indices = []
+    current_length = 0
+    
+    for i, line in enumerate(lines):
+        text = line.get('text', '')
+        if current_length + len(text) > 3500:
+            # Translate current chunk
+            batch_result = translator.translate_batch(chunk_text)
+            for idx, t_text in zip(chunk_indices, batch_result):
+                new_line = dict(lines[idx])
+                new_line['text'] = t_text
+                translated_lines.append(new_line)
+            
+            chunk_text = []
+            chunk_indices = []
+            current_length = 0
+            
+        chunk_text.append(text)
+        chunk_indices.append(i)
+        current_length += len(text)
+        
+    if chunk_text:
+        batch_result = translator.translate_batch(chunk_text)
+        for idx, t_text in zip(chunk_indices, batch_result):
+            new_line = dict(lines[idx])
+            new_line['text'] = t_text
+            translated_lines.append(new_line)
+            
+    # Re-sort just in case
+    translated_lines.sort(key=lambda x: x.get('start', 0))
+    return translated_lines
+
+def export_track_to_string(track: SubtitleTrack, format: str = 'srt') -> str:
+    """Export a subtitle track to SRT or VTT string."""
+    lines = track.content_json
+    if not lines:
+        return ""
+    
+    def format_time(seconds, is_vtt=False):
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = seconds % 60
+        ms = int((s - int(s)) * 1000)
+        sep = '.' if is_vtt else ','
+        return f"{h:02}:{m:02}:{int(s):02}{sep}{ms:03}"
+
+    output = []
+    if format == 'vtt':
+        output.append("WEBVTT\n")
+        for i, line in enumerate(lines):
+            start = format_time(line['start'], True)
+            end = format_time(line['end'], True)
+            output.append(f"{start} --> {end}\n{line['text']}\n")
+    else: # Default SRT
+        for i, line in enumerate(lines):
+            start = format_time(line['start'], False)
+            end = format_time(line['end'], False)
+            output.append(f"{i+1}\n{start} --> {end}\n{line['text']}\n")
+            
+    return "\n".join(output)

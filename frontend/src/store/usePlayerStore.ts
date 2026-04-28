@@ -62,6 +62,16 @@ interface PlayerState {
   shadowingResult: any | null;
   
   availableTracks: any[];
+  trackMetadata: {
+    s1: any;
+    s2: any;
+    s3: any;
+  };
+  
+  fetchAvailableTracks: () => Promise<void>;
+  translateTrack: (trackId: number, targetLang: string, name: string) => Promise<void>;
+  exportTrack: (trackId: number, format: 'srt' | 'vtt') => Promise<void>;
+  updateTrackName: (trackId: number, name: string) => Promise<void>;
   trackIds: {
     s1: number | string | null;
     s2: number | string | null;
@@ -98,6 +108,7 @@ interface PlayerState {
     enabled: boolean;
   };
   lastSeekTime: number;
+  subtitleWorker: Worker | null;
   isSeeking: boolean; // NEW: Lock for navigation
   
   isNativeCCOn: boolean; // NEW: YouTube Native CC Toggle
@@ -235,6 +246,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   volume: 100,
   isLockedPaused: false,
   lastSeekTime: 0,
+  subtitleWorker: null,
   isSeeking: false,
   isNativeCCOn: false,
   nativeCCLang: 'ja',
@@ -292,6 +304,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   shadowingStats: {},
 
   availableTracks: [],
+  trackMetadata: { s1: null, s2: null, s3: null },
   trackIds: { s1: null, s2: null, s3: null, ai: null },
   aiInsights: [],
   aiStatus: 'empty',
@@ -540,10 +553,30 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
         try {
             const r = await axios.get(`/api/subtitles/fetch/${state.lessonId}`, { params: { track_id: tid } });
-            set({ [trackKey]: r.data.lines || [] } as any);
-            if (trackKey === 's1Lines') {
-                set({ subtitles: r.data.lines || [] });
+            
+            // Fetch track metadata
+            const metaRes = await axios.get(`/api/subtitles/video/${state.lessonId}`);
+            const meta = metaRes.data.find((t: any) => t.id === tid);
+            set(state => ({
+                trackMetadata: { ...state.trackMetadata, [trackKey]: meta }
+            }));
+
+            // Use Web Worker for processing
+            let worker = get().subtitleWorker;
+            if (!worker) {
+                worker = new Worker(new URL('../workers/subtitleWorker.ts', import.meta.url), { type: 'module' });
+                set({ subtitleWorker: worker });
             }
+
+            worker.postMessage({ type: 'PARSE_SUBTITLES', data: { rawJson: r.data.lines || [] } });
+            worker.onmessage = (e) => {
+                if (e.data.type === 'PARSE_SUBTITLES_COMPLETE') {
+                    set({ [trackKey]: e.data.data } as any);
+                    if (trackKey === 's1Lines') {
+                        set({ subtitles: e.data.data });
+                    }
+                }
+            };
         } catch (e) { console.error(`Failed to fetch ${trackKey}`, e); }
     };
 
@@ -792,10 +825,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const { lessonId, fetchAnalyzedWords, subtitles, activeLineIndex } = get();
     if (!lessonId) return;
     try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
         await axios.post('/api/vocab/generate-all', { 
             lesson_id: lessonId, 
             priority: priority || 'mazii_offline' 
-        });
+        }, { headers: { 'X-CSRF-Token': csrfToken } });
         set({ hasTokens: true });
         // Refresh analysis for current line if needed
         const currentLine = subtitles[activeLineIndex];
@@ -811,12 +845,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const { lessonId, activeLineIndex } = get();
     if (!text || activeLineIndex === -1) return;
     try {
+      const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
       const res = await axios.post('/api/video/analyze-sentence', { 
         text, 
         lang, 
         lesson_id: lessonId,
         active_line_index: activeLineIndex
-      });
+      }, { headers: { 'X-CSRF-Token': csrfToken } });
       set({ 
         analyzedWords: res.data.words || [],
         isManualAnalysis: res.data.is_manual || false,
@@ -1003,5 +1038,41 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         console.error("Failed to save settings", err);
         throw err;
     }
+  },
+
+  fetchAvailableTracks: async () => {
+    const { lessonId } = get();
+    if (!lessonId) return;
+    try {
+        const res = await axios.get(`/api/subtitles/video/${lessonId}`);
+        set({ availableTracks: res.data });
+        
+        // If any track is translating, poll again in 3s
+        const hasTranslating = res.data.some((t: any) => t.status === 'translating');
+        if (hasTranslating) {
+            setTimeout(() => get().fetchAvailableTracks(), 3000);
+        }
+    } catch (e) { console.error("Failed to fetch tracks", e); }
+  },
+  translateTrack: async (trackId, targetLang, name) => {
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        await axios.post(`/api/subtitles/${trackId}/translate`, { target_lang: targetLang, name }, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+        await get().fetchAvailableTracks();
+    } catch (e) { console.error("Translation failed", e); alert("Translation failed"); }
+  },
+  exportTrack: async (trackId, format) => {
+    window.open(`/api/subtitles/${trackId}/export?format=${format}`, '_blank');
+  },
+  updateTrackName: async (trackId, name) => {
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        await axios.patch(`/api/subtitles/${trackId}`, { name }, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+        await get().fetchAvailableTracks();
+    } catch (e) { console.error("Update failed", e); }
   }
 }));

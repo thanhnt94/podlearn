@@ -13,6 +13,8 @@ interface AnalyzedVocab {
     meanings: string[];
     source?: string;
     timestamp: number;
+    surface?: string;
+    definition?: string;
 }
 
 interface SavedVocab {
@@ -51,7 +53,8 @@ export const VocabPanel: React.FC = () => {
     const [newTerm, setNewTerm] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [dictPriority, setDictPriority] = useState<DictPriority>('mazii_offline');
-    const [activeSubTab, setActiveSubTab] = useState<'live' | 'all'>('live');
+    const [activeSubTab, setActiveSubTab] = useState<'live' | 'analysis' | 'all'>('live');
+    const [analysisData, setAnalysisData] = useState<any[]>([]);
     const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
     const [isScanning, setIsScanning] = useState(false);
     const currentLineStartRef = useRef<number>(0);
@@ -104,7 +107,8 @@ export const VocabPanel: React.FC = () => {
 
     useEffect(() => {
         fetchSavedVocab();
-    }, [lessonId, dictPriority]); 
+        fetchAnalysis();
+    }, [lessonId, dictPriority]);
 
     // DEBOUNCED SAVE for Reordering
     useEffect(() => {
@@ -131,14 +135,16 @@ export const VocabPanel: React.FC = () => {
         setIsAnalyzing(true);
 
         try {
+            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             const response = await axios.post('/api/vocab/analyze', { 
                 text, 
                 priority: priority === 'edit_segments' ? 'mazii_offline' : priority,
                 lesson_id: lessonId,
                 line_index: activeLineIndex,
-                timestamp: currentLineStartRef.current // PASS THE TIME HERE
+                timestamp: currentLineStartRef.current
             }, {
-                signal: abortControllerRef.current.signal
+                signal: abortControllerRef.current.signal,
+                headers: { 'X-CSRF-Token': csrfToken }
             });
             
             if (text !== currentTextRef.current) return;
@@ -185,8 +191,10 @@ export const VocabPanel: React.FC = () => {
     const handleRemoveTerm = async (term: string) => {
         if (!lessonId) return;
         try {
+            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             await axios.delete('/api/vocab/remove', {
-                data: { lesson_id: lessonId, term }
+                data: { lesson_id: lessonId, term },
+                headers: { 'X-CSRF-Token': csrfToken }
             });
             fetchSavedVocab();
         } catch (err) {
@@ -198,6 +206,7 @@ export const VocabPanel: React.FC = () => {
         const noteTimestamp = item.timestamp || 0;
 
         try {
+            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             const response = await axios.post(`/api/vocab/add`, {
                 lesson_id: lessonId,
                 term: item.lemma,
@@ -205,7 +214,7 @@ export const VocabPanel: React.FC = () => {
                 definition: Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings,
                 example: item.original,
                 timestamp: noteTimestamp
-            });
+            }, { headers: { 'X-CSRF-Token': csrfToken } });
             
             fetchSavedVocab();
             
@@ -293,11 +302,22 @@ export const VocabPanel: React.FC = () => {
         setLocalVocab(newVocabList);
     };
 
+    const fetchAnalysis = async () => {
+        if (!lessonId) return;
+        try {
+            const res = await axios.get(`/api/vocab/lesson/${lessonId}/analysis`, {
+                params: { priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority }
+            });
+            setAnalysisData(res.data.analysis || []);
+        } catch (e) { console.error("Failed to fetch analysis", e); }
+    };
+
     const handleScanFullLesson = async () => {
         if (!lessonId) return;
         setIsScanning(true);
         try {
             await usePlayerStore.getState().scanFullLesson(dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority);
+            await fetchAnalysis();
             await fetchSavedVocab();
         } catch (err) {
             console.error("Scan failed", err);
@@ -308,10 +328,11 @@ export const VocabPanel: React.FC = () => {
 
     const handleResetSegments = async () => {
         if (!lessonId) return;
-        if (!confirm("Reset segmentation for this line to default?")) return;
         try {
+            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             await axios.delete('/api/vocab/tokens/clear', {
-                data: { lesson_id: lessonId, line_index: activeLineIndex }
+                data: { lesson_id: lessonId, line_index: activeLineIndex },
+                headers: { 'X-CSRF-Token': csrfToken }
             });
             const line = s1Lines[activeLineIndex];
             if (line) analyzeSentence(line.text, dictPriority);
@@ -325,7 +346,11 @@ export const VocabPanel: React.FC = () => {
         if (!confirm("Are you sure you want to reset ALL segments to default for this entire lesson? This cannot be undone.")) return;
         
         try {
-            await axios.delete('/api/vocab/tokens/clear-all', { data: { lesson_id: lessonId } });
+            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+            await axios.delete('/api/vocab/tokens/clear-all', { 
+                data: { lesson_id: lessonId },
+                headers: { 'X-CSRF-Token': csrfToken }
+            });
             // Re-fetch current line to reflect changes
             const line = s1Lines[activeLineIndex];
             if (line) analyzeSentence(line.text, dictPriority);
@@ -337,11 +362,13 @@ export const VocabPanel: React.FC = () => {
     const saveTokens = async (tokens: string[]) => {
         if (!lessonId) return;
         try {
+            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             await axios.post('/api/vocab/tokens/save', {
                 lesson_id: lessonId,
                 line_index: activeLineIndex,
                 tokens
-            });
+            }, { headers: { 'X-CSRF-Token': csrfToken } });
+            
             const line = s1Lines[activeLineIndex];
             if (line) {
                 const response = await axios.post('/api/vocab/analyze', { 
@@ -349,7 +376,7 @@ export const VocabPanel: React.FC = () => {
                     priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority,
                     lesson_id: lessonId,
                     line_index: activeLineIndex
-                });
+                }, { headers: { 'X-CSRF-Token': csrfToken } });
                 
                 const stableData: AnalyzedVocab[] = response.data.map((item: any, idx: number) => ({
                     ...item,
@@ -396,10 +423,16 @@ export const VocabPanel: React.FC = () => {
                         <Activity size={14} /> Live
                     </button>
                     <button 
+                        onClick={() => setActiveSubTab('analysis')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSubTab === 'analysis' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <Zap size={14} /> Analysis
+                    </button>
+                    <button 
                         onClick={() => setActiveSubTab('all')}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSubTab === 'all' ? 'bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/20' : 'text-slate-500 hover:text-slate-300'}`}
                     >
-                        <Book size={14} /> All Vocab
+                        <Book size={14} /> Saved
                     </button>
                 </div>
 
@@ -632,6 +665,97 @@ export const VocabPanel: React.FC = () => {
                                     </AnimatePresence>
                                 </div>
                             </>
+                        )}
+                    </div>
+                </section>
+            ) : activeSubTab === 'analysis' ? (
+                <section className="space-y-4 px-1">
+                    <button 
+                        onClick={handleScanFullLesson}
+                        disabled={isScanning}
+                        className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all border shadow-2xl ${
+                            isScanning 
+                            ? 'bg-slate-900 border-white/5 text-slate-600 cursor-not-allowed' 
+                            : 'bg-gradient-to-r from-amber-600 to-orange-600 border-white/10 text-white hover:scale-[1.02] active:scale-[0.98] shadow-amber-500/20'
+                        }`}
+                    >
+                        {isScanning ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Analyzing Full Lesson...
+                            </>
+                        ) : (
+                            <>
+                                <Zap size={16} fill="currentColor" />
+                                Run Full Lesson Analysis
+                            </>
+                        )}
+                    </button>
+
+                    <div className="space-y-2">
+                        {analysisData.length > 0 ? (
+                            <div className="bg-slate-950/40 rounded-3xl border border-white/5 overflow-hidden">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-white/5">
+                                            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-500">Word</th>
+                                            <th className="px-2 py-3 text-[9px] font-black uppercase tracking-widest text-slate-500 text-center">Freq</th>
+                                            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-500">Definition</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.02]">
+                                        {analysisData.map((v, idx) => (
+                                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-bold text-white">{v.term}</span>
+                                                        <span className="text-[10px] text-slate-600">[{v.reading}]</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-2 py-3 text-center">
+                                                    <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full text-[10px] font-black border border-amber-500/20">
+                                                        x{v.count || 1}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col gap-1">
+                                                        <p className="text-[11px] text-slate-400 line-clamp-1 group-hover:line-clamp-none transition-all">{v.definition}</p>
+                                                        <div className="flex items-center gap-1">
+                                                            {getBadge(v.source) && (
+                                                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${getBadge(v.source).color}`}>
+                                                                    {getBadge(v.source).text}
+                                                                </span>
+                                                            )}
+                                                            <button 
+                                                                onClick={() => handleSaveToVocab({
+                                                                    lemma: v.term,
+                                                                    reading: v.reading,
+                                                                    meanings: [v.definition],
+                                                                    original: '',
+                                                                    surface: v.term,
+                                                                    id: `analysis-${idx}`,
+                                                                    timestamp: 0,
+                                                                    pos: '',
+                                                                    definition: v.definition,
+                                                                    source: v.source
+                                                                })}
+                                                                className="ml-auto opacity-0 group-hover:opacity-100 p-1 text-sky-500 hover:text-sky-400 transition-all"
+                                                            >
+                                                                <Plus size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="py-24 text-center bg-slate-900/20 rounded-3xl border-2 border-dashed border-white/5">
+                                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">No analysis data yet</p>
+                                <p className="text-[9px] text-slate-800 mt-2">Click the button above to scan the transcript</p>
+                            </div>
                         )}
                     </div>
                 </section>

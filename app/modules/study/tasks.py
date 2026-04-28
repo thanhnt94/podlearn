@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 @shared_task(queue='podlearn_tasks')
 def generate_tts_background(sentence_id: int):
     # This task will call the TTS service logic
-    from app.services.tts_service import GoogleTTSProvider
+    from app.modules.content.services.tts_service import GoogleTTSProvider
     try:
         sentence = Sentence.query.get(sentence_id)
         if not sentence or sentence.audio_url:
@@ -28,7 +28,7 @@ def batch_generate_ai_insights():
     """
     Cronjob task to automatically generate AI insights for pending tracks.
     """
-    from app.services.ai_service import AIService
+    from app.modules.content.services.ai_service import AIService
     
     # Process up to 5 pending tracks per batch
     pending_tracks = AIInsightTrack.query.filter_by(status='pending').limit(5).all()

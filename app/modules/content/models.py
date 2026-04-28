@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 from app.extensions import db
 
 playlist_items = db.Table('playlist_items',
@@ -18,6 +18,17 @@ class Playlist(db.Model):
 
     owner = db.relationship('User', backref='playlists')
     videos = db.relationship('Video', secondary=playlist_items, back_populates='playlists')
+
+class VideoCollaborator(db.Model):
+    __tablename__ = 'video_collaborators'
+    id = db.Column(db.Integer, primary_key=True)
+    video_id = db.Column(db.Integer, db.ForeignKey('videos.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    role = db.Column(db.String(20), default='editor') # editor, manager
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref='video_collaborations')
+    __table_args__ = (db.UniqueConstraint('video_id', 'user_id', name='_video_user_collaborator_uc'),)
 
 class Video(db.Model):
     __tablename__ = 'videos'
@@ -41,6 +52,7 @@ class Video(db.Model):
     owner = db.relationship('User', backref='uploaded_videos')
     playlists = db.relationship('Playlist', secondary=playlist_items, back_populates='videos')
     subtitle_tracks = db.relationship('SubtitleTrack', back_populates='video', lazy='dynamic', cascade='all, delete-orphan')
+    collaborators = db.relationship('VideoCollaborator', backref='video', lazy='dynamic', cascade='all, delete-orphan')
 
 class SubtitleTrack(db.Model):
     __tablename__ = 'subtitle_tracks'
@@ -54,6 +66,11 @@ class SubtitleTrack(db.Model):
     
     uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     uploader_name = db.Column(db.String(50), default="Bot")
+    name = db.Column(db.String(100), nullable=True) # e.g. "Bản dịch của Thanh"
+    is_original = db.Column(db.Boolean, default=False) 
+    status = db.Column(db.String(20), default='pending') # pending, translating, completed, error
+    progress = db.Column(db.Integer, default=0)
+    total_lines = db.Column(db.Integer, default=0)
     content_json = db.Column(db.JSON, nullable=True)
     note = db.Column(db.String(255), nullable=True)
 

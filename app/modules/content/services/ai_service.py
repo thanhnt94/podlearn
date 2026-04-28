@@ -6,7 +6,7 @@ import time
 import google.generativeai as genai
 from app.modules.engagement.models import AppSetting
 from app.modules.study.models import AIInsightTrack, AIInsightItem
-from ..extensions import db
+from app.extensions import db
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,10 @@ def list_available_models():
 
 def generate_video_summary(transcript_text, target_lang='vi', model_name='gemini-2.0-flash'):
     """Generates an overall summary of the video content."""
+    from app.utils.feature_flags import get_ai_mode
+    if get_ai_mode() == 'mock':
+        return f"[MOCK SUMMARY] Tóm tắt nội dung video ({target_lang}). Đây là bản tóm tắt giả lập để tiết kiệm chi phí AI."
+
     api_key, cfg_model = get_gemini_config()
     model_name = cfg_model or model_name
     if not api_key or not transcript_text:
@@ -158,6 +162,20 @@ def _run_analysis_logic(video_id, transcript_lines, lang):
 
 def analyze_single_line(track_id, subtitle_index, text, start_time=0, end_time=0, target_lang='vi'):
     """Analyze a single sentence on demand."""
+    from app.utils.feature_flags import get_ai_mode
+    if get_ai_mode() == 'mock':
+        logger.info(f"AI Mock mode: Skipping real analysis for line {subtitle_index}")
+        return {
+            'short_explanation': f"[MOCK] Giải thích cho: {text}",
+            'grammar_analysis': "Đây là dữ liệu giả lập để kiểm soát chi phí. Tính năng phân tích chuyên sâu sẽ sớm được kích hoạt.",
+            'key_vocabulary': "* Từ mới 1: Ý nghĩa\n* Từ mới 2: Ý nghĩa",
+            'nuance_style': "Lịch sự / Trang trọng",
+            'similar_sentences': "1. Câu tương tự 1\n2. Câu tương tự 2",
+            'cultural_context': "Thông tin văn hoá giả lập.",
+            'memory_hack': "Mẹo ghi nhớ giả lập.",
+            'common_mistakes': "Các lỗi thường gặp giả lập."
+        }
+
     api_key, model_name = get_gemini_config()
     if not api_key or not text:
         return None

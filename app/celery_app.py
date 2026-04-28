@@ -10,7 +10,6 @@ def celery_init_app(app):
         app.name, 
         task_cls=FlaskTask,
         include=[
-            'app.tasks',
             'app.modules.study.tasks',
             'app.modules.content.tasks'
         ]

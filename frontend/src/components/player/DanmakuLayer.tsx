@@ -7,8 +7,10 @@ interface BulletComment {
     content: string;
     avatar: string;
     username: string;
+    role: string;
     top: number; // Vertical position in percent
     startTime: number;
+    speed: number;
 }
 
 export const DanmakuLayer: React.FC = () => {
@@ -37,13 +39,34 @@ export const DanmakuLayer: React.FC = () => {
                     !seenMap.current.has(c.id)) {
                     
                     seenMap.current.add(c.id);
+                    
+                    // Simple Lane Selection (Collision Avoidance)
+                    const now = Date.now();
+                    let selectedLane = 0;
+                    let minTime = Infinity;
+                    
+                    for (let i = 0; i < 10; i++) {
+                        const lastTime = (window as any)[`__lane_${i}`] || 0;
+                        if (lastTime < now) {
+                            selectedLane = i;
+                            break;
+                        }
+                        if (lastTime < minTime) {
+                            minTime = lastTime;
+                            selectedLane = i;
+                        }
+                    }
+                    (window as any)[`__lane_${selectedLane}`] = now + 4000; // Block lane for 4s
+
                     newBullets.push({
                         id: c.id,
                         content: c.content,
                         avatar: c.user.avatar_url,
                         username: c.user.username,
-                        top: Math.random() * 60 + 10,
-                        startTime: Date.now()
+                        role: c.user.role || 'free',
+                        top: 10 + (selectedLane * 8),
+                        startTime: now,
+                        speed: 8 + Math.random() * 8 // Random speed between 8-16s
                     });
                 }
             });
@@ -78,17 +101,20 @@ export const DanmakuLayer: React.FC = () => {
                 {bullets.map(bullet => (
                     <motion.div
                         key={bullet.id}
-                        initial={mode === 'danmaku' ? { x: '-50vw', opacity: 1 } : { y: -20, opacity: 0, x: '-50%' }}
-                        animate={mode === 'danmaku' ? { x: '110vw' } : { y: 20, opacity: 1, x: '-50%' }}
+                        initial={mode === 'danmaku' ? { x: '100vw', opacity: 1 } : { y: -20, opacity: 0, x: '-50%' }}
+                        animate={mode === 'danmaku' ? { x: '-150vw' } : { y: 20, opacity: 1, x: '-50%' }}
                         exit={{ opacity: 0 }}
-                        transition={mode === 'danmaku' ? { duration: 12, ease: 'linear' } : { duration: 0.5 }}
+                        transition={mode === 'danmaku' ? { duration: bullet.speed, ease: 'linear' } : { duration: 0.5 }}
                         style={{ 
                             top: mode === 'danmaku' ? `${bullet.top}%` : '5%',
                             left: mode === 'fixed' ? '50%' : 'auto',
                             opacity: opacity
                         }}
-                        className={`absolute whitespace-nowrap flex items-center gap-3 bg-slate-900/95 backdrop-blur-md border border-white/20 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.6)] ${
-                            mode === 'danmaku' ? 'px-4 py-2 border-l-sky-500 border-l-4' : 'px-6 py-3 border-b-emerald-500 border-b-2'
+                        className={`absolute whitespace-nowrap flex items-center gap-3 bg-slate-950/90 backdrop-blur-xl border border-white/10 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] transition-all ${
+                            bullet.role === 'admin' ? 'ring-2 ring-rose-500/50 shadow-rose-500/20' : 
+                            bullet.role === 'vip' ? 'ring-2 ring-amber-500/50 shadow-amber-500/20' : ''
+                        } ${
+                            mode === 'danmaku' ? 'px-4 py-2' : 'px-6 py-3 border-b-sky-500 border-b-2'
                         }`}
                     >
                         <img 
@@ -97,7 +123,11 @@ export const DanmakuLayer: React.FC = () => {
                             className="w-8 h-8 rounded-full border border-white/30 object-cover shadow-sm" 
                         />
                         <div className="flex flex-col">
-                            <span className="text-[9px] font-black text-sky-400 uppercase tracking-wider leading-none mb-1">{bullet.username}</span>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <span className="text-[9px] font-black text-sky-400 uppercase tracking-wider leading-none">{bullet.username}</span>
+                                {bullet.role === 'admin' && <span className="bg-rose-500 text-white text-[7px] px-1 rounded font-black uppercase tracking-tighter">Staff</span>}
+                                {bullet.role === 'vip' && <span className="bg-amber-500 text-slate-950 text-[7px] px-1 rounded font-black uppercase tracking-tighter">VIP</span>}
+                            </div>
                             <span 
                                 className="font-bold text-white leading-none tracking-tight"
                                 style={{ fontSize: `${fontSize}rem` }}

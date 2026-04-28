@@ -6,6 +6,8 @@ import { SubtitleOverlay } from './SubtitleOverlay';
 import { VideoControls } from './VideoControls';
 import { NoteOverlay } from './NoteOverlay';
 import { DanmakuLayer } from './DanmakuLayer';
+import { useSwipe } from '../../hooks/useSwipe';
+import { soundEffects } from '../../services/SoundEffectsService';
 
 // Add global type for YT
 declare global {
@@ -23,7 +25,8 @@ export const VideoSection: React.FC = () => {
   
   const { 
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
-    volume, playbackRate, isLockedPaused, isNativeCCOn, nativeCCLang, originalLang
+    volume, setVolume, playbackRate, isLockedPaused, isNativeCCOn, nativeCCLang, originalLang,
+    requestSeek
   } = usePlayerStore();
 
   const [isReady, setIsReady] = React.useState(false);
@@ -199,10 +202,59 @@ export const VideoSection: React.FC = () => {
         className="absolute inset-0 w-full h-full"
       />
       
-      {/* Click-to-toggle overlay (Play/Pause) */}
+      {/* Gesture / Interaction Layer */}
       <div 
         className="absolute inset-0 cursor-pointer z-10" 
-        onClick={() => setPlaying(!isPlaying)}
+        onClick={(e) => {
+            const now = Date.now();
+            const lastTap = (window as any).__lastTap || 0;
+            const delta = now - lastTap;
+            (window as any).__lastTap = now;
+
+            if (delta < 300) {
+                // Double tap
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                if (x < rect.width / 3) {
+                    // Left 1/3: Seek back
+                    soundEffects.vibrate(20);
+                    requestSeek(usePlayerStore.getState().currentTime - 5);
+                } else if (x > (rect.width * 2) / 3) {
+                    // Right 1/3: Seek forward
+                    soundEffects.vibrate(20);
+                    requestSeek(usePlayerStore.getState().currentTime + 5);
+                } else {
+                    // Center: Fullscreen toggle or something else
+                    setPlaying(!isPlaying);
+                }
+            } else {
+                // Single tap
+                setTimeout(() => {
+                    if (Date.now() - (window as any).__lastTap >= 300) {
+                        setPlaying(!isPlaying);
+                    }
+                }, 300);
+            }
+        }}
+        {...useSwipe({
+            onSwipeLeft: () => {
+                soundEffects.vibrate(30);
+                requestSeek(usePlayerStore.getState().currentTime - 10);
+            },
+            onSwipeRight: () => {
+                soundEffects.vibrate(30);
+                requestSeek(usePlayerStore.getState().currentTime + 10);
+            },
+            onSwipeUp: () => {
+                soundEffects.vibrate(10);
+                setVolume(Math.min(100, volume + 10));
+            },
+            onSwipeDown: () => {
+                soundEffects.vibrate(10);
+                setVolume(Math.max(0, volume - 10));
+            },
+            threshold: 60
+        })}
       />
 
       {/* Central Feedback Icon (Flash) */}

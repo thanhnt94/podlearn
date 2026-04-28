@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    BookOpen, Mic2, FileText, MessageSquare, 
-    ArrowLeft, Settings, Check, Sparkles, Users, RefreshCw, MoveHorizontal,
+    Mic2, FileText, MessageSquare, BookOpen,
+    ArrowLeft, Settings, Check, Sparkles, RefreshCw, MoveHorizontal,
     Lock, CreditCard, Scissors
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +22,7 @@ import { LearningFocusBar } from './LearningFocusBar';
 import { VocabStudio } from './VocabStudio';
 import { useSwipe } from '../../hooks/useSwipe';
 
-type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights' | 'community';
+type TabType = 'study' | 'practice' | 'insights';
 
 interface PlayerViewProps {
   initialStudioMode?: boolean;
@@ -30,7 +30,7 @@ interface PlayerViewProps {
 
 export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('transcript');
+  const [activeTab, setActiveTab] = useState<TabType>('study');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isSyncStudioOpen = initialStudioMode;
   const [isResizing, setIsResizing] = useState(false);
@@ -99,23 +99,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
   const renderPanel = () => {
     switch (activeTab) {
-      case 'transcript': return <TranscriptBody />;
-      case 'shadowing': return <ShadowingPanel />;
-      case 'notes': return <NotesPanel />;
-      case 'vocab': return <VocabPanel />;
-      case 'insights': return <InsightsPanel />;
-      case 'community': return <CommunityPanel />;
-      default: return <TranscriptBody />;
+      case 'study': return <StudyPanelGroup />;
+      case 'practice': return <PracticePanel />;
+      case 'insights': return <InsightsPanelGroup />;
+      default: return <StudyPanelGroup />;
     }
   };
 
   const tabs = [
-    { id: 'transcript', label: 'Transcript', icon: FileText },
-    { id: 'shadowing', label: 'Shadowing', icon: Mic2 },
-    { id: 'notes', label: 'Notes', icon: MessageSquare },
-    { id: 'vocab', label: 'Vocab', icon: BookOpen },
-    { id: 'insights', label: 'AI', icon: Sparkles },
-    { id: 'community', label: 'Social', icon: Users },
+    { id: 'study', label: 'Study', icon: BookOpen },
+    { id: 'practice', label: 'Practice', icon: Mic2 },
+    { id: 'insights', label: 'Insights', icon: Sparkles },
   ];
 
   // Resize Logic
@@ -350,8 +344,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
         style={{ width: window.innerWidth < 768 ? '100%' : `${sidebarWidth}px` }}
         className="flex-1 md:flex-none md:h-full bg-slate-950 border-l border-white/5 flex flex-col shrink-0 overflow-hidden relative"
       >
-          {/* Tabs - Compressed for Mobile Focus */}
-          <div className="flex bg-slate-900/50 p-1 m-2 md:m-4 rounded-xl border border-white/5 gap-1">
+          <div className="flex bg-slate-900/50 p-1 m-2 md:m-4 rounded-xl border border-white/5 gap-1 shrink-0">
               {tabs.map(tab => (
                   <button
                       key={tab.id}
@@ -362,14 +355,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                           : 'text-slate-500 hover:text-slate-300'
                       }`}
                   >
-                      <div className={activeTab === tab.id ? 'scale-110 text-sky-400' : ''}>
-                          <div className="md:hidden">
-                            <tab.icon size={14} />
-                          </div>
-                          <div className="hidden md:block">
-                            <tab.icon size={18} />
-                          </div>
-                      </div>
+                      <tab.icon size={18} strokeWidth={2.5} />
                       <span className="text-[7px] md:text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
                   </button>
               ))}
@@ -430,4 +416,78 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
       </AnimatePresence>
     </div>
   );
+};
+const StudyPanelGroup = () => {
+    const [sub, setSub] = useState<'read' | 'notes'>('read');
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex p-3 gap-2 bg-slate-950/50 border-b border-white/5">
+                <button 
+                    onClick={() => setSub('read')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'read' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    <FileText size={14} /> Transcript
+                </button>
+                <button 
+                    onClick={() => setSub('notes')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'notes' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    <MessageSquare size={14} /> My Notes
+                </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+                {sub === 'read' ? <TranscriptBody /> : <NotesPanel />}
+            </div>
+        </div>
+    );
+};
+
+const PracticePanel = () => {
+    const [sub, setSub] = useState<'shadowing' | 'vocab'>('shadowing');
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex p-3 gap-2 bg-slate-950/50 border-b border-white/5">
+                <button 
+                    onClick={() => setSub('shadowing')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'shadowing' ? 'bg-white text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    Shadowing
+                </button>
+                <button 
+                    onClick={() => setSub('vocab')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'vocab' ? 'bg-amber-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    <Scissors size={14} /> Vocabulary
+                </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+                {sub === 'shadowing' ? <ShadowingPanel /> : <VocabPanel />}
+            </div>
+        </div>
+    );
+};
+
+const InsightsPanelGroup = () => {
+    const [sub, setSub] = useState<'ai' | 'social'>('ai');
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex p-3 gap-2 bg-slate-950/50 border-b border-white/5">
+                <button 
+                    onClick={() => setSub('ai')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'ai' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    AI Analyst
+                </button>
+                <button 
+                    onClick={() => setSub('social')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'social' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    Community
+                </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+                {sub === 'ai' ? <InsightsPanel /> : <CommunityPanel />}
+            </div>
+        </div>
+    );
 };

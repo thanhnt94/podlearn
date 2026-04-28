@@ -1,5 +1,5 @@
 from datetime import datetime, date, timezone, timedelta
-from ..extensions import db
+from app.extensions import db
 from app.modules.engagement.models import Badge, UserBadge
 from app.modules.engagement.models import Notification
 from app.modules.identity.models import User

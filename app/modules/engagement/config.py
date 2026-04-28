@@ -1,2 +1,3 @@
-﻿class DefaultConfig:
+class DefaultConfig:
+    """Engagement module configuration."""
     pass

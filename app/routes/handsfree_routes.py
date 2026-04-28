@@ -23,7 +23,7 @@ def generate_handsfree():
         "lang": "vi"           // target language
     }
     """
-    from ..services.handsfree_service import (
+    from ..modules.content.services.handsfree_service import (
         start_generation_task, _get_cache_key, _get_storage_dir, handsfree_tasks
     )
     from app.modules.content.models import SubtitleTrack
@@ -104,7 +104,7 @@ def generate_handsfree():
 @login_required
 def get_status(task_id):
     """Poll the status of a generation task."""
-    from ..services.handsfree_service import handsfree_tasks
+    from ..modules.content.services.handsfree_service import handsfree_tasks
     
     task = handsfree_tasks.get(task_id)
     if not task:
@@ -133,7 +133,7 @@ def get_status(task_id):
 @login_required
 def check_cache(video_id):
     """Check if a cached handsfree audio exists for this video."""
-    from ..services.handsfree_service import _get_cache_key, _get_storage_dir
+    from ..modules.content.services.handsfree_service import _get_cache_key, _get_storage_dir
     
     lang = request.args.get('lang', 'vi')
     cache_key = _get_cache_key(video_id, 'handsfree', lang)
@@ -160,7 +160,7 @@ def check_cache(video_id):
 @login_required
 def get_original(video_id):
     """Get the original audio URL for the video."""
-    from ..services.handsfree_service import get_original_audio_info
+    from ..modules.content.services.handsfree_service import get_original_audio_info
     
     info = get_original_audio_info(video_id)
     if not info:

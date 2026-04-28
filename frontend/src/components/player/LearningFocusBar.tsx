@@ -1,8 +1,10 @@
 import React from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Type, ExternalLink, Plus, Scissors, RotateCcw, Check, X, Zap, Loader2 } from 'lucide-react';
-import { createPortal } from 'react-dom';import axios from 'axios';
+import { ExternalLink, Plus, Scissors, RotateCcw, Check, X, Zap, Loader2, Languages, GripVertical } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import axios from 'axios';
+import { soundEffects } from '../../services/SoundEffectsService';
 
 export const LearningFocusBar: React.FC = () => {
     const { 
@@ -16,7 +18,8 @@ export const LearningFocusBar: React.FC = () => {
         hasTokens,
         checkScanStatus,
         fetchAnalyzedWords,
-        isManualAnalysis
+        isManualAnalysis,
+        scanFullLesson
     } = usePlayerStore();
 
     const [isEditing, setIsEditing] = React.useState(false);
@@ -50,12 +53,22 @@ export const LearningFocusBar: React.FC = () => {
     };
 
     const handleStartScan = async () => {
+        // Try to get lessonId from store or URL as fallback
+        const effectiveId = lessonId || parseInt(window.location.pathname.split('/').pop() || '0');
+        
+        console.log("Starting scan for lesson:", effectiveId);
+        if (!effectiveId || effectiveId === 0) {
+            console.error("No lessonId found for scan");
+            return;
+        }
+
         setIsScanningGlobal(true);
         try {
-            await usePlayerStore.getState().scanFullLesson('mazii_offline');
-            // After scan, the overlay will disappear automatically
+            await scanFullLesson('mazii_offline');
+            await checkScanStatus();
+            console.log("Scan completed successfully");
         } catch (e) {
-            console.error(e);
+            console.error("Scan error in FocusBar:", e);
         } finally {
             setIsScanningGlobal(false);
         }
@@ -80,6 +93,7 @@ export const LearningFocusBar: React.FC = () => {
                 timestamp: timestamp
             });
             
+            soundEffects.vibrate(50);
             if (response.data.note_id) {
                 const newNote = {
                     id: response.data.note_id,
@@ -88,11 +102,23 @@ export const LearningFocusBar: React.FC = () => {
                     created_at: new Date().toISOString()
                 };
                 addNote(newNote);
-                // Use a custom Toast or simple feedback instead of alert for better UX
             }
         } catch (err) {
             console.error("Save failed", err);
         }
+    };
+
+    const handleMergeTokens = (idx: number) => {
+        if (idx >= editTokens.length - 1) return;
+        const newTokens = [...editTokens];
+        const next = newTokens[idx + 1];
+        newTokens[idx] = {
+            ...newTokens[idx],
+            surface: newTokens[idx].surface + next.surface,
+            lemma_override: null // Reset lemma on merge
+        };
+        newTokens.splice(idx + 1, 1);
+        setEditTokens(newTokens);
     };
 
     const startEditing = () => {
@@ -133,153 +159,173 @@ export const LearningFocusBar: React.FC = () => {
 
     const currentLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
 
+    // AUTO-ANALYZE
+    React.useEffect(() => {
+        if (currentLine && !isManualAnalysis && hasTokens) {
+            fetchAnalyzedWords(currentLine.text, 'ja');
+        }
+    }, [activeLineIndex, hasTokens, isManualAnalysis]);
+
     if (!currentLine) return (
-        <div className="w-full bg-slate-950/80 border-t border-white/5 backdrop-blur-xl px-4 py-2 h-[110px] flex items-center justify-center">
+        <div className="w-full bg-slate-950/80 border-t border-white/5 backdrop-blur-xl px-4 py-2 h-[110px] flex items-center justify-center z-[999]">
             <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Playback idle • Select a line to start analysis</p>
         </div>
     );
 
     return (
-        <div className="w-full bg-slate-950/90 border-t border-white/5 backdrop-blur-3xl px-4 py-1 h-[110px] flex flex-col shadow-[0_-30px_60px_rgba(0,0,0,0.8)] relative transition-all duration-500">
+        <div className="w-full bg-slate-950/90 border-t border-white/5 backdrop-blur-3xl px-4 py-1 h-[110px] flex flex-col shadow-[0_-30px_60px_rgba(0,0,0,0.8)] relative transition-all duration-500 z-[999]">
             
-            {/* NEEDS SCAN OVERLAY */}
-            {!hasTokens && !isManualAnalysis && (
-                <div className="absolute inset-0 z-[110] bg-slate-950/60 backdrop-blur-md flex items-center justify-center group/scan">
-                    <div className="flex flex-col items-center gap-4 p-8 rounded-3xl border border-white/10 bg-slate-900/80 shadow-2xl transition-all group-hover/scan:scale-[1.02]">
-                        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
-                            <Zap size={24} fill="currentColor" />
+            {/* NEEDS SCAN STATE - STATIC FLOW */}
+            {!hasTokens && !isManualAnalysis ? (
+                <div className="w-full h-full flex items-center justify-center">
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex items-center gap-8 px-8 py-4 rounded-3xl border border-amber-500/40 bg-amber-500/5 shadow-2xl backdrop-blur-xl"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                                <Zap size={20} fill="currentColor" />
+                            </div>
+                            <div className="flex flex-col">
+                                <h3 className="text-white font-black text-xs uppercase tracking-widest leading-none">Lesson Scan Required</h3>
+                                <p className="text-slate-400 text-[9px] font-medium mt-1">Enable smart analysis for all lines</p>
+                            </div>
                         </div>
-                        <div className="text-center space-y-1">
-                            <h3 className="text-white font-black text-sm uppercase tracking-widest">Full Scan Required</h3>
-                            <p className="text-slate-400 text-[10px] font-medium">Scan entire lesson in Vocab tab to enable smart phrase analysis.</p>
-                        </div>
+                        
+                        <div className="h-8 w-px bg-white/10" />
+
                         <button 
-                            onClick={handleStartScan}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleStartScan();
+                            }}
                             disabled={isScanningGlobal}
-                            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl ${
+                            className={`px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all shadow-2xl flex items-center gap-3 relative z-[1000] cursor-pointer active:scale-90 active:brightness-125 ${
                                 isScanningGlobal 
                                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
-                                : 'bg-amber-500 text-slate-950 hover:bg-amber-400 hover:scale-105 active:scale-95 shadow-amber-500/20'
+                                : 'bg-amber-500 text-slate-950 hover:bg-amber-400 hover:scale-105 shadow-amber-500/40 border-b-4 border-amber-700'
                             }`}
                         >
                             {isScanningGlobal ? (
-                                <div className="flex items-center gap-2">
-                                    <Loader2 size={14} className="animate-spin" />
-                                    Scanning...
-                                </div>
-                            ) : "Start Scan Now"}
+                                <><Loader2 size={18} className="animate-spin" /> ANALYZING...</>
+                            ) : (
+                                <>START ANALYSIS NOW</>
+                            )}
                         </button>
+                    </motion.div>
+                </div>
+            ) : (
+                <div className="w-full h-full relative flex items-center justify-center">
+                    {/* Left Controls */}
+                    <div className="absolute left-0 flex flex-col gap-1.5">
+                        <button 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleStartScan();
+                            }}
+                            disabled={isScanningGlobal}
+                            className={`p-1.5 rounded-xl transition-all flex items-center justify-center ${
+                                isScanningGlobal 
+                                ? 'text-amber-500 bg-amber-500/10 animate-pulse' 
+                                : 'text-slate-600 hover:text-amber-400 hover:bg-white/10 bg-white/5 border border-white/5'
+                            }`}
+                            title="Re-scan Full Lesson"
+                        >
+                            {isScanningGlobal ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} fill="currentColor" />}
+                        </button>
+                        <button 
+                            onClick={toggleFurigana}
+                            className={`p-3 rounded-2xl transition-all shadow-xl ${
+                                showFurigana 
+                                ? 'text-sky-400 bg-sky-500/20 border border-sky-400/30 shadow-sky-500/20' 
+                                : 'text-slate-500 hover:text-white bg-white/5 border border-white/5'
+                            }`}
+                            title="Toggle Furigana (F)"
+                        >
+                            <Languages size={20} />
+                        </button>
+                    </div>
+
+                    {/* Right Control: Edit Mode */}
+                    <div className="absolute right-0 flex items-center gap-2">
+                        <button 
+                            onClick={isEditing ? saveEditing : startEditing}
+                            className={`p-3 rounded-2xl transition-all ${isEditing ? 'text-emerald-500 bg-emerald-500/10 border border-emerald-500/20' : (isManualAnalysis ? 'text-emerald-400 bg-emerald-500/5' : 'text-slate-500 hover:text-white bg-white/5')}`}
+                            title={isEditing ? "Save (E)" : "Edit Segmentation (E)"}
+                        >
+                            {isEditing ? <Check size={20} /> : <Scissors size={20} />}
+                        </button>
+                    </div>
+
+                    {/* Center: Content */}
+                    <div className="w-full h-full overflow-y-auto no-scrollbar px-16 flex items-center justify-center">
+                        <div className="flex flex-wrap items-end justify-center gap-x-3 gap-y-4 py-4">
+                            {isEditing ? (
+                                <div className="flex flex-wrap items-center justify-center gap-3 p-4 bg-amber-500/5 rounded-2xl border border-amber-500/20 w-full">
+                                    {editTokens.map((token, i) => (
+                                        <div key={i} className="flex flex-col gap-1 px-2 py-1 bg-slate-900 border border-amber-500/20 rounded-lg group">
+                                            <div className="flex items-center gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    value={token.surface} 
+                                                    onChange={(e) => {
+                                                        const newTokens = [...editTokens];
+                                                        newTokens[i] = { ...newTokens[i], surface: e.target.value };
+                                                        setEditTokens(newTokens);
+                                                    }}
+                                                    className="bg-transparent text-sm font-bold text-amber-200 outline-none w-16 text-center"
+                                                />
+                                                {i < editTokens.length - 1 && (
+                                                    <button onClick={() => handleMergeTokens(i)} className="text-slate-600 hover:text-sky-400">
+                                                        <GripVertical size={12} />
+                                                    </button>
+                                                )}
+                                                <button onClick={() => setEditTokens(editTokens.filter((_, idx) => idx !== i))} className="text-slate-600 hover:text-red-500">
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <button onClick={resetEditing} className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 hover:text-white transition-colors">
+                                        <RotateCcw size={12} /> Reset
+                                    </button>
+                                </div>
+                            ) : (
+                                <AnimatePresence mode="popLayout">
+                                    {analyzedWords.map((word: any, idx: number) => (
+                                        <motion.div 
+                                            key={`${activeLineIndex}-${idx}`}
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className={`flex flex-col items-center justify-end group relative min-h-[40px] ${word.pos === '助詞' ? 'cursor-default opacity-60' : 'cursor-help'}`}
+                                            onMouseEnter={word.pos === '助詞' ? undefined : ((e) => handleTokenMouseEnter(e, word))}
+                                            onMouseLeave={word.pos === '助詞' ? undefined : handleTokenMouseLeave}
+                                        >
+                                            {showFurigana && word.furigana && (
+                                                <span className="text-[9px] font-bold text-sky-400/80 mb-0">
+                                                    {word.furigana}
+                                                </span>
+                                            )}
+                                            <span 
+                                                className={`text-base md:text-xl font-black tracking-tight transition-all duration-300 ${
+                                                    word.pos === '助詞' ? 'text-slate-600' : 'text-white group-hover:text-sky-400 group-hover:scale-110'
+                                                }`}
+                                            >
+                                                {word.surface}
+                                            </span>
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
 
-            <div className="w-full h-full relative flex items-center justify-center">
-                {/* Left Control: Furigana Toggle */}
-                <button 
-                    onClick={toggleFurigana}
-                    title="Toggle Furigana"
-                    className={`absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all duration-300 border z-50 ${
-                        showFurigana 
-                        ? 'bg-sky-500 border-sky-400 text-slate-950 shadow-lg shadow-sky-500/20' 
-                        : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'
-                    }`}
-                >
-                    <Type size={14} />
-                </button>
-
-                {/* Right Control: Edit/Save */}
-                <button 
-                    onClick={isEditing ? saveEditing : startEditing}
-                    title={isEditing ? 'Save' : 'Edit Segments'}
-                    className={`absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all duration-300 border z-50 ${
-                        isEditing 
-                        ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20' 
-                        : isManualAnalysis
-                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                        : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'
-                    }`}
-                >
-                    {isEditing ? <Check size={14} /> : <Scissors size={14} />}
-                </button>
-
-                {/* Center: Content with Proper Scrolling and Baseline Alignment */}
-                <div className="w-full h-full overflow-y-auto no-scrollbar px-16 flex items-center justify-center">
-                    <div className="flex flex-wrap items-end justify-center gap-x-3 gap-y-4 py-4">
-                    {isEditing ? (
-                        <div className="flex flex-wrap items-center justify-center gap-3 p-6 bg-amber-500/5 rounded-3xl border border-amber-500/20 w-full animate-in fade-in zoom-in-95">
-                            {editTokens.map((token, i) => (
-                                <div key={i} className="flex flex-col gap-1 px-3 py-2 bg-slate-900 border border-amber-500/30 rounded-xl group shadow-lg">
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="text" 
-                                            value={token.surface} 
-                                            onChange={(e) => {
-                                                const newTokens = [...editTokens];
-                                                newTokens[i] = { ...newTokens[i], surface: e.target.value };
-                                                setEditTokens(newTokens);
-                                            }}
-                                            className="bg-transparent text-lg font-bold text-amber-200 outline-none w-20 text-center border-b border-transparent focus:border-amber-500/50"
-                                        />
-                                        <button 
-                                            onClick={() => setEditTokens(editTokens.filter((_, idx) => idx !== i))}
-                                            className="text-slate-600 hover:text-red-500 transition-colors"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                    <input 
-                                        type="text" 
-                                        value={token.lemma_override || ''} 
-                                        onChange={(e) => {
-                                            const newTokens = [...editTokens];
-                                            newTokens[i] = { ...newTokens[i], lemma_override: e.target.value || null };
-                                            setEditTokens(newTokens);
-                                        }}
-                                        placeholder={`= ${token.surface}`}
-                                        className="bg-amber-500/10 text-[10px] font-bold text-amber-400 outline-none w-full text-center rounded border border-amber-500/20 focus:border-amber-500/50 px-1 py-0.5"
-                                        title="Dictionary Form (Lemma)"
-                                    />
-                                </div>
-                            ))}
-                            <button 
-                                onClick={resetEditing}
-                                className="flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase text-slate-500 hover:text-white transition-all"
-                            >
-                                <RotateCcw size={14} /> Reset
-                            </button>
-                        </div>
-                    ) : (
-                        <AnimatePresence mode="popLayout">
-                            {analyzedWords.map((word: any, idx: number) => (
-                                <motion.div 
-                                    key={`${activeLineIndex}-${idx}`}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className={`flex flex-col items-center justify-end group relative min-h-[40px] ${word.pos === '助詞' ? 'cursor-default opacity-60' : 'cursor-help'}`}
-                                    onMouseEnter={word.pos === '助詞' ? undefined : ((e) => handleTokenMouseEnter(e, word))}
-                                    onMouseLeave={word.pos === '助詞' ? undefined : handleTokenMouseLeave}
-                                >
-                                    {showFurigana && word.furigana && (
-                                        <span className="text-[9px] font-bold text-sky-400/80 mb-0 pointer-events-none select-none">
-                                            {word.furigana}
-                                        </span>
-                                    )}
-                                    <span 
-                                        className={`text-base md:text-xl font-black tracking-tight transition-all duration-300 ${
-                                            word.pos === '助詞' ? 'text-slate-600' : 'text-white group-hover:text-sky-400 group-hover:scale-110'
-                                        }`}
-                                    >
-                                        {word.surface}
-                                    </span>
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    )}
-                </div>
-            </div>
-        </div>
-
-            {/* FIXED PREMIUM TOOLTIP VIA PORTAL */}
+            {/* TOOLTIP PORTAL */}
             {hoveredToken && createPortal(
                 <div 
                     className="fixed z-[99999] origin-bottom animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
@@ -292,17 +338,13 @@ export const LearningFocusBar: React.FC = () => {
                     onMouseLeave={handleTooltipMouseLeave}
                 >
                     <div className="w-96 bg-[#0a0a0c]/95 border border-white/10 rounded-[2.5rem] shadow-[0_40px_100px_rgba(0,0,0,0.9)] backdrop-blur-2xl overflow-hidden border-t-white/20">
-                        {/* Header Area with Surface Form */}
                         <div className="bg-gradient-to-b from-white/5 to-transparent p-8 pb-4">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="space-y-1">
-                                    <h4 className="text-3xl font-black text-white tracking-tight drop-shadow-2xl">{hoveredToken.word.surface}</h4>
+                                    <h4 className="text-3xl font-black text-white tracking-tight">{hoveredToken.word.surface}</h4>
                                     <div className="flex items-center gap-3">
                                         <span className="text-[11px] text-sky-400 font-black tracking-widest uppercase bg-sky-400/10 px-2.5 py-1 rounded-lg border border-sky-400/20">
                                             {hoveredToken.word.reading || '...'}
-                                        </span>
-                                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
-                                            {hoveredToken.word.pos || 'Word'}
                                         </span>
                                     </div>
                                 </div>
@@ -317,45 +359,31 @@ export const LearningFocusBar: React.FC = () => {
                                 <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                                     {hoveredToken.word.meanings && hoveredToken.word.meanings.length > 0 ? (
                                         hoveredToken.word.meanings.map((m: string, i: number) => (
-                                            <div key={i} className="flex gap-4 text-sm text-slate-200 leading-relaxed group/item bg-white/5 p-3 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors">
+                                            <div key={i} className="flex gap-4 text-sm text-slate-200 leading-relaxed bg-white/5 p-3 rounded-2xl border border-white/5">
                                                 <span className="text-sky-500 font-black text-xs opacity-60 mt-0.5">{i+1}</span>
                                                 <p className="font-medium tracking-wide">{m}</p>
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="bg-white/5 p-4 rounded-2xl border border-dashed border-white/10 text-center">
-                                            <p className="text-[11px] text-slate-600 italic font-medium">No detailed definition found offline.</p>
-                                        </div>
+                                        <p className="text-[11px] text-slate-600 italic text-center p-4">No definition found.</p>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Lemma / Meta */}
-                            <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-2xl border border-white/5">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Base Form</span>
-                                </div>
-                                <span className="text-xs font-bold text-sky-200">{hoveredToken.word.lemma || hoveredToken.word.surface}</span>
-                            </div>
-                            
-                            {/* Actions */}
                             <div className="flex gap-3 pointer-events-auto pt-2">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleAddToVocab(hoveredToken.word); }}
-                                    className="flex-1 flex items-center justify-center gap-3 py-4 bg-sky-500 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-sky-400 hover:scale-[1.02] active:scale-95 transition-all shadow-[0_15px_30px_rgba(14,165,233,0.3)] group/btn"
+                                    className="flex-1 flex items-center justify-center gap-3 py-4 bg-sky-500 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-sky-400 hover:scale-[1.02] active:scale-95 transition-all"
                                 >
-                                    <Plus size={18} strokeWidth={4} className="group-hover:rotate-90 transition-transform" /> 
-                                    Add To Vocab
+                                    <Plus size={18} strokeWidth={4} /> Add To Vocab
                                 </button>
                                 <a 
                                     href={`https://jisho.org/search/${hoveredToken.word.lemma || hoveredToken.word.surface}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="w-16 flex items-center justify-center bg-white/5 rounded-2xl text-slate-500 hover:bg-white/10 hover:text-white transition-all border border-white/10 group/link"
-                                    title="View on Jisho"
+                                    className="w-16 flex items-center justify-center bg-white/5 rounded-2xl text-slate-500 hover:bg-white/10 hover:text-white transition-all border border-white/10"
                                 >
-                                    <ExternalLink size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                    <ExternalLink size={18} />
                                 </a>
                             </div>
                         </div>

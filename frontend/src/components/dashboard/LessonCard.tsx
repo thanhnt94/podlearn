@@ -136,39 +136,59 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
 
                     <div className="flex items-center gap-1">
                         {onDelete && (
-                            <button 
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    if (window.confirm('Remove this lesson from your library? Your notes for this video will be lost.')) {
-                                        onDelete(lesson.id);
-                                    }
-                                }}
-                                className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
-                                title="Remove from Personal Library"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                            <div className="relative group/del">
+                                <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const btn = e.currentTarget;
+                                        if (btn.getAttribute('data-confirm') === 'true') {
+                                            console.log("CONFIRMED Delete for lesson:", lesson.id);
+                                            onDelete(lesson.id);
+                                        } else {
+                                            btn.setAttribute('data-confirm', 'true');
+                                            btn.innerHTML = '<span class="text-[8px] font-black mr-1">SURE?</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>';
+                                            btn.className = "px-3 py-2 bg-red-500 text-white rounded-xl transition-all flex items-center";
+                                            setTimeout(() => {
+                                                btn.setAttribute('data-confirm', 'false');
+                                                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>';
+                                                btn.className = "p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all";
+                                            }, 3000);
+                                        }
+                                    }}
+                                    className="p-2 text-slate-700 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
+                                    title="Remove from Personal Library"
+                                    data-confirm="false"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
                         )}
                         
                         {onDeleteGlobal && (window as any).__PODLEARN_DATA__?.is_admin && (
                             <button 
+                                type="button"
                                 onClick={(e) => {
                                     e.preventDefault();
-                                    if (window.confirm('!!! DANGER !!!\n\nThis will PERMANENTLY delete this video and ALL user lessons, notes, and progress for EVERYONE. Continue?')) {
+                                    e.stopPropagation();
+                                    if (window.confirm('!!! ADMIN: PERMANENT GLOBAL DELETE !!!\n\nThis will wipe this video for EVERYONE.')) {
                                         onDeleteGlobal(video.id);
                                     }
                                 }}
-                                className="p-2 text-red-600 hover:text-red-400 hover:bg-red-900/40 rounded-xl transition-all border border-red-900/30"
-                                title="ADMIN: Global Delete (Wipes Everything)"
+                                className="p-2 text-red-600 hover:text-white hover:bg-red-600 rounded-xl transition-all border border-red-900/30 ml-2"
+                                title="ADMIN: Global Delete"
                             >
-                                <Trash2 size={16} className="fill-red-600/20" />
+                                <ShieldCheck size={16} />
                             </button>
                         )}
 
                         {onToggleVisibility && (window as any).__PODLEARN_DATA__?.is_admin && (
                             <button 
+                                type="button"
                                 onClick={(e) => {
                                     e.preventDefault();
+                                    e.stopPropagation();
                                     const nextStatus = video.visibility === 'public' ? 'private' : 'public';
                                     onToggleVisibility(video.id, nextStatus);
                                 }}

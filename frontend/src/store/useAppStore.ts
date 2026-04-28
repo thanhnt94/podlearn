@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import { soundEffects } from '../services/SoundEffectsService';
 
 interface Video {
     id: number;
@@ -226,6 +227,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (res.data.new_badges && res.data.new_badges.length > 0) {
                 // For now just show the first one if multiple
                 set({ newlyEarnedBadge: res.data.new_badges[0] });
+                soundEffects.play('levelup');
                 get().fetchBadges();
                 get().fetchNotifications();
             }
@@ -235,11 +237,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     clearCelebration: () => set({ newlyEarnedBadge: null }),
 
     deleteLesson: async (lessonId: number) => {
+        console.log(`[STORE] Attempting to delete lesson: ${lessonId}`);
         try {
             const data = (window as any).__PODLEARN_DATA__;
-            await axios.delete(`/api/lesson/${lessonId}`, {
+            const res = await axios.delete(`/api/lesson/${lessonId}`, {
                 headers: { 'X-CSRF-Token': data.csrf_token }
             });
+            console.log(`[STORE] Delete response:`, res.data);
             get().fetchDashboard();
             return true;
         } catch (err) {

@@ -19,12 +19,11 @@ from deep_translator import GoogleTranslator
 logger = logging.getLogger(__name__)
 
 
-from ..services import subtitle_service, shadowing_service, audio_service, vocab_service
+from ..modules.content.services import subtitle_service, audio_service
+from ..modules.study.services import shadowing_service, vocab_service
+from app.modules.content.models import Video, SubtitleTrack, VideoCollaborator
+from app.modules.study.models import Lesson, Note, SentenceSet
 from app.modules.identity.models import User
-from app.modules.study.models import Lesson
-from app.modules.content.models import Video
-from app.modules.study.models import Note
-from app.modules.content.models import SubtitleTrack
 from app.modules.content.models import Playlist
 from app.modules.engagement.models import Badge, UserBadge
 from app.modules.engagement.models import Notification
@@ -32,18 +31,18 @@ from app.modules.engagement.models import ShadowingHistory
 from app.modules.study.models import Sentence, SentenceSet
 from app.modules.study.models import VideoGlossary, VocabEditHistory
 from app.modules.study.models import SentenceToken
-from ..services.subtitle_service import (
+from ..modules.content.services.subtitle_service import (
     get_subtitle_track, 
     get_lines_as_dicts, 
     get_available_subs_from_youtube,
     download_and_parse_youtube_sub,
     parse_uploaded_subtitle
 )
-from ..services.youtube_service import extract_video_id
-from ..services.shadowing_service import evaluate_pronunciation
-from ..services.lesson_service import update_study_progress_and_streak
-from ..services.audio_service import generate_bilingual_audio, generate_text_audio
-from ..services.sentence_service import import_sentence_from_raw_json
+from ..modules.content.services.youtube_service import extract_video_id
+from ..modules.study.services.shadowing_service import evaluate_pronunciation
+from ..modules.content.services.lesson_service import update_study_progress_and_streak
+from ..modules.content.services.audio_service import generate_bilingual_audio, generate_text_audio
+from ..modules.content.services.sentence_service import import_sentence_from_raw_json
 
 api_bp = Blueprint('api', __name__)
 
@@ -238,7 +237,7 @@ def save_preferences():
 @login_required
 def check_badges():
     """Manual trigger to check and award badges (e.g. after a session)."""
-    from ..services.gamification_service import GamificationService
+    from ..modules.engagement.services.gamification_service import GamificationService
     newly_earned = GamificationService.check_and_award_badges(current_user)
     
     return jsonify({
@@ -422,7 +421,7 @@ def get_dashboard_init():
     } for s in pending_shares]
 
     # 4. Global Stats
-    from ..services.lesson_service import get_user_stats
+    from ..modules.content.services.lesson_service import get_user_stats
     stats = get_user_stats(current_user.id)
 
     # 5. Sentence Sets (Mastery Decks)
@@ -454,6 +453,32 @@ def get_dashboard_init():
             'total_time_seconds': stats.get('total_time_seconds', 0)
         }
     })
+
+@api_bp.route('/shares/<int:share_id>/accept', methods=['POST'])
+@login_required
+def accept_share(share_id):
+    from app.modules.engagement.models import ShareRequest
+    share = ShareRequest.query.filter_by(id=share_id, receiver_id=current_user.id, status='pending').first_or_404()
+    share.status = 'accepted'
+    
+    # Create lesson for receiver
+    from app.modules.study.models import Lesson
+    existing = Lesson.query.filter_by(user_id=current_user.id, video_id=share.video_id).first()
+    if not existing:
+        lesson = Lesson(user_id=current_user.id, video_id=share.video_id)
+        db.session.add(lesson)
+    
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/shares/<int:share_id>/reject', methods=['POST'])
+@login_required
+def reject_share(share_id):
+    from app.modules.engagement.models import ShareRequest
+    share = ShareRequest.query.filter_by(id=share_id, receiver_id=current_user.id, status='pending').first_or_404()
+    share.status = 'rejected'
+    db.session.commit()
+    return jsonify({'success': True})
 
 @api_bp.route('/vocab/analyze', methods=['POST'])
 @login_required
@@ -951,6 +976,8 @@ def get_available_subtitles(lesson_id):
             'id': t.id,
             'language_code': t.language_code,
             'is_auto_generated': t.is_auto_generated,
+            'is_original': t.is_original,
+            'name': t.name or f"{t.language_code.upper()}_Original",
             'uploader_name': t.uploader_name or "Unknown",
             'uploader_id': t.uploader_id,
             'fetched_at': t.fetched_at.isoformat() if hasattr(t, 'fetched_at') and t.fetched_at else None,
@@ -959,14 +986,22 @@ def get_available_subtitles(lesson_id):
         })
     return jsonify({'subtitles': results})
 
+def can_edit_video(user, video):
+    if user.is_admin: return True
+    if video.owner_id == user.id: return True
+    collab = VideoCollaborator.query.filter_by(video_id=video.id, user_id=user.id).first()
+    return collab is not None
+
 @api_bp.route('/subtitles/<int:sub_id>', methods=['DELETE'])
 @login_required
 def delete_subtitle(sub_id):
     """Delete a subtitle track from the DB."""
     track = SubtitleTrack.query.get_or_404(sub_id)
+    video = Video.query.get_or_404(track.video_id)
     
-    # Optional: Only allow downloader or admin? 
-    # For now, if you are studying the lesson, you can manage its video tracks.
+    if not can_edit_video(current_user, video) and track.uploader_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+
     db.session.delete(track)
     db.session.commit()
     return jsonify({'success': True})
@@ -1126,15 +1161,22 @@ def upload_subtitle(lesson_id):
 
         parsed_lines = result['lines']
 
-        # Always create a new track record
+        # Always create a new track record with a unique name
+        user_input_name = request.form.get('name') or f"Uploaded by {current_user.username}"
+        unique_name = subtitle_service.generate_unique_track_name(lesson.video.id, user_input_name)
+
         track = SubtitleTrack(
             video_id=lesson.video.id, 
             language_code=lang_code,
             content_json=parsed_lines,
             uploader_id=current_user.id,
-            uploader_name=uploader_name,
+            uploader_name=current_user.username,
+            name=unique_name,
             note=note,
-            fetched_at=datetime.now(timezone.utc)
+            fetched_at=datetime.now(timezone.utc),
+            status='completed',
+            total_lines=len(parsed_lines),
+            progress=len(parsed_lines)
         )
         db.session.add(track)
         db.session.commit()
@@ -1335,10 +1377,9 @@ def import_video():
         db.session.add(video)
         db.session.commit()
         
-        # Trigger background metadata processing
-        from ..tasks import process_video_metadata
-        from ..utils.background_tasks import run_in_background
-        run_in_background(process_video_metadata, video.id)
+        # Trigger background metadata processing via Celery
+        from ..modules.content.tasks import process_video_metadata
+        process_video_metadata.delay(video.id)
         message = 'Video imported and added to library.'
     else:
         message = f'Video "{video.title}" added to your library.'
@@ -1693,7 +1734,7 @@ def generate_ai_insights(video_id):
         return jsonify({"error": f"Video {video_id} not found"}), 404
     
     from app.modules.study.models import AIInsightTrack
-    from ..services.ai_service import start_background_analysis
+    from ..modules.content.services.ai_service import start_background_analysis
     from flask import current_app
 
     # Verify transcript existence
@@ -1776,7 +1817,7 @@ def get_ai_insights(video_id):
 def analyze_ai_line(video_id, line_index):
     from app.modules.content.models import Video
     from app.modules.study.models import AIInsightTrack
-    from ..services.ai_service import analyze_single_line
+    from ..modules.content.services.ai_service import analyze_single_line
     from sqlalchemy import func
     
     # Dual lookup
@@ -1851,7 +1892,7 @@ def analyze_sentence_api():
         return jsonify({'words': []})
 
     if lang == 'ja':
-        from ..services.vocab_service import analyze_japanese_text, get_definitions_for_terms
+        from ..modules.study.services.vocab_service import analyze_japanese_text, get_definitions_for_terms
         from app.modules.study.models import SentenceToken
 
         # 1. Try to get saved tokens first
@@ -1863,7 +1904,7 @@ def analyze_sentence_api():
             ).order_by(SentenceToken.order_index.asc()).all()
 
         if db_tokens:
-            from ..services.vocab_service import katakana_to_hiragana
+            from ..modules.study.services.vocab_service import katakana_to_hiragana
             # Use lemma_override for dictionary lookup when available
             lookup_terms = [t.lemma_override or t.token for t in db_tokens]
             results = get_definitions_for_terms(lookup_terms, priority='mazii_offline')
@@ -1923,10 +1964,20 @@ def generate_all_vocab():
     # Get the primary track (usually S1 or S2)
     track_id = lesson.s1_track_id or lesson.s2_track_id
     if not track_id:
-        return jsonify({"error": "No subtitle track selected for this lesson."}), 400
+        # Fallback: Just pick the first available track for this video
+        from app.modules.content.models import SubtitleTrack
+        first_track = SubtitleTrack.query.filter_by(video_id=lesson.video_id).first()
+        if first_track:
+            track_id = first_track.id
+            # Optionally save this as default for the lesson
+            lesson.s1_track_id = track_id
+            db.session.commit()
+            
+    if not track_id:
+        return jsonify({"error": "No subtitle track found for this video. Please add subtitles first."}), 400
         
-    from ..services.subtitle_service import get_lines_as_dicts
-    from ..services.vocab_service import analyze_japanese_text
+    from ..modules.content.services.subtitle_service import get_lines_as_dicts
+    from ..modules.study.services.vocab_service import analyze_japanese_text
     from app.modules.study.models import SentenceToken
     from app.modules.content.models import SubtitleTrack
     from app.modules.study.models import VideoGlossary
@@ -1940,40 +1991,45 @@ def generate_all_vocab():
     custom_vocab_records = VideoGlossary.query.filter_by(lesson_id=lesson_id).all()
     custom_vocab_set = {v.term for v in custom_vocab_records} if custom_vocab_records else None
     
-    # 1. Clear existing tokens to start fresh
-    SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
-    
-    # 2. Analyze and save for each line
-    new_tokens = []
-    for idx, line in enumerate(lines):
-        text = line.get('text', '').strip()
-        if not text:
-            continue
-            
-        try:
-            words = analyze_japanese_text(text, priority=priority, include_all=True, custom_vocab=custom_vocab_set)
-            for order, w in enumerate(words):
-                surface = w['surface']
-                lemma = w.get('lemma', surface)
-                # Only store lemma_override if it differs from surface
-                lemma_val = lemma if lemma != surface else None
-                new_tokens.append(SentenceToken(
-                    lesson_id=lesson_id,
-                    line_index=idx,
-                    token=surface,
-                    lemma_override=lemma_val,
-                    pos=w.get('pos'),
-                    order_index=order
-                ))
-        except Exception as e:
-            logger.error(f"Failed to analyze line {idx}: {e}")
-            continue
-            
-    if new_tokens:
-        db.session.bulk_save_objects(new_tokens)
-        db.session.commit()
-    
-    return jsonify({"success": True, "count": len(new_tokens)})
+    try:
+        # 1. Clear existing tokens to start fresh
+        SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
+        
+        # 2. Analyze and save for each line
+        new_tokens = []
+        for idx, line in enumerate(lines):
+            text = line.get('text', '').strip()
+            if not text:
+                continue
+                
+            try:
+                words = analyze_japanese_text(text, priority=priority, include_all=True, custom_vocab=custom_vocab_set)
+                for order, w in enumerate(words):
+                    surface = w['surface']
+                    lemma = w.get('lemma', surface)
+                    # Only store lemma_override if it differs from surface
+                    lemma_val = lemma if lemma != surface else None
+                    new_tokens.append(SentenceToken(
+                        lesson_id=lesson_id,
+                        line_index=idx,
+                        token=surface,
+                        lemma_override=lemma_val,
+                        pos=w.get('pos'),
+                        order_index=order
+                    ))
+            except Exception as e:
+                logger.error(f"Failed to analyze line {idx}: {e}")
+                continue
+        
+        if new_tokens:
+            db.session.bulk_save_objects(new_tokens)
+            db.session.commit()
+        
+        return jsonify({"success": True, "count": len(new_tokens)})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in generate_all_vocab: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/vocab/tokens/clear-all', methods=['DELETE'])
 @login_required
@@ -1988,3 +2044,128 @@ def clear_all_tokens():
     SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
     db.session.commit()
     return jsonify({"success": True})
+
+# --- Video Management (Admin/Collaborator) ---
+
+@api_bp.route('/video/<int:video_id>/admin-data', methods=['GET'])
+@login_required
+def get_video_admin_data(video_id):
+    video = Video.query.get_or_404(video_id)
+    if not can_edit_video(current_user, video):
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    collabs = []
+    for c in video.collaborators:
+        collabs.append({
+            'user_id': c.user_id,
+            'username': c.user.username,
+            'role': c.role,
+            'joined_at': c.created_at.isoformat() if c.created_at else None
+        })
+    
+    return jsonify({
+        'title': video.title,
+        'language_code': video.language_code,
+        'visibility': video.visibility,
+        'owner_id': video.owner_id,
+        'collaborators': collabs
+    })
+
+@api_bp.route('/video/<int:video_id>/metadata', methods=['POST'])
+@login_required
+def update_video_metadata(video_id):
+    video = Video.query.get_or_404(video_id)
+    if not can_edit_video(current_user, video):
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    data = request.json
+    if 'title' in data: video.title = data['title']
+    if 'language_code' in data: video.language_code = data['language_code']
+    if 'visibility' in data: video.visibility = data['visibility']
+    
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/video/<int:video_id>/collaborators/add', methods=['POST'])
+@login_required
+def add_video_collaborator(video_id):
+    video = Video.query.get_or_404(video_id)
+    if not can_edit_video(current_user, video):
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    username = request.json.get('username')
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    existing = VideoCollaborator.query.filter_by(video_id=video_id, user_id=user.id).first()
+    if existing:
+        return jsonify({'error': 'Already a collaborator'}), 400
+    
+    new_collab = VideoCollaborator(video_id=video_id, user_id=user.id)
+    db.session.add(new_collab)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@api_bp.route('/video/<int:video_id>/collaborators/remove', methods=['POST'])
+@login_required
+def remove_video_collaborator(video_id):
+    video = Video.query.get_or_404(video_id)
+    if not can_edit_video(current_user, video):
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    user_id = request.json.get('user_id')
+    collab = VideoCollaborator.query.filter_by(video_id=video_id, user_id=user_id).first()
+    if not collab:
+        return jsonify({'error': 'Collaborator not found'}), 404
+    
+    db.session.delete(collab)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@api_bp.route('/vocab/lesson/<int:lesson_id>/analysis', methods=['GET'])
+@login_required
+def get_lesson_vocab_analysis(lesson_id):
+    """Get frequency analysis for all words in a lesson."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    priority = request.args.get('priority', 'mazii_offline')
+    
+    from ..modules.content.services.subtitle_service import get_lines_as_dicts
+    from ..modules.study.services.vocab_service import analyze_batch_japanese, get_definitions_for_terms
+    from app.modules.content.models import SubtitleTrack
+
+    track_id = lesson.s1_track_id or lesson.s2_track_id
+    if not track_id:
+        return jsonify({"analysis": []})
+
+    track = SubtitleTrack.query.get(track_id)
+    if not track:
+        return jsonify({"analysis": []})
+
+    lines = get_lines_as_dicts(track)
+    texts = [l.get('text', '') for l in lines]
+    
+    # 1. Get frequencies
+    freq_data = analyze_batch_japanese(texts) # Returns list of dicts: {lemma, count, ...}
+    
+    # 2. Enrich with definitions for top 50 words
+    top_50 = sorted(freq_data, key=lambda x: x['count'], reverse=True)[:50]
+    terms = [x['lemma'] for x in top_50]
+    
+    defs = get_definitions_for_terms(terms, priority=priority)
+    def_map = {d['word']: d for d in defs}
+    
+    results = []
+    for item in top_50:
+        lemma = item['lemma']
+        d = def_map.get(lemma, {})
+        results.append({
+            'term': lemma,
+            'count': item['count'],
+            'reading': d.get('reading', ''),
+            'definition': d.get('definition', ''),
+            'source': d.get('source', 'none')
+        })
+        
+    return jsonify({'analysis': results})

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, date, timedelta
-from ..extensions import db
+from app.extensions import db
 
 def update_study_progress_and_streak(user, lesson, seconds_added):
     """

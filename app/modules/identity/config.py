@@ -1,2 +1,3 @@
-﻿class DefaultConfig:
+class DefaultConfig:
+    """Identity module configuration."""
     pass
