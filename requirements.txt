@@ -23,3 +23,7 @@ google-generativeai
 celery==5.4.0
 redis==5.0.1
 celery-sqlalchemy-scheduler
+marshmallow
+flask-marshmallow
+marshmallow-sqlalchemy
+gunicorn
