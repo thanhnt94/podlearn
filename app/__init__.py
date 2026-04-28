@@ -5,6 +5,7 @@ import time
 from flask import Flask, jsonify, render_template
 from flask_login import login_required
 from dotenv import load_dotenv
+import redis
 
 from .config import config_by_name
 from .extensions import db, migrate, login_manager, csrf
@@ -26,12 +27,21 @@ def create_app(config_name: str | None = None) -> Flask:
     csrf.init_app(app)
     login_manager.init_app(app)
 
+    # ── Initialise Redis ──────────────────────────────────────
+    from . import extensions
+    broker_url = app.config.get('CELERY', {}).get('broker_url', '')
+    if broker_url.startswith(('redis://', 'rediss://', 'unix://')):
+        extensions.redis_client = redis.from_url(broker_url)
+    else:
+        extensions.redis_client = None
+
     # ── Register Jinja Filters ─────────────────────────────────
     from .utils.jinja_filters import parse_bbcode
     app.jinja_env.filters['bbcode'] = parse_bbcode
 
-    
-    # Removed celery_init_app(app)
+    # ── Initialise Celery ──────────────────────────────────────
+    from .celery_app import celery_init_app
+    celery_app = celery_init_app(app)
 
     # ── Initialize Storage Provider ────────────────────────────
     from .services.storage_service import LocalStorageProvider, S3StorageProvider
@@ -85,6 +95,17 @@ def create_app(config_name: str | None = None) -> Flask:
     app.register_blueprint(community_bp, url_prefix='/api/community')
     app.register_blueprint(handsfree_bp, url_prefix='/api/handsfree')
     app.register_blueprint(subtitle_api_bp)
+    
+    # ── Modular Monolith Initialization ────────────────────────
+    from .modules.identity import setup_module as setup_identity
+    from .modules.content import setup_module as setup_content
+    from .modules.study import setup_module as setup_study
+    from .modules.engagement import setup_module as setup_engagement
+    
+    setup_identity(app)
+    setup_content(app)
+    setup_study(app)
+    setup_engagement(app)
 
     # ── Serve Hands-Free Audio Files ───────────────────────────
     handsfree_storage = os.path.abspath(os.path.join(
@@ -115,7 +136,7 @@ def create_app(config_name: str | None = None) -> Flask:
         if not secret_header or secret_header != configured_secret:
             return jsonify({"error": "Unauthorized"}), 401
 
-        from .models import User
+        from app.modules.identity.models import User
         users = User.query.all()
         
         user_list = []
@@ -149,7 +170,7 @@ def create_app(config_name: str | None = None) -> Flask:
         if not ca_id:
             return jsonify({"error": "Missing central_auth_id"}), 400
 
-        from .models.user import User
+        from app.modules.identity.models import User
         target_user = None
 
         # 1. Admin Push-back logic
@@ -221,7 +242,7 @@ def create_app(config_name: str | None = None) -> Flask:
         email = data.get('email')
         username = data.get('username')
         
-        from .models import User
+        from app.modules.identity.models import User
         user = None
         if email and email != "null":
             user = User.query.filter_by(email=email).first()
@@ -267,10 +288,10 @@ def create_app(config_name: str | None = None) -> Flask:
         return redirect(url_for('auth.login'))
 
     # ── User loader for Flask-Login ────────────────────────────
-    from .models import User
+    from app.modules.identity.models import User
 
     # ── User loader for Flask-Login ────────────────────────────
-    from .models import User
+    from app.modules.identity.models import User
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -298,8 +319,11 @@ def create_app(config_name: str | None = None) -> Flask:
     # Run this on every startup. In multi-worker Gunicorn, workers might
     # race, so we handle IntegrityErrors gracefully.
     with app.app_context():
-        # Import all models to ensure they are registered with SQLAlchemy
-        from . import models 
+        # Import all models from modules to ensure they are registered with SQLAlchemy
+        from app.modules.identity import models as identity_models
+        from app.modules.content import models as content_models
+        from app.modules.study import models as study_models
+        from app.modules.engagement import models as engagement_models
         
         # 1. Create database directory if it's SQLite
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
@@ -313,8 +337,6 @@ def create_app(config_name: str | None = None) -> Flask:
         
         # 2. Create tables
         try:
-            # IMPORTANT: Re-import models inside the app context to ensure registration
-            from . import models
             db.create_all()
         except Exception as e:
             app.logger.error(f"Failed to create tables: {e}")

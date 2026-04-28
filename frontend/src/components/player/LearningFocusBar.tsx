@@ -134,13 +134,13 @@ export const LearningFocusBar: React.FC = () => {
     const currentLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
 
     if (!currentLine) return (
-        <div className="w-full bg-slate-950/80 border-t border-white/5 backdrop-blur-xl px-8 py-4 h-[160px] flex items-center justify-center">
+        <div className="w-full bg-slate-950/80 border-t border-white/5 backdrop-blur-xl px-4 py-2 h-[110px] flex items-center justify-center">
             <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Playback idle • Select a line to start analysis</p>
         </div>
     );
 
     return (
-        <div className="w-full bg-slate-950/90 border-t border-white/5 backdrop-blur-3xl px-8 py-4 h-[160px] flex flex-col shadow-[0_-30px_60px_rgba(0,0,0,0.8)] relative transition-all duration-500">
+        <div className="w-full bg-slate-950/90 border-t border-white/5 backdrop-blur-3xl px-4 py-1 h-[110px] flex flex-col shadow-[0_-30px_60px_rgba(0,0,0,0.8)] relative transition-all duration-500">
             
             {/* NEEDS SCAN OVERLAY */}
             {!hasTokens && !isManualAnalysis && (
@@ -173,39 +173,38 @@ export const LearningFocusBar: React.FC = () => {
                 </div>
             )}
 
-            <div className="w-full h-full relative">
-                {/* Controls - Floating above everything as requested */}
-                <div className="absolute top-0 left-0 flex items-center gap-2 z-50 p-3">
-                    <button 
-                        onClick={toggleFurigana}
-                        title="Toggle Furigana"
-                        className={`p-2 rounded-lg transition-all duration-300 border ${
-                            showFurigana 
-                            ? 'bg-sky-500 border-sky-400 text-slate-950' 
-                            : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'
-                        }`}
-                    >
-                        <Type size={14} />
-                    </button>
+            <div className="w-full h-full relative flex items-center justify-center">
+                {/* Left Control: Furigana Toggle */}
+                <button 
+                    onClick={toggleFurigana}
+                    title="Toggle Furigana"
+                    className={`absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all duration-300 border z-50 ${
+                        showFurigana 
+                        ? 'bg-sky-500 border-sky-400 text-slate-950 shadow-lg shadow-sky-500/20' 
+                        : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'
+                    }`}
+                >
+                    <Type size={14} />
+                </button>
 
-                    <button 
-                        onClick={isEditing ? saveEditing : startEditing}
-                        title={isEditing ? 'Save' : 'Edit Segments'}
-                        className={`p-2 rounded-lg transition-all duration-300 border ${
-                            isEditing 
-                            ? 'bg-amber-500 border-amber-400 text-slate-950' 
-                            : isManualAnalysis
-                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                            : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'
-                        }`}
-                    >
-                        {isEditing ? <Check size={14} /> : <Scissors size={14} />}
-                    </button>
-                </div>
+                {/* Right Control: Edit/Save */}
+                <button 
+                    onClick={isEditing ? saveEditing : startEditing}
+                    title={isEditing ? 'Save' : 'Edit Segments'}
+                    className={`absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all duration-300 border z-50 ${
+                        isEditing 
+                        ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20' 
+                        : isManualAnalysis
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                        : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'
+                    }`}
+                >
+                    {isEditing ? <Check size={14} /> : <Scissors size={14} />}
+                </button>
 
                 {/* Center: Content with Proper Scrolling and Baseline Alignment */}
-                <div className="w-full h-full overflow-y-auto custom-scrollbar p-6 pt-10">
-                    <div className="flex flex-wrap items-end justify-center gap-x-4 gap-y-6 min-h-full">
+                <div className="w-full h-full overflow-y-auto no-scrollbar px-16 flex items-center justify-center">
+                    <div className="flex flex-wrap items-end justify-center gap-x-3 gap-y-4 py-4">
                     {isEditing ? (
                         <div className="flex flex-wrap items-center justify-center gap-3 p-6 bg-amber-500/5 rounded-3xl border border-amber-500/20 w-full animate-in fade-in zoom-in-95">
                             {editTokens.map((token, i) => (
@@ -256,17 +255,17 @@ export const LearningFocusBar: React.FC = () => {
                                     key={`${activeLineIndex}-${idx}`}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className={`flex flex-col items-center justify-end group relative min-h-[60px] ${word.pos === '助詞' ? 'cursor-default opacity-60' : 'cursor-help'}`}
+                                    className={`flex flex-col items-center justify-end group relative min-h-[40px] ${word.pos === '助詞' ? 'cursor-default opacity-60' : 'cursor-help'}`}
                                     onMouseEnter={word.pos === '助詞' ? undefined : ((e) => handleTokenMouseEnter(e, word))}
                                     onMouseLeave={word.pos === '助詞' ? undefined : handleTokenMouseLeave}
                                 >
                                     {showFurigana && word.furigana && (
-                                        <span className="text-[10px] font-bold text-sky-400/80 mb-1 pointer-events-none select-none">
+                                        <span className="text-[9px] font-bold text-sky-400/80 mb-0 pointer-events-none select-none">
                                             {word.furigana}
                                         </span>
                                     )}
                                     <span 
-                                        className={`text-lg md:text-2xl font-black tracking-tight transition-all duration-300 ${
+                                        className={`text-base md:text-xl font-black tracking-tight transition-all duration-300 ${
                                             word.pos === '助詞' ? 'text-slate-600' : 'text-white group-hover:text-sky-400 group-hover:scale-110'
                                         }`}
                                     >

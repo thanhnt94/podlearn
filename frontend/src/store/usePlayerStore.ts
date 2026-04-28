@@ -212,6 +212,7 @@ interface PlayerState {
 
   // Hands-Free Actions
   toggleHandsFreeMode: () => void;
+  setHandsFreeModeEnabled: (enabled: boolean) => void;
   setHandsFreeType: (type: 'original' | 'mixed') => void;
   setHandsFreeStatus: (status: PlayerState['handsFreeStatus']) => void;
   setHandsFreeAudioData: (audioUrl: string | null, timeline: any[] | null, duration: number) => void;
@@ -550,12 +551,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (newIds.s2 !== undefined) fetchTrack(updatedIds.s2, 's2Lines');
     if (newIds.s3 !== undefined) fetchTrack(updatedIds.s3, 's3Lines');
   },
-  // Hands-Free Mode
-  toggleHandsFreeMode: () => set(state => ({ 
-    handsFreeModeEnabled: !state.handsFreeModeEnabled,
+  toggleHandsFreeMode: () => get().setHandsFreeModeEnabled(!get().handsFreeModeEnabled),
+  setHandsFreeModeEnabled: (enabled) => set(() => ({ 
+    handsFreeModeEnabled: enabled,
     handsFreeStatus: 'idle' as const,
     // Reset generation state when disabling
-    ...(state.handsFreeModeEnabled ? {
+    ...(!enabled ? {
         handsFreeAudioUrl: null,
         handsFreeTimeline: null,
         handsFreeTaskId: null,

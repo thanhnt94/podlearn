@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, abort
 from flask_login import login_required, current_user
-from ..models.lesson import Lesson
-from ..models.subtitle import SubtitleTrack
+from app.modules.study.models import Lesson
+from app.modules.content.models import SubtitleTrack
 
 player_bp = Blueprint('player', __name__)
 

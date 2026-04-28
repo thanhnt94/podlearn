@@ -2,8 +2,8 @@ import re
 import difflib
 import pykakasi
 from ..extensions import db
-from ..models.lesson import Lesson
-from ..models.shadowing import ShadowingHistory
+from app.modules.study.models import Lesson
+from app.modules.engagement.models import ShadowingHistory
 
 # Initialize pykakasi
 kks = pykakasi.kakasi()
@@ -43,7 +43,7 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
     Logic for scoring pronunciation and saving to ShadowingHistory.
     Supports both video-based lessons and individual sentence patterns.
     """
-    from ..models.sentence import Sentence
+    from app.modules.study.models import Sentence
     raw_score = 0
     hira_score = 0
     

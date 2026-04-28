@@ -1,6 +1,6 @@
 import json
 from ..extensions import db
-from ..models.sentence import Sentence
+from app.modules.study.models import Sentence
 
 def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=None, track_mode='mastery_sentence'):
     """

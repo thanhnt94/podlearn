@@ -3,8 +3,8 @@ from flask_login import login_required, current_user
 from datetime import datetime, timezone, timedelta
 from ..extensions import db
 from sqlalchemy import func
-from ..models.activity_log import ActivityLog
-from ..models.lesson import Lesson
+from app.modules.engagement.models import ActivityLog
+from app.modules.study.models import Lesson
 
 tracking_bp = Blueprint('tracking', __name__)
 

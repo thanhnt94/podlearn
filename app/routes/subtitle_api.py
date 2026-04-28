@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from .admin_api import vip_required
 from ..extensions import db
-from ..models.subtitle import SubtitleTrack
+from app.modules.content.models import SubtitleTrack
 
 subtitle_api_bp = Blueprint('subtitle_api', __name__, url_prefix='/api/subtitles')
 

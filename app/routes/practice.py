@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, abort, redirect, url_for, request
 from flask_login import login_required, current_user
 import json
 
-from ..models.sentence import Sentence
+from app.modules.study.models import Sentence
 
 practice_bp = Blueprint('practice', __name__)
 

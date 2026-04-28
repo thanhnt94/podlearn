@@ -44,7 +44,13 @@ class Config:
     CENTRAL_AUTH_CLIENT_ID = os.environ.get('CENTRAL_AUTH_CLIENT_ID', 'podlearn-v1')
     CENTRAL_AUTH_CLIENT_SECRET = os.environ.get('CENTRAL_AUTH_CLIENT_SECRET')
 
-
+    # Celery settings — Support automatic fallback to SQLite if Redis is missing
+    CELERY = {
+        "broker_url": os.environ.get("CELERY_BROKER_URL", "sqla+sqlite:///" + os.path.join(project_root, "../Storage/database/celery_broker.db")),
+        "result_backend": os.environ.get("CELERY_RESULT_BACKEND", "db+sqlite:///" + os.path.join(project_root, "../Storage/database/celery_results.db")),
+        "task_default_queue": "podlearn_tasks",
+        "broker_connection_retry_on_startup": True
+    }
 
 class DevelopmentConfig(Config):
     DEBUG = True

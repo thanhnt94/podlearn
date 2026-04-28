@@ -8,6 +8,7 @@ import { ExploreView } from './components/explore/ExploreView';
 import { StatsView } from './components/profile/StatsView';
 import { ImportView } from './components/dashboard/ImportView';
 import { SetListView, SetDetailView } from './components/dashboard/PlaylistViews';
+import { FlashcardReview } from './components/mastery/FlashcardReview';
 
 import { PlayerErrorBoundary } from './components/common/PlayerErrorBoundary';
 
@@ -70,6 +71,9 @@ const App: React.FC = () => {
           
           {/* Import New Video */}
           <Route path="/import" element={<ImportView />} />
+          
+          {/* Review / Mastery */}
+          <Route path="/practice/sentence/:setId" element={<FlashcardReview />} />
           
           {/* Player View */}
           <Route path="/player/lesson/:id" element={<PlayerRouteWrapper mode="player" />} />

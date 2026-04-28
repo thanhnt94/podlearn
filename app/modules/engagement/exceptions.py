@@ -1,0 +1,2 @@
+﻿class EngagementError(Exception):
+    pass

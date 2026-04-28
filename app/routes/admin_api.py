@@ -2,11 +2,11 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from functools import wraps
 from ..extensions import db
-from ..models.user import User
-from ..models.video import Video
-from ..models.lesson import Lesson
-from ..models.subtitle import SubtitleTrack
-from ..models.setting import AppSetting
+from app.modules.identity.models import User
+from app.modules.content.models import Video
+from app.modules.study.models import Lesson
+from app.modules.content.models import SubtitleTrack
+from app.modules.engagement.models import AppSetting
 import time
 
 admin_api_bp = Blueprint('admin_api', __name__, url_prefix='/api/admin')

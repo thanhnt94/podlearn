@@ -5,15 +5,15 @@ from flask_login import login_required, current_user
 from datetime import datetime, timezone
 
 from ..extensions import db
-from ..models.video import Video
-from ..models.lesson import Lesson
+from app.modules.content.models import Video
+from app.modules.study.models import Lesson
 from ..services.youtube_service import extract_video_id, fetch_video_info
-from ..models.sentence import Sentence, SentenceSet
+from app.modules.study.models import Sentence, SentenceSet
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
-from ..models.note import Note
+from app.modules.study.models import Note
 from sqlalchemy import func, cast, Date
 from datetime import timedelta
 

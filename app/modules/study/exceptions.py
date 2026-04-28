@@ -1,0 +1,2 @@
+﻿class StudyError(Exception):
+    pass

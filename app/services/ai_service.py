@@ -4,8 +4,8 @@ import logging
 import threading
 import time
 import google.generativeai as genai
-from ..models.setting import AppSetting
-from ..models.ai_insight import AIInsightTrack, AIInsightItem
+from app.modules.engagement.models import AppSetting
+from app.modules.study.models import AIInsightTrack, AIInsightItem
 from ..extensions import db
 
 logger = logging.getLogger(__name__)

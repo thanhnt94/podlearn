@@ -46,8 +46,8 @@ def get_user_stats(user_id):
     """
     Get study statistics for a specific user.
     """
-    from ..models.user import User
-    from ..models.lesson import Lesson
+    from app.modules.identity.models import User
+    from app.modules.study.models import Lesson
     user = User.query.get(user_id)
     if not user:
         return {}

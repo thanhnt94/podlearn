@@ -1,7 +1,7 @@
 
 import logging
 from .extensions import db
-from .models.video import Video
+from app.modules.content.models import Video
 from .services.youtube_service import fetch_video_info
 from .services.subtitle_service import get_subtitle_track
 

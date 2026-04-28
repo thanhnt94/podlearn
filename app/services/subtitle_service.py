@@ -11,7 +11,7 @@ import webvtt
 import yt_dlp
 
 from ..extensions import db
-from ..models.subtitle import SubtitleTrack
+from app.modules.content.models import SubtitleTrack
 
 logger = logging.getLogger(__name__)
 

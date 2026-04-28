@@ -20,6 +20,7 @@ import { CommunityPanel } from '../tabs/CommunityPanel';
 import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 import { LearningFocusBar } from './LearningFocusBar';
 import { VocabStudio } from './VocabStudio';
+import { useSwipe } from '../../hooks/useSwipe';
 
 type TabType = 'transcript' | 'shadowing' | 'notes' | 'vocab' | 'insights' | 'community';
 
@@ -44,8 +45,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount,
     handsFreeModeEnabled, toggleHandsFreeMode, handsFreeStatus, handsFreeProgress,
     isLocked, lockMessage,
-    isVocabStudioOpen, setVocabStudioOpen
+    isVocabStudioOpen, setVocabStudioOpen,
+    requestSeek, currentTime
   } = usePlayerStore();
+
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: () => requestSeek(currentTime + 5),
+    onSwipeRight: () => requestSeek(currentTime - 5),
+    threshold: 60
+  });
 
   const formatSessionTime = (seconds: number) => {
     const totalSecs = Number(initialListeningSeconds || 0) + Number(seconds || 0);
@@ -199,7 +207,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
   }
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row h-full bg-slate-950 overflow-hidden relative">
+    <div 
+      className="flex-1 flex flex-col md:flex-row h-full bg-slate-950 overflow-hidden relative"
+      {...swipeHandlers}
+    >
       {/* Mid-watch Lockout Overlay */}
       <AnimatePresence>
           {isLocked && (
@@ -237,7 +248,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
       {/* 1. MAIN AREA (LEFT) - Balanced Cinema Focus */}
       <div className="flex-none md:flex-1 flex flex-col bg-black md:bg-[#020617] relative overflow-hidden z-10 min-h-0">
           {/* Header (Integrated) - Flexible on Mobile, Floating on Desktop */}
-          <div className="relative md:absolute md:top-0 md:left-0 md:right-0 flex items-center justify-between px-4 py-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl shrink-0 z-20">
+          <div className="relative w-full flex items-center justify-between px-4 py-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl shrink-0 z-20">
               <div className="flex items-center gap-3">
                   <button onClick={() => navigate('/')} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <ArrowLeft size={20} />
@@ -320,7 +331,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           </div>
           
           {/* Focus Area (Analysis) */}
-          <div className="shrink-0 relative z-[500] h-[160px]">
+          <div className="shrink-0 relative z-[500] h-[110px]">
               <LearningFocusBar />
           </div>
       </div>

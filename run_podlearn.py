@@ -1,16 +1,131 @@
-"""AuraFlow entry point."""
+"""PodLearn entry point."""
 
-from app import create_app
 import os
+import sys
+import subprocess
+import atexit
+from app import create_app
+
+import time
+from urllib.parse import urlparse
 
 app = create_app()
+celery_app = app.extensions.get("celery")
+
+celery_process = None
+redis_process = None
+
+def check_redis():
+    """Check if Redis is running before starting Celery."""
+    import socket
+    from urllib.parse import urlparse
+    
+    redis_url = app.config.get('CELERY', {}).get('broker_url', 'redis://localhost:6379/0')
+    parsed = urlparse(redis_url)
+    host = parsed.hostname or 'localhost'
+    port = parsed.port or 6379
+    
+    try:
+        s = socket.create_connection((host, port), timeout=2)
+        s.close()
+        return True
+    except:
+        return False
+
+def start_redis_server():
+    """Attempt to start a dedicated Redis instance for this project."""
+    global redis_process
+    
+    redis_url = app.config.get('CELERY', {}).get('broker_url', 'redis://localhost:6379/0')
+    parsed = urlparse(redis_url)
+    port = str(parsed.port or 6379)
+    
+    if check_redis():
+        print(f" Redis is already running on port {port}. Using existing instance.")
+        return True
+
+    print(f"Starting dedicated Redis server on port {port}...")
+    try:
+        # We try to call redis-server. 
+        # If it's not in PATH, this will fail and we'll show a helpful message.
+        redis_process = subprocess.Popen(
+            ['redis-server', '--port', port],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
+        )
+        # Give it a moment to bind to the port
+        time.sleep(2)
+        
+        if check_redis():
+            print(f" Dedicated Redis started successfully.")
+            return True
+        else:
+            print(f" [!] Redis process started but port {port} is still not responding.")
+            return False
+    except Exception as e:
+        print(f" [!] Could not start redis-server automatically: {e}")
+        print(f" [!] Please ensure 'redis-server' is in your PATH or start it manually on port {port}.")
+        return False
+
+def start_celery():
+    global celery_process
+    
+    redis_url = app.config.get('CELERY', {}).get('broker_url', '')
+    if 'redis' in redis_url:
+        # If user explicitly wants redis, try to start it
+        if not start_redis_server():
+            print(" [!] WARNING: Redis requested but not found. Celery might fail.")
+    else:
+        print(" [!] Celery is using SQLite (Database) as broker. No Redis needed.")
+
+    # 2. Start Celery
+    print("Starting Celery worker in background...")
+    # pool=solo is used for better Windows compatibility
+    cmd = [
+        sys.executable, "-m", "celery", 
+        "-A", "run_podlearn:celery_app", 
+        "worker", 
+        "-Q", "podlearn_tasks", 
+        "--pool=solo", 
+        "--loglevel=info"
+    ]
+    # Use CREATE_NEW_PROCESS_GROUP on Windows to avoid signals killing Flask process killing Celery process abruptly
+    kwargs = {
+        'cwd': os.path.dirname(os.path.abspath(__file__))
+    }
+    if os.name == 'nt':
+        kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
+
+    celery_process = subprocess.Popen(cmd, **kwargs)
+
+def cleanup():
+    global celery_process, redis_process
+    if celery_process:
+        print("Stopping Celery worker...")
+        celery_process.terminate()
+        celery_process.wait()
+        celery_process = None
+    
+    if redis_process:
+        print("Stopping dedicated Redis server...")
+        redis_process.terminate()
+        redis_process.wait()
+        redis_process = None
+
+atexit.register(cleanup)
 
 if __name__ == '__main__':
-    # Ensure media directory exists even if DB logic moved to factory
     media_folder = app.config.get('MEDIA_FOLDER')
     if media_folder and not os.path.exists(media_folder):
         os.makedirs(media_folder)
         print(f"Created media directory: {media_folder}")
 
-    # Standard run for local development
+    # In debug mode, Werkzeug restarts the app. WERKZEUG_RUN_MAIN is 'true' in the child process.
+    # We only start celery in the main worker process to avoid duplicating Celery workers.
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+        # Check if user wants to skip celery
+        if not os.environ.get('SKIP_CELERY'):
+            start_celery()
+
     app.run(debug=True, port=5020)

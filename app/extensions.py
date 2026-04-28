@@ -6,6 +6,7 @@ from flask_login import LoginManager
 
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import MetaData
+import redis
 
 naming_convention = {
     "ix": 'ix_%(column_0_label)s',
@@ -19,6 +20,7 @@ db = SQLAlchemy(metadata=MetaData(naming_convention=naming_convention))
 migrate = Migrate(render_as_batch=True)
 login_manager = LoginManager()
 csrf = CSRFProtect()
+redis_client = None # Will be initialized in create_app
 
 # Storage extension placeholder
 storage = None

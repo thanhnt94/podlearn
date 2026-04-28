@@ -20,3 +20,6 @@ gTTS
 pydub
 requests
 google-generativeai
+celery==5.4.0
+redis==5.0.1
+sqlalchemy-celery

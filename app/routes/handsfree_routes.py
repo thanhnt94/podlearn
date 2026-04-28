@@ -26,8 +26,8 @@ def generate_handsfree():
     from ..services.handsfree_service import (
         start_generation_task, _get_cache_key, _get_storage_dir, handsfree_tasks
     )
-    from ..models.subtitle import SubtitleTrack
-    from ..models.lesson import Lesson
+    from app.modules.content.models import SubtitleTrack
+    from app.modules.study.models import Lesson
     
     data = request.get_json() or {}
     video_id = data.get('video_id')

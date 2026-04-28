@@ -20,18 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 from ..services import subtitle_service, shadowing_service, audio_service, vocab_service
-from ..models.user import User
-from ..models.lesson import Lesson
-from ..models.video import Video
-from ..models.note import Note
-from ..models.subtitle import SubtitleTrack
-from ..models.playlist import Playlist
-from ..models.badge import Badge, UserBadge
-from ..models.notification import Notification
-from ..models.shadowing import ShadowingHistory
-from ..models.sentence import Sentence, SentenceSet
-from ..models.glossary import VideoGlossary, VocabEditHistory
-from ..models.sentence_token import SentenceToken
+from app.modules.identity.models import User
+from app.modules.study.models import Lesson
+from app.modules.content.models import Video
+from app.modules.study.models import Note
+from app.modules.content.models import SubtitleTrack
+from app.modules.content.models import Playlist
+from app.modules.engagement.models import Badge, UserBadge
+from app.modules.engagement.models import Notification
+from app.modules.engagement.models import ShadowingHistory
+from app.modules.study.models import Sentence, SentenceSet
+from app.modules.study.models import VideoGlossary, VocabEditHistory
+from app.modules.study.models import SentenceToken
 from ..services.subtitle_service import (
     get_subtitle_track, 
     get_lines_as_dicts, 
@@ -392,7 +392,7 @@ def get_dashboard_init():
         })
 
     # 2. Community Videos (Discovery)
-    from ..models.subtitle import SubtitleTrack # If needed for filtering
+    from app.modules.content.models import SubtitleTrack # If needed for filtering
     public_videos = Video.query.filter_by(visibility='public').limit(24).all()
     discovery_data = []
     for v in public_videos:
@@ -412,7 +412,7 @@ def get_dashboard_init():
         })
 
     # 3. Pending Invites
-    from ..models.share import ShareRequest
+    from app.modules.engagement.models import ShareRequest
     pending_shares = ShareRequest.query.filter_by(receiver_id=current_user.id, status='pending').all()
     notif_data = [{
         'id': s.id,
@@ -426,7 +426,7 @@ def get_dashboard_init():
     stats = get_user_stats(current_user.id)
 
     # 5. Sentence Sets (Mastery Decks)
-    from ..models.sentence import SentenceSet, Sentence
+    from app.modules.study.models import SentenceSet, Sentence
     sets = SentenceSet.query.filter_by(user_id=current_user.id).order_by(SentenceSet.updated_at.desc()).all()
     sets_data = []
     for s in sets:
@@ -560,7 +560,7 @@ def save_custom_tokens():
 @api_bp.route('/vocab/scan-status/<int:lesson_id>', methods=['GET'])
 @login_required
 def get_scan_status(lesson_id):
-    from ..models.sentence_token import SentenceToken
+    from app.modules.study.models import SentenceToken
     lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
     has_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id).first() is not None
     return jsonify({
@@ -766,8 +766,8 @@ def add_vocab_item():
         return jsonify({'success': False, 'error': 'Missing data'}), 400
         
     lesson = Lesson.query.get_or_404(lesson_id)
-    from ..models.sentence import Sentence, SentenceSet
-    from ..models.note import Note
+    from app.modules.study.models import Sentence, SentenceSet
+    from app.modules.study.models import Note
     
     # 1. Add to Learning Notes (as requested by user)
     note_content = f"**{term}**"
@@ -1469,7 +1469,7 @@ def tts_anonymous():
 def get_sentence_shadowing_stats(sentence_id):
     """Retrieve learning statistics for a specific sentence pattern."""
     from sqlalchemy import func
-    from ..models.shadowing import ShadowingHistory
+    from app.modules.engagement.models import ShadowingHistory
     
     stats = db.session.query(
         func.count(ShadowingHistory.id).label('attempt_count'),
@@ -1678,7 +1678,7 @@ def update_sentence(sentence_id):
 def generate_ai_insights(video_id):
     from flask import request
     from sqlalchemy import func
-    from ..models.video import Video
+    from app.modules.content.models import Video
     
     # Dual lookup: try primary key first, then youtube_id (case-insensitive)
     video = None
@@ -1692,7 +1692,7 @@ def generate_ai_insights(video_id):
     if not video:
         return jsonify({"error": f"Video {video_id} not found"}), 404
     
-    from ..models.ai_insight import AIInsightTrack
+    from app.modules.study.models import AIInsightTrack
     from ..services.ai_service import start_background_analysis
     from flask import current_app
 
@@ -1717,8 +1717,8 @@ def generate_ai_insights(video_id):
 @api_bp.route('/ai/insights/<string:video_id>')
 @login_required
 def get_ai_insights(video_id):
-    from ..models.ai_insight import AIInsightTrack, AIInsightItem
-    from ..models.video import Video
+    from app.modules.study.models import AIInsightTrack, AIInsightItem
+    from app.modules.content.models import Video
     from sqlalchemy import func
     
     # Dual lookup: try primary key first, then youtube_id (case-insensitive)
@@ -1774,8 +1774,8 @@ def get_ai_insights(video_id):
 @csrf.exempt
 @login_required
 def analyze_ai_line(video_id, line_index):
-    from ..models.video import Video
-    from ..models.ai_insight import AIInsightTrack
+    from app.modules.content.models import Video
+    from app.modules.study.models import AIInsightTrack
     from ..services.ai_service import analyze_single_line
     from sqlalchemy import func
     
@@ -1852,7 +1852,7 @@ def analyze_sentence_api():
 
     if lang == 'ja':
         from ..services.vocab_service import analyze_japanese_text, get_definitions_for_terms
-        from ..models.sentence_token import SentenceToken
+        from app.modules.study.models import SentenceToken
 
         # 1. Try to get saved tokens first
         db_tokens = []
@@ -1896,7 +1896,7 @@ def analyze_sentence_api():
             return jsonify({'words': formatted, 'is_manual': True})
 
         # Fetch custom vocab for priority segmentation
-        from ..models.glossary import VideoGlossary
+        from app.modules.study.models import VideoGlossary
         custom_vocab_records = VideoGlossary.query.filter_by(lesson_id=lesson_id).all() if lesson_id else []
         custom_vocab_set = {v.term for v in custom_vocab_records} if custom_vocab_records else None
 
@@ -1927,9 +1927,9 @@ def generate_all_vocab():
         
     from ..services.subtitle_service import get_lines_as_dicts
     from ..services.vocab_service import analyze_japanese_text
-    from ..models.sentence_token import SentenceToken
-    from ..models.subtitle import SubtitleTrack
-    from ..models.glossary import VideoGlossary
+    from app.modules.study.models import SentenceToken
+    from app.modules.content.models import SubtitleTrack
+    from app.modules.study.models import VideoGlossary
 
     track = SubtitleTrack.query.get(track_id)
     if not track:
@@ -1984,7 +1984,7 @@ def clear_all_tokens():
     if not lesson_id:
         return jsonify({"error": "Missing lesson_id"}), 400
     
-    from ..models.sentence_token import SentenceToken
+    from app.modules.study.models import SentenceToken
     SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
     db.session.commit()
     return jsonify({"success": True})

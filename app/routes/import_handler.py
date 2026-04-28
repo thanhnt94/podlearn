@@ -2,10 +2,10 @@ import json
 from flask import Blueprint, request, jsonify, flash, render_template, redirect, url_for
 from flask_login import login_required, current_user
 from ..extensions import db
-from ..models.sentence import Sentence, SentenceSet
-from ..models.grammar import Grammar
-from ..models.vocabulary import Vocabulary
-from ..models.video import Video
+from app.modules.study.models import Sentence, SentenceSet
+from app.modules.study.models import Grammar
+from app.modules.study.models import Vocabulary
+from app.modules.content.models import Video
 from ..routes.admin import admin_required
 
 import_bp = Blueprint('import', __name__, url_prefix='/admin/import')

@@ -7,13 +7,13 @@ import logging
 from flask import current_app
 
 from ..extensions import db
-from ..models.user import User
+from app.modules.identity.models import User
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 def is_sso_alive():
     """Circuit Breaker: Check if Central Auth server is reachable."""
-    from ..models.setting import AppSetting
+    from app.modules.engagement.models import AppSetting
     try:
         # Priority: 1. Database Setting (UI) -> 2. Config (ENV) -> 3. Fallback
         sso_url = AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS') or \
@@ -27,7 +27,7 @@ def is_sso_alive():
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
-    from ..models.setting import AppSetting
+    from app.modules.engagement.models import AppSetting
     if AppSetting.get('AUTH_PROVIDER') == 'central':
         flash('Cổng đăng ký nội bộ hiện đang đóng. Vui lòng đăng ký qua hệ thống Central Auth.', 'error')
         return redirect(url_for('auth.login'))
@@ -74,7 +74,7 @@ def register():
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    from ..models.setting import AppSetting
+    from app.modules.engagement.models import AppSetting
     auth_provider = AppSetting.get('AUTH_PROVIDER', 'local')
     
     # Bridge: Redirect to SSO if provider is set to central
@@ -130,7 +130,7 @@ def admin_login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
-    from ..models.setting import AppSetting
+    from app.modules.engagement.models import AppSetting
     auth_provider = AppSetting.get('AUTH_PROVIDER', 'local')
     
     if auth_provider == 'central':
@@ -144,7 +144,7 @@ def logout():
 @auth_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    from ..models.setting import AppSetting
+    from app.modules.engagement.models import AppSetting
     auth_provider = AppSetting.get('AUTH_PROVIDER', 'local')
     
     if auth_provider == 'central':

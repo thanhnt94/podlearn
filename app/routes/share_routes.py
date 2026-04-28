@@ -2,10 +2,10 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
 from ..extensions import db
-from ..models.user import User
-from ..models.video import Video
-from ..models.share import ShareRequest
-from ..models.lesson import Lesson
+from app.modules.identity.models import User
+from app.modules.content.models import Video
+from app.modules.engagement.models import ShareRequest
+from app.modules.study.models import Lesson
 
 share_bp = Blueprint('share', __name__, url_prefix='/api/share')
 

@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from ..extensions import db
-from ..models.comment import Comment
-from ..models.user import User
+from app.modules.engagement.models import Comment
+from app.modules.identity.models import User
 
 community_bp = Blueprint('community', __name__)
 

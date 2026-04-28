@@ -1,9 +1,9 @@
 from datetime import datetime, date, timezone, timedelta
 from ..extensions import db
-from ..models.badge import Badge, UserBadge
-from ..models.notification import Notification
-from ..models.user import User
-from ..models.activity_log import ActivityLog
+from app.modules.engagement.models import Badge, UserBadge
+from app.modules.engagement.models import Notification
+from app.modules.identity.models import User
+from app.modules.engagement.models import ActivityLog
 
 class GamificationService:
     @staticmethod
