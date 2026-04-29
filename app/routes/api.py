@@ -1376,19 +1376,19 @@ def import_video():
         )
         db.session.add(video)
         db.session.commit()
-        
-        # Trigger background metadata processing via Celery
-        from ..modules.content.tasks import process_video_metadata
-        try:
-            print(f"[CELERY_DISPATCH] Sending process_video_metadata for ID {video.id} to queue podlearn_tasks", flush=True)
-            task = process_video_metadata.delay(video.id)
-            print(f"[CELERY_DISPATCH] Task sent! Task ID: {task.id}", flush=True)
-        except Exception as e:
-            print(f"[CELERY_DISPATCH] CRITICAL ERROR: Could not send task: {str(e)}", flush=True)
-            
         message = 'Video imported and added to library.'
     else:
         message = f'Video "{video.title}" added to your library.'
+
+    # --- Task Dispatch Logic (Trigger if new OR if existing but not completed) ---
+    if video.status != 'completed':
+        from ..modules.content.tasks import process_video_metadata
+        try:
+            print(f"[CELERY_DISPATCH] Triggering processing for ID {video.id} (Status: {video.status})", flush=True)
+            task = process_video_metadata.delay(video.id)
+            print(f"[CELERY_DISPATCH] Task sent! Task ID: {task.id}", flush=True)
+        except Exception as e:
+            print(f"[CELERY_DISPATCH] CRITICAL ERROR: {str(e)}", flush=True)
 
     # 2. Lesson Creation: One private learning instance per user
     existing_lesson = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
