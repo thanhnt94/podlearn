@@ -221,28 +221,24 @@ def test_auth_connection():
     if base_url and not base_url.startswith(('http://', 'https://')):
         base_url = f"https://{base_url}"
         
-    client_id = str(data.get('client_id', '')).strip()
-    client_secret = str(data.get('client_secret', '')).strip()
+    client_id = str(data.get('client_id', '')).strip().strip('"').strip("'")
+    client_secret = str(data.get('client_secret', '')).strip().strip('"').strip("'")
 
-    # If the user didn't change the secret (it's a masked version),
-    # we don't want to use the mask for handshake.
+    # If secret is literally just dots or stars and we have a saved secret, 
+    # then it's a UI mask and we should use the DB value.
+    # Otherwise, use what the user typed.
     current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
-    is_masked = '*' in client_secret or '...' in client_secret
-    if client_secret == '(Unchanged)' or is_masked:
-        client_secret = current_secret
+    if not client_secret or client_secret.count('.') > 5 or client_secret.count('*') > 5:
+        if current_secret:
+            print(f"[AUTH_TEST] Using SAVED secret from DB (Input was empty or masked)")
+            client_secret = current_secret
     
-    # Final cleanup to remove any potential JSON quotes if they leaked in
-    if isinstance(client_secret, str):
-        client_secret = client_secret.strip('"').strip("'")
-    if isinstance(client_id, str):
-        client_id = client_id.strip('"').strip("'")
+    print(f"[AUTH_TEST] FINAL -> URL: {base_url}, ID: |{client_id}|, Secret Len: {len(client_secret)}")
 
-    print(f"[AUTH_TEST] URL: {base_url}, ID: |{client_id}|, Secret: |{client_secret}|")
-
-    # 1. ALWAYS SAVE SETTINGS FIRST (User requested persistence even on failure)
+    # 1. ALWAYS SAVE SETTINGS FIRST
     AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
     AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
-    if client_secret and not is_masked:
+    if client_secret:
         AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
 
     try:
