@@ -26,18 +26,21 @@ class GamificationService:
         ]
         
         for b in defaults:
-            exists = Badge.query.filter_by(name=b['name']).first()
-            if not exists:
-                badge = Badge(
-                    name=b['name'],
-                    description=b['desc'],
-                    icon_name=b['icon'],
-                    requirement_type=b['type'],
-                    threshold=b['thresh'],
-                    category=b['cat']
-                )
-                db.session.add(badge)
-        db.session.commit()
+            try:
+                exists = Badge.query.filter_by(name=b['name']).first()
+                if not exists:
+                    badge = Badge(
+                        name=b['name'],
+                        description=b['desc'],
+                        icon_name=b['icon'],
+                        requirement_type=b['type'],
+                        threshold=b['thresh'],
+                        category=b['cat']
+                    )
+                    db.session.add(badge)
+                    db.session.commit()
+            except Exception:
+                db.session.rollback()
 
     @staticmethod
     def check_and_award_badges(user):

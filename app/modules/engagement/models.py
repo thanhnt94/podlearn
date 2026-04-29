@@ -30,7 +30,7 @@ class Badge(db.Model):
     __tablename__ = 'badges'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(100), unique=True, nullable=False, index=True)
     description = db.Column(db.Text, nullable=False)
     icon_name = db.Column(db.String(50), nullable=False) # e.g. 'Shield', 'Flame'
     category = db.Column(db.String(50), default='general') # 'streak', 'shadowing', 'time'

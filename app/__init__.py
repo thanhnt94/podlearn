@@ -339,7 +339,12 @@ def create_app(config_name: str | None = None) -> Flask:
         try:
             db.create_all()
         except Exception as e:
-            app.logger.error(f"Failed to create tables: {e}")
+            # Multi-worker race condition: one worker might be creating tables while another checks.
+            # SQLite is particularly sensitive to this. If the error is "already exists", we can ignore.
+            if "already exists" in str(e).lower():
+                app.logger.info("Database tables already exist (or were created by another worker).")
+            else:
+                app.logger.error(f"Failed to create tables: {e}")
         
         # 3. Seed Admin if not exists
         try:
