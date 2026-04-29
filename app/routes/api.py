@@ -1030,7 +1030,22 @@ def download_youtube_sub(lesson_id):
     if not lang_code:
         return jsonify({'error': 'lang_code is required'}), 400
 
-    # Create a placeholder track first
+    # 1. PREVENT DUPLICATES: Check if this track already exists
+    existing_track = SubtitleTrack.query.filter_by(
+        video_id=lesson.video.id,
+        language_code=lang_code,
+        is_auto_generated=is_auto
+    ).first()
+
+    if existing_track:
+        return jsonify({
+            'success': True,
+            'message': 'Subtitle already exists in library.',
+            'track_id': existing_track.id,
+            'is_duplicate': True
+        })
+
+    # 2. Create a placeholder track if not exists
     track = SubtitleTrack(
         video_id=lesson.video.id, 
         language_code=lang_code,

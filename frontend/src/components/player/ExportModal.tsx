@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Copy, Download, Printer, Check, Languages, FileText } from 'lucide-react';
+import { X, Copy, Download, Printer, Check, Languages, FileText, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
@@ -21,6 +21,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         useTable: true
     });
     const [copied, setCopied] = useState(false);
+    const [promptCopied, setPromptCopied] = useState(false);
 
     const getAlternativeLines = (s1Line: any) => {
         const findBestMatch = (lines: any[]) => {
@@ -63,6 +64,33 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         navigator.clipboard.writeText(generateText());
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleCopyPrompt = () => {
+        const transcriptText = subtitles.map(line => line.text).join('\n');
+        const prompt = `Dưới đây là transcript của một đoạn podcast tiếng Nhật:
+
+"${transcriptText}"
+
+Hãy giúp tôi phân tích đoạn này và xuất ra kết quả dưới dạng Markdown với các yêu cầu sau:
+
+1. **Tổng quan**: Tóm tắt ngắn gọn nội dung chính của đoạn này.
+2. **Bảng ngữ pháp**: Liệt kê các mẫu ngữ pháp quan trọng xuất hiện.
+3. **Bảng từ vựng**: Liệt kê các từ mới/từ quan trọng.
+
+**Yêu cầu định dạng cực kỳ quan trọng:**
+- Xuất kết quả cuối cùng TRONG MỘT KHỐI CODE MARKDOWN (fenced code block) để tôi có thể copy toàn bộ.
+- Bảng phải có định dạng như sau:
+| STT | Mẫu ngữ pháp/Từ vựng | Ý nghĩa | Ví dụ trong podcast |
+| :--- | :--- | :--- | :--- |
+- Trong cột "Ví dụ trong podcast":
+  + Hãy bôi đậm (sử dụng **) mẫu ngữ pháp hoặc từ vựng đó trong câu ví dụ.
+  + Phần dịch nghĩa tiếng Việt ngay bên dưới câu ví dụ hãy dùng định dạng: <br>*(Dịch: <span style="color: #E5A900; font-weight: bold;">nghĩa_tiếng_việt</span>)*
+- Ngôn ngữ phân tích: Tiếng Việt.`;
+
+        navigator.clipboard.writeText(prompt);
+        setPromptCopied(true);
+        setTimeout(() => setPromptCopied(false), 2000);
     };
 
     const handleDownloadDocx = async () => {
@@ -287,6 +315,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
                             </div>
                             
                             <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={handleCopyPrompt}
+                                    className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border ${promptCopied ? 'bg-amber-500 text-slate-950 border-amber-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20'}`}
+                                >
+                                    {promptCopied ? <><Check size={16} strokeWidth={3} /> Copied Prompt</> : <><Sparkles size={16} /> Copy AI Prompt</>}
+                                </button>
                                 <button 
                                     onClick={handleCopy}
                                     className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${copied ? 'bg-emerald-500 text-slate-950' : 'bg-white text-slate-950 hover:bg-sky-400'}`}

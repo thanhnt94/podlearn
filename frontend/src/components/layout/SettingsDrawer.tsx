@@ -24,6 +24,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
 
     const [activeMainTab, setActiveMainTab] = useState<MainTab>('display');
     const [activeDisplayTrack, setActiveDisplayTrack] = useState<'s1' | 's2' | 's3'>('s1');
+    const [librarySubTab, setLibrarySubTab] = useState<'tracks' | 'upload' | 'cloud'>('tracks');
     
     // Status state
     const [isSaving, setIsSaving] = useState(false);
@@ -189,9 +190,9 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     };
 
     useEffect(() => {
-        if (activeMainTab === 'library' && isOpen) fetchYoutubeSources();
+        if (activeMainTab === 'library' && librarySubTab === 'cloud' && isOpen) fetchYoutubeSources();
         if (activeMainTab === 'project' && isOpen) fetchAdminData();
-    }, [activeMainTab, isOpen]);
+    }, [activeMainTab, librarySubTab, isOpen]);
 
     // Categories UI
     const categories = [
@@ -524,120 +525,239 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                    onChange={(e) => setNoteSettings({ beforeSecs: parseFloat(e.target.value) })} 
                                                    className="w-full accent-sky-500 h-1 bg-slate-800 rounded-full" />
                                        </div>
+
+                                       <section className="bg-white/5 rounded-[2rem] p-6 border border-white/5 space-y-4">
+                                             <div className="flex items-center gap-3 mb-2">
+                                                 <div className="w-8 h-8 bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-400">
+                                                     <Save size={16} />
+                                                 </div>
+                                                 <div className="flex flex-col">
+                                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-white">Notes Style Template</h4>
+                                                     <p className="text-[9px] text-slate-500">Apply these note styles globally</p>
+                                                 </div>
+                                             </div>
+                                             
+                                             <div className="grid grid-cols-2 gap-3">
+                                                 <button 
+                                                     onClick={handleSaveAsGlobalDefault}
+                                                     disabled={isSavingGlobal}
+                                                     className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
+                                                         globalSaveStatus === 'success' 
+                                                         ? 'bg-emerald-500 text-slate-950' 
+                                                         : 'bg-white/5 hover:bg-white/10 text-white border border-white/5'
+                                                     }`}
+                                                 >
+                                                     {isSavingGlobal ? <RefreshCw size={14} className="animate-spin" /> : globalSaveStatus === 'success' ? <Check size={14} /> : <Save size={14} />}
+                                                     {globalSaveStatus === 'success' ? 'TEMPLATE SAVED' : 'SAVE AS DEFAULT'}
+                                                 </button>
+
+                                                 <button 
+                                                     onClick={handleResetToGlobalDefault}
+                                                     className="flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-all border border-white/5"
+                                                 >
+                                                     <RefreshCw size={14} />
+                                                     RESET TO DEFAULT
+                                                 </button>
+                                             </div>
+                                         </section>
                                    </motion.div>
                                )}
 
                                {activeMainTab === 'library' && (
-                                   <motion.div key="library" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-10">
+                                   <motion.div key="library" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-8">
                                        
-                                       {/* Current Content */}
-                                       <section className="space-y-4">
-                                           <div className="flex items-center gap-2 px-2">
-                                               <Layers size={14} className="text-sky-500" />
-                                               <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">My Study Tracks</h3>
-                                           </div>
-                                           <div className="grid gap-3">
-                                               {availableTracks.map(t => {
-                                                   const isProcessing = t.status === 'pending' || t.status === 'processing';
-                                                   return (
-                                                       <div key={t.id} className="group bg-white/5 border border-white/5 rounded-2xl p-4 flex items-center justify-between hover:bg-white/10 transition-all">
-                                                           <div className="flex items-center gap-3">
-                                                               {isProcessing && <RefreshCw size={14} className="text-sky-500 animate-spin" />}
-                                                               <div>
-                                                                   <div className="text-xs font-bold text-white uppercase flex items-center gap-2">
-                                                                       {t.name || t.language_code}
-                                                                       {isProcessing && <span className="text-[8px] text-sky-500 animate-pulse">PROCESSING...</span>}
-                                                                   </div>
-                                                                   <div className="text-[9px] text-slate-600 tracking-tight">{t.uploader_name} • {t.line_count} lines</div>
-                                                               </div>
-                                                           </div>
-                                                           <button onClick={() => handleDeleteTrack(t.id)} className="p-2 opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all"><Trash2 size={16} /></button>
-                                                       </div>
-                                                   );
-                                                })}
-                                           </div>
-                                       </section>
+                                       {/* Library Sub-navigation */}
+                                       <div className="flex bg-slate-800/50 p-1 rounded-xl gap-1">
+                                           {[
+                                               { id: 'tracks', label: 'My Tracks', icon: <Layers size={14} /> },
+                                               { id: 'upload', label: 'Upload', icon: <Upload size={14} /> },
+                                               { id: 'cloud', label: 'YouTube', icon: <Globe size={14} /> }
+                                           ].map(tab => (
+                                               <button 
+                                                   key={tab.id} 
+                                                   onClick={() => setLibrarySubTab(tab.id as any)}
+                                                   className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                       librarySubTab === tab.id ? 'bg-white text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white'
+                                                   }`}
+                                               >
+                                                   {tab.icon}
+                                                   {tab.label}
+                                               </button>
+                                           ))}
+                                       </div>
 
-                                       {/* Manual Import Area */}
-                                       <section className="bg-slate-800/40 rounded-[2.5rem] p-6 border border-white/5 space-y-6">
-                                            <div className="flex items-center gap-2">
-                                                <Upload size={14} className="text-sky-500" />
-                                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manual Inflow</h3>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="col-span-1 space-y-1">
-                                                    <label className="text-[9px] font-bold text-slate-600 uppercase ml-1">Language</label>
-                                                    <select value={uploadLang} onChange={(e) => setUploadLang(e.target.value)} className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none">
-                                                        <option value="en">English</option>
-                                                        <option value="vi">Vietnamese</option>
-                                                        <option value="ja">Japanese</option>
-                                                        <option value="zh">Chinese</option>
-                                                    </select>
-                                                </div>
-                                                <div className="col-span-1 flex items-end">
-                                                    <button onClick={() => fileInputRef.current?.click()} disabled={isUploading}
-                                                            className="w-full py-2 bg-sky-500 text-slate-950 rounded-xl font-bold text-[10px] uppercase transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-sky-500/10">
-                                                        {isUploading ? '...' : <><Upload size={12}/> File</>}
-                                                    </button>
-                                                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".srt,.vtt" />
-                                                </div>
-                                            </div>
-                                            <div className="p-3 bg-black/30 rounded-2xl border border-white/5 flex items-start gap-3">
-                                                <Info size={14} className="text-slate-500 shrink-0 mt-0.5" />
-                                                <p className="text-[9px] leading-relaxed text-slate-500 uppercase font-medium">Supports SRT & VTT. Ensure file encoding is UTF-8 for best results.</p>
-                                            </div>
-                                       </section>
+                                       <AnimatePresence mode="wait">
+                                           {librarySubTab === 'tracks' && (
+                                               <motion.div key="tracks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+                                                   <div className="grid gap-3">
+                                                       {availableTracks.length === 0 ? (
+                                                            <div className="py-20 text-center space-y-4 opacity-40">
+                                                                <Layers size={40} className="mx-auto" />
+                                                                <p className="text-[10px] font-black uppercase tracking-widest">No tracks available yet</p>
+                                                            </div>
+                                                       ) : availableTracks.map(track => {
+                                                           const isProcessing = track.status === 'pending' || track.status === 'processing';
+                                                           const isTranslating = track.status === 'translating';
+                                                           const progressPercent = track.total_lines > 0 ? Math.round((track.progress / track.total_lines) * 100) : 0;
 
-                                       {/* YouTube Cloud Scan */}
-                                       <section className="space-y-4">
-                                            <div className="flex items-center justify-between px-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Globe size={14} className="text-blue-400" />
-                                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">YouTube Cloud</h3>
-                                                </div>
-                                                <button onClick={fetchYoutubeSources} className="p-1 hover:text-sky-400 transition-colors"><RefreshCw size={14} className={isLoadingSources ? 'animate-spin' : ''} /></button>
-                                            </div>
-                                            <div className="space-y-2">
-                                                {isLoadingSources ? (
-                                                     <div className="py-10 text-center"><RefreshCw className="animate-spin mx-auto text-slate-700" /></div>
-                                                ) : ytTracks.map(t => {
-                                                    const isImported = availableTracks.some(at => at.language_code === t.lang_code && at.is_auto_generated === t.is_auto);
-                                                    return (
-                                                        <div key={t.lang_code + t.is_auto} className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                                            <div><div className="text-xs font-bold text-white flex items-center gap-2 uppercase">{t.name} {t.is_auto && <span className="text-[8px] opacity-40">AUTO</span>}</div></div>
-                                                            {isImported ? <Check size={16} className="text-sky-500 mr-2" /> : (
-                                                                <button onClick={() => handleImport(t.lang_code, t.is_auto)} disabled={importingLang === t.lang_code}
-                                                                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-50">
-                                                                    {importingLang === t.lang_code ? '...' : <><Download size={14}/> Get</>}
-                                                                </button>
-                                                            )}
+                                                           return (
+                                                               <div key={track.id} className="bg-slate-950/50 rounded-2xl p-4 border border-white/5 space-y-3">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex-1 min-w-0">
+                                                                            {editingTrackId === track.id ? (
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <input 
+                                                                                        autoFocus value={editTrackName} onChange={e => setEditTrackName(e.target.value)}
+                                                                                        className="bg-black border border-sky-500/50 text-xs px-2 py-1 rounded w-full outline-none text-white"
+                                                                                    />
+                                                                                    <button onClick={() => handleSaveTrackName(track.id)} className="text-emerald-500"><Check size={14}/></button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className={`text-xs font-bold truncate ${track.is_original ? 'text-sky-400' : 'text-slate-200'}`}>{track.name}</span>
+                                                                                    {track.is_original && <Shield size={10} className="text-sky-500/50" />}
+                                                                                    {isProcessing && <RefreshCw size={10} className="text-sky-500 animate-spin" />}
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="text-[9px] text-slate-500 font-black uppercase mt-1">
+                                                                                {track.language_code} • {track.line_count} lines • By {track.uploader_name}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-1">
+                                                                            {['s1', 's2', 's3'].map(slot => (
+                                                                                <button
+                                                                                    key={slot}
+                                                                                    onClick={() => setTrackIds({ [slot]: track.id })}
+                                                                                    className={`px-2 py-1 rounded text-[8px] font-black uppercase transition-all ${trackIds[slot as keyof typeof trackIds] === track.id ? 'bg-sky-500 text-slate-950' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                                                                                >
+                                                                                    {slot}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                                                                        <div className="flex gap-2">
+                                                                            <button onClick={() => { setEditingTrackId(track.id); setEditTrackName(track.name); }} className="p-1.5 text-slate-500 hover:text-white"><Edit3 size={14}/></button>
+                                                                            <button onClick={() => translateTrack(track.id, 'vi', `${track.name} (VN)`)} className="p-1.5 text-sky-500 hover:bg-sky-500/10 rounded-lg"><Languages size={14}/></button>
+                                                                            <button onClick={() => exportTrack(track.id, 'srt')} className="p-1.5 text-slate-500 hover:text-white"><FileText size={14}/></button>
+                                                                        </div>
+                                                                        <button onClick={() => handleDeleteTrack(track.id)} className="p-1.5 text-slate-700 hover:text-red-500"><Trash2 size={14}/></button>
+                                                                    </div>
+
+                                                                    {(isTranslating || isProcessing) && (
+                                                                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                                            <div className="h-full bg-sky-500 transition-all duration-500" style={{ width: isProcessing ? '100%' : `${progressPercent}%` }} />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                           );
+                                                        })}
+                                                   </div>
+                                               </motion.div>
+                                           )}
+
+                                           {librarySubTab === 'upload' && (
+                                               <motion.div key="upload" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                                                   <section className="bg-slate-800/40 rounded-[2.5rem] p-6 border border-white/5 space-y-6">
+                                                        <div className="flex items-center gap-2">
+                                                            <Upload size={14} className="text-sky-500" />
+                                                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manual Inflow</h3>
                                                         </div>
-                                                    );
-                                                })}
-                                            </div>
-                                       </section>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div className="col-span-1 space-y-1">
+                                                                <label className="text-[9px] font-bold text-slate-600 uppercase ml-1">Language</label>
+                                                                <select value={uploadLang} onChange={(e) => setUploadLang(e.target.value)} className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none">
+                                                                    <option value="en">English</option>
+                                                                    <option value="vi">Vietnamese</option>
+                                                                    <option value="ja">Japanese</option>
+                                                                    <option value="zh">Chinese</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="col-span-1 flex items-end">
+                                                                <button onClick={() => fileInputRef.current?.click()} disabled={isUploading}
+                                                                        className="w-full py-2 bg-sky-500 text-slate-950 rounded-xl font-bold text-[10px] uppercase transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-sky-500/10">
+                                                                    {isUploading ? '...' : <><Upload size={12}/> File</>}
+                                                                </button>
+                                                                <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".srt,.vtt" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="p-3 bg-black/30 rounded-2xl border border-white/5 flex items-start gap-3">
+                                                            <Info size={14} className="text-slate-500 shrink-0 mt-0.5" />
+                                                            <p className="text-[9px] leading-relaxed text-slate-500 uppercase font-medium">Supports SRT & VTT. Ensure file encoding is UTF-8 for best results.</p>
+                                                        </div>
+                                                   </section>
+                                               </motion.div>
+                                           )}
 
-                                       {/* External Tools */}
-                                       <section className="bg-blue-500/10 rounded-[2.5rem] p-6 border border-blue-500/20 space-y-4">
-                                            <div className="flex items-center gap-2">
-                                                <ExternalLink size={14} className="text-blue-400" />
-                                                <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Third-party Hub</h3>
-                                            </div>
-                                            <p className="text-[10px] text-blue-200/60 font-medium">If clouds are empty, try finding subtitles externally and upload back here.</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {[
-                                                    { name: 'SaveSubs', url: `https://savesubs.com/process?url=${encodeURIComponent(`https://youtube.com/watch?v=${videoId}`)}` },
-                                                    { name: 'DualSub', url: `https://dualsub.xyz/` }
-                                                ].map(site => (
-                                                    <a key={site.name} href={site.url} target="_blank" rel="noreferrer"
-                                                       className="px-4 py-2 bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-400 transition-all flex items-center gap-2">
-                                                        {site.name} <ExternalLink size={10} />
-                                                    </a>
-                                                ))}
-                                            </div>
-                                       </section>
-                                    </motion.div>
-                               )}
+                                           {librarySubTab === 'cloud' && (
+                                               <motion.div key="cloud" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                                                   <section className="space-y-4">
+                                                        <div className="flex items-center justify-between px-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <Globe size={14} className="text-blue-400" />
+                                                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">YouTube Cloud</h3>
+                                                            </div>
+                                                            <button onClick={() => { setYtTracks([]); fetchYoutubeSources(); }} className="p-1 hover:text-sky-400 transition-colors"><RefreshCw size={14} className={isLoadingSources ? 'animate-spin' : ''} /></button>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            {isLoadingSources ? (
+                                                                 <div className="py-20 text-center space-y-4">
+                                                                     <RefreshCw size={32} className="animate-spin mx-auto text-slate-700" />
+                                                                     <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Scanning YouTube Cloud...</p>
+                                                                 </div>
+                                                            ) : ytTracks.length === 0 ? (
+                                                                <div className="py-20 text-center space-y-4 opacity-40">
+                                                                    <Globe size={40} className="mx-auto" />
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest">No subtitles found on YouTube</p>
+                                                                </div>
+                                                            ) : ytTracks.map(t => {
+                                                                const isImported = availableTracks.some(at => at.language_code === t.lang_code && at.is_auto_generated === t.is_auto);
+                                                                return (
+                                                                    <div key={t.lang_code + t.is_auto} className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all">
+                                                                        <div><div className="text-xs font-bold text-white flex items-center gap-2 uppercase">{t.name} {t.is_auto && <span className="text-[8px] opacity-40 italic">AUTO-GEN</span>}</div></div>
+                                                                        {isImported ? (
+                                                                            <div className="flex items-center gap-2 px-4 py-2 bg-sky-500/10 text-sky-500 rounded-xl">
+                                                                                <Check size={14} />
+                                                                                <span className="text-[10px] font-black uppercase">Imported</span>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <button onClick={() => handleImport(t.lang_code, t.is_auto)} disabled={importingLang === t.lang_code}
+                                                                                    className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-50 transition-all active:scale-95 shadow-lg shadow-blue-600/20">
+                                                                                {importingLang === t.lang_code ? '...' : <><Download size={14}/> Get</>}
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                   </section>
+
+                                                   {/* External Tools */}
+                                                   <section className="bg-blue-500/10 rounded-[2.5rem] p-6 border border-blue-500/20 space-y-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <ExternalLink size={14} className="text-blue-400" />
+                                                            <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-400">Third-party Hub</h3>
+                                                        </div>
+                                                        <p className="text-[10px] text-blue-200/60 font-medium">If clouds are empty, try finding subtitles externally and upload back here.</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {[
+                                                                { name: 'SaveSubs', url: `https://savesubs.com/process?url=${encodeURIComponent(`https://youtube.com/watch?v=${videoId}`)}` },
+                                                                { name: 'DualSub', url: `https://dualsub.xyz/` }
+                                                            ].map(site => (
+                                                                <a key={site.name} href={site.url} target="_blank" rel="noreferrer"
+                                                                   className="px-4 py-2 bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-400 transition-all flex items-center gap-2">
+                                                                    {site.name} <ExternalLink size={10} />
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                   </section>
+                                               </motion.div>
+                                           )}
+                                       </AnimatePresence>
+                                     </motion.div>
+                                )}
 
                                {activeMainTab === 'social' && (
                                    <motion.div key="social" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-8">
@@ -695,6 +815,41 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                             </div>
                                        </section>
 
+                                       <section className="bg-white/5 rounded-[2rem] p-6 border border-white/5 space-y-4">
+                                             <div className="flex items-center gap-3 mb-2">
+                                                 <div className="w-8 h-8 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+                                                     <Save size={16} />
+                                                 </div>
+                                                 <div className="flex flex-col">
+                                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-white">Social Style Template</h4>
+                                                     <p className="text-[9px] text-slate-500">Apply community styles globally</p>
+                                                 </div>
+                                             </div>
+                                             
+                                             <div className="grid grid-cols-2 gap-3">
+                                                 <button 
+                                                     onClick={handleSaveAsGlobalDefault}
+                                                     disabled={isSavingGlobal}
+                                                     className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${
+                                                         globalSaveStatus === 'success' 
+                                                         ? 'bg-emerald-500 text-slate-950' 
+                                                         : 'bg-white/5 hover:bg-white/10 text-white border border-white/5'
+                                                     }`}
+                                                 >
+                                                     {isSavingGlobal ? <RefreshCw size={14} className="animate-spin" /> : globalSaveStatus === 'success' ? <Check size={14} /> : <Save size={14} />}
+                                                     {globalSaveStatus === 'success' ? 'TEMPLATE SAVED' : 'SAVE AS DEFAULT'}
+                                                 </button>
+
+                                                 <button 
+                                                     onClick={handleResetToGlobalDefault}
+                                                     className="flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-all border border-white/5"
+                                                 >
+                                                     <RefreshCw size={14} />
+                                                     RESET TO DEFAULT
+                                                 </button>
+                                             </div>
+                                         </section>
+
                                        <section className="bg-white/5 rounded-3xl p-6 border border-white/5">
                                             <div className="flex items-start gap-4">
                                                 <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-slate-500">
@@ -722,12 +877,12 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                <section className="bg-white/5 rounded-[2.5rem] p-6 border border-white/5 space-y-6">
                                                    <div className="flex items-center gap-3">
                                                        <ShieldCheck className="text-sky-400" size={20} />
-                                                       <h3 className="text-sm font-bold text-white uppercase tracking-tight">Project Governance</h3>
+                                                       <h3 className="text-sm font-bold text-white uppercase tracking-tight">Studio Governance</h3>
                                                    </div>
 
                                                    <div className="space-y-4">
                                                        <div className="space-y-2">
-                                                           <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Video Title</label>
+                                                           <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Project Name</label>
                                                            <input 
                                                                type="text" value={adminData.title} 
                                                                onChange={(e) => setAdminData({ ...adminData, title: e.target.value })}
@@ -761,74 +916,6 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                                 </button>
                                                             </div>
                                                        </div>
-                                                   </div>
-                                               </section>
-
-                                               <section className="bg-white/5 rounded-[2.5rem] p-6 border border-white/5 space-y-6">
-                                                   <div className="flex items-center justify-between">
-                                                       <div className="flex items-center gap-3">
-                                                           <Globe className="text-sky-400" size={20} />
-                                                           <h3 className="text-sm font-bold text-white uppercase tracking-tight">Subtitle Tracks</h3>
-                                                       </div>
-                                                       <span className="text-[10px] text-slate-500 font-black">{(availableTracks || []).length} Available</span>
-                                                   </div>
-
-                                                   <div className="space-y-3">
-                                                       {(availableTracks || []).map(track => {
-                                                            const isTranslating = track.status === 'translating';
-                                                            const progressPercent = track.total_lines > 0 ? Math.round((track.progress / track.total_lines) * 100) : 0;
-                                                            
-                                                            return (
-                                                                <div key={track.id} className="bg-slate-950/50 rounded-2xl p-4 border border-white/5 space-y-3">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div className="flex-1 min-w-0">
-                                                                            {editingTrackId === track.id ? (
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <input 
-                                                                                        autoFocus value={editTrackName} onChange={e => setEditTrackName(e.target.value)}
-                                                                                        className="bg-black border border-sky-500/50 text-xs px-2 py-1 rounded w-full outline-none text-white"
-                                                                                    />
-                                                                                    <button onClick={() => handleSaveTrackName(track.id)} className="text-emerald-500"><Check size={14}/></button>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className={`text-xs font-bold truncate ${track.is_original ? 'text-sky-400' : 'text-slate-200'}`}>{track.name}</span>
-                                                                                    {track.is_original && <Shield size={10} className="text-sky-500/50" />}
-                                                                                </div>
-                                                                            )}
-                                                                            <div className="text-[9px] text-slate-500 font-black uppercase mt-1">{track.language_code} • By {track.uploader_name}</div>
-                                                                        </div>
-
-                                                                        <div className="flex items-center gap-1">
-                                                                            {['s1', 's2', 's3'].map(slot => (
-                                                                                <button
-                                                                                    key={slot}
-                                                                                    onClick={() => setTrackIds({ [slot]: track.id })}
-                                                                                    className={`px-2 py-1 rounded text-[8px] font-black uppercase transition-all ${trackIds[slot as keyof typeof trackIds] === track.id ? 'bg-sky-500 text-slate-950' : 'bg-white/5 text-slate-500 hover:text-white'}`}
-                                                                                >
-                                                                                    {slot}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                                                                        <div className="flex gap-2">
-                                                                            <button onClick={() => { setEditingTrackId(track.id); setEditTrackName(track.name); }} className="p-1.5 text-slate-500 hover:text-white"><Edit3 size={14}/></button>
-                                                                            <button onClick={() => translateTrack(track.id, 'vi', `${track.name} (VN)`)} className="p-1.5 text-sky-500 hover:bg-sky-500/10 rounded-lg"><Languages size={14}/></button>
-                                                                            <button onClick={() => exportTrack(track.id, 'srt')} className="p-1.5 text-slate-500 hover:text-white"><FileText size={14}/></button>
-                                                                        </div>
-                                                                        <button onClick={() => handleDeleteTrack(track.id)} className="p-1.5 text-slate-700 hover:text-red-500"><Trash2 size={14}/></button>
-                                                                    </div>
-
-                                                                    {isTranslating && (
-                                                                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                                                                            <div className="h-full bg-sky-500 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                       })}
                                                    </div>
                                                </section>
 
