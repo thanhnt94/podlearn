@@ -41,7 +41,7 @@ export const SSOSettings: React.FC = () => {
         body: JSON.stringify({ 
           base_url: settings.CENTRAL_AUTH_SERVER_ADDRESS,
           client_id: settings.CENTRAL_AUTH_CLIENT_ID,
-          client_secret: settings.CENTRAL_AUTH_CLIENT_SECRET
+          client_secret: clientSecret
         })
       });
       const data = await res.json();
@@ -135,6 +135,7 @@ export const SSOSettings: React.FC = () => {
                    value={settings.CENTRAL_AUTH_SERVER_ADDRESS}
                    onChange={(e) => setSettings({...settings, CENTRAL_AUTH_SERVER_ADDRESS: e.target.value})}
                    placeholder="http://127.0.0.1:5000"
+                   autoComplete="off"
                    className="w-full bg-slate-950/60 border border-white/5 rounded-2xl px-8 py-6 text-sm font-medium focus:border-sky-500/40 focus:bg-slate-950/80 transition-all outline-none"
                  />
               </div>
@@ -149,6 +150,7 @@ export const SSOSettings: React.FC = () => {
                      value={settings.CENTRAL_AUTH_CLIENT_ID}
                      onChange={(e) => setSettings({...settings, CENTRAL_AUTH_CLIENT_ID: e.target.value})}
                      placeholder="podlearn-v1"
+                     autoComplete="off"
                      className="w-full bg-slate-950/60 border border-white/5 rounded-2xl px-8 py-6 text-sm font-mono focus:border-sky-500/40 focus:bg-slate-950/80 transition-all outline-none"
                    />
                 </div>
@@ -163,6 +165,7 @@ export const SSOSettings: React.FC = () => {
                     value={clientSecret} 
                     onChange={e => setClientSecret(e.target.value)}
                     placeholder="Enter secret key..."
+                    autoComplete="new-password"
                     className="w-full bg-slate-950/50 border border-white/5 rounded-2xl p-6 pr-16 text-sm outline-none focus:border-indigo-500/50 transition-all text-white font-mono" 
                   />
                   <button 
