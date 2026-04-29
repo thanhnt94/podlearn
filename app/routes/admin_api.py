@@ -215,7 +215,12 @@ def trigger_ai_analysis(video_id):
 def test_auth_connection():
     import requests
     data = request.get_json()
-    base_url = data.get('base_url', '').rstrip('/')
+    base_url = data.get('base_url', '').strip().rstrip('/')
+    
+    # Auto-prepend scheme if missing
+    if base_url and not base_url.startswith(('http://', 'https://')):
+        base_url = f"https://{base_url}"
+        
     client_id = str(data.get('client_id', '')).strip()
     client_secret = str(data.get('client_secret', '')).strip()
 
@@ -247,7 +252,9 @@ def test_auth_connection():
         validation = auth_helper.validate_client()
         
         if not validation.get('success'):
-            return jsonify({"success": False, "message": f"Bắt tay thất bại: {validation.get('error', 'Unknown Error')}"}), 401
+            err_msg = validation.get('error', 'Unknown Error')
+            print(f"[AUTH_TEST] Handshake FAILED: {err_msg}")
+            return jsonify({"success": False, "message": f"Bắt tay thất bại: {err_msg}"}), 401
             
         # 3. Successful Handshake - SAVE SETTINGS PERMANENTLY
         AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')

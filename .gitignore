@@ -16,6 +16,7 @@ instance/
 *.db
 !/dictionaries/database/*.db
 !/app/static/dist/
+!/app/static/admin-dist/
 *.sqlite3
 
 # Environment

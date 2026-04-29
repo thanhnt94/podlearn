@@ -56,7 +56,12 @@ class EcosystemAuth:
                 "client_id": self.client_id,
                 "client_secret": self.client_secret
             }, timeout=5)
-            data = r.json()
+            try:
+                data = r.json()
+            except:
+                print(f"[SSO_HELPER] Hub returned non-JSON response: {r.text[:200]}")
+                return {"success": False, "error": f"Hub error (HTTP {r.status_code})"}
+
             if r.ok and data.get('success'):
                 return {"success": True, "client_name": data.get('client_name')}
             return {"success": False, "error": data.get('error', 'Invalid Credentials')}
