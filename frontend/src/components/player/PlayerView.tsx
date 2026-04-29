@@ -343,10 +343,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
               ))}
           </div>
 
-          {/* Panel Content */}
-          <div className="flex-1 overflow-y-auto px-4 custom-scrollbar mt-2">
+          {/* Panel Content - Removed scrolling from here to allow panels to handle it */}
+          <div className="flex-1 flex flex-col min-h-0 mt-2">
               <AnimatePresence mode="wait">
-                  <motion.div key={activeTab} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.2 }}>
+                  <motion.div 
+                    key={activeTab} 
+                    initial={{ opacity: 0, y: 5 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: -5 }} 
+                    transition={{ duration: 0.2 }}
+                    className="flex-1 flex flex-col overflow-hidden"
+                  >
                     {renderPanel()}
                   </motion.div>
               </AnimatePresence>
@@ -407,8 +414,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 const StudyPanelGroup = ({ onExport }: { onExport: () => void }) => {
     const [sub, setSub] = useState<'read' | 'notes'>('read');
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="sticky top-0 z-20 flex p-3 gap-2 bg-slate-950/80 backdrop-blur-md border-b border-white/5 items-center">
+        <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-4 pb-3 flex gap-2 items-center shrink-0">
                 <button 
                     onClick={() => setSub('read')}
                     className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'read' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
@@ -422,16 +429,16 @@ const StudyPanelGroup = ({ onExport }: { onExport: () => void }) => {
                     <MessageSquare size={14} /> My Notes
                 </button>
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
                 {sub === 'read' ? <TranscriptBody /> : <NotesPanel />}
             </div>
             {/* Fixed Footer for Export */}
-            <div className="sticky bottom-0 z-20 p-4 bg-slate-950/80 backdrop-blur-md border-t border-white/5">
+            <div className="p-4 bg-slate-950/50 border-t border-white/5 shrink-0">
                 <button 
                     onClick={onExport}
-                    className="w-full py-4 bg-white text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-sky-500 transition-all active:scale-95 shadow-xl flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 border border-white/10 flex items-center justify-center gap-2"
                 >
-                    <Download size={16} /> Export Script (Docx/Print)
+                    <Download size={16} /> Export Script (Docx)
                 </button>
             </div>
         </div>
@@ -441,8 +448,8 @@ const StudyPanelGroup = ({ onExport }: { onExport: () => void }) => {
 const PracticePanel = () => {
     const [sub, setSub] = useState<'shadowing' | 'vocab'>('shadowing');
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="sticky top-0 z-20 flex p-3 gap-2 bg-slate-950/80 backdrop-blur-md border-b border-white/5">
+        <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-4 pb-3 flex gap-2 items-center shrink-0">
                 <button 
                     onClick={() => setSub('shadowing')}
                     className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'shadowing' ? 'bg-white text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
@@ -456,7 +463,7 @@ const PracticePanel = () => {
                     <Scissors size={14} /> Vocabulary
                 </button>
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
                 {sub === 'shadowing' ? <ShadowingPanel /> : <VocabPanel />}
             </div>
         </div>
@@ -466,8 +473,8 @@ const PracticePanel = () => {
 const InsightsPanelGroup = () => {
     const [sub, setSub] = useState<'ai' | 'social'>('ai');
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="sticky top-0 z-20 flex p-3 gap-2 bg-slate-950/80 backdrop-blur-md border-b border-white/5">
+        <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-4 pb-3 flex gap-2 items-center shrink-0">
                 <button 
                     onClick={() => setSub('ai')}
                     className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'ai' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
@@ -481,7 +488,7 @@ const InsightsPanelGroup = () => {
                     Community
                 </button>
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
                 {sub === 'ai' ? <InsightsPanel /> : <CommunityPanel />}
             </div>
         </div>

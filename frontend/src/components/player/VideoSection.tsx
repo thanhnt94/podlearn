@@ -296,18 +296,12 @@ export const VideoSection: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, scale: 0.8, x: 20 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
-            className="absolute top-6 right-6 z-[60] flex items-center gap-2 px-4 py-2 bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] group/timer hover:bg-slate-900/60 transition-all duration-300"
+            className="absolute top-6 right-6 z-[60] flex items-center gap-1.5 px-3 py-1 bg-slate-950/40 backdrop-blur-md border border-white/5 rounded-full shadow-2xl group/timer hover:bg-slate-900/60 transition-all duration-300"
           >
-              <div className="relative">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.8)]" />
-                  <div className="absolute inset-0 w-2 h-2 bg-emerald-500 rounded-full animate-ping opacity-20" />
-              </div>
-              <div className="flex flex-col">
-                  <span className="text-[11px] font-black text-emerald-400 font-mono tracking-wider tabular-nums">
-                    {formatSessionTime(sessionListeningSeconds)}
-                  </span>
-                  <span className="text-[7px] font-bold text-slate-500 uppercase tracking-[0.2em] -mt-0.5 group-hover/timer:text-emerald-500/50 transition-colors">Session</span>
-              </div>
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              <span className="text-[10px] font-black text-emerald-400 font-mono tracking-widest tabular-nums">
+                {formatSessionTime(sessionListeningSeconds)}
+              </span>
           </motion.div>
       )}
 
