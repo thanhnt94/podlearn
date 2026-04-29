@@ -233,7 +233,7 @@ def test_auth_connection():
             print(f"[AUTH_TEST] Using SAVED secret from DB (Input was empty or masked)")
             client_secret = current_secret
     
-    print(f"[AUTH_TEST] FINAL -> URL: {base_url}, ID: |{client_id}|, Secret Len: {len(client_secret)}")
+    print(f"[AUTH_TEST] FINAL -> URL: {base_url}, ID: |{client_id}|, Secret Len: {len(client_secret)}", flush=True)
 
     # 1. ALWAYS SAVE SETTINGS FIRST
     AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
