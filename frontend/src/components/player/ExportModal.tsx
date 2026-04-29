@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Copy, Download, Printer, Check, Languages, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
-import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from 'docx';
+import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
 import { saveAs } from 'file-saver';
 
 interface ExportModalProps {
@@ -17,7 +17,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         showS2: true,
         showS3: false,
         showTimestamp: true,
-        compact: false
+        compact: false,
+        useTable: true
     });
     const [copied, setCopied] = useState(false);
 
@@ -65,52 +66,95 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     };
 
     const handleDownloadDocx = async () => {
+        const docChildren: any[] = [
+            new Paragraph({
+                text: lessonTitle || "Lesson Script",
+                heading: HeadingLevel.HEADING_1,
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 }
+            })
+        ];
+
+        if (options.useTable) {
+            // Create a table with columns based on selection
+            const rows = subtitles.map(line => {
+                const alts = getAlternativeLines(line);
+                const cells = [];
+                
+                if (options.showTimestamp) {
+                    cells.push(new TableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: formatTime(line.start), size: 16, color: "666666" })] })],
+                        width: { size: 10, type: WidthType.PERCENTAGE }
+                    }));
+                }
+
+                if (options.showS1) {
+                    cells.push(new TableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: line.text, bold: true, size: 20 })] })],
+                        width: { size: 40, type: WidthType.PERCENTAGE }
+                    }));
+                }
+
+                const transCells = [];
+                if (options.showS2 && alts.s2) transCells.push(alts.s2.text);
+                if (options.showS3 && alts.s3) transCells.push(alts.s3.text);
+
+                if (transCells.length > 0) {
+                    cells.push(new TableCell({
+                        children: transCells.map(t => new Paragraph({ children: [new TextRun({ text: t, size: 18, color: "333333" })] })),
+                        width: { size: 50, type: WidthType.PERCENTAGE }
+                    }));
+                }
+
+                return new TableRow({ children: cells });
+            });
+
+            docChildren.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: rows,
+                borders: {
+                    top: { style: BorderStyle.SINGLE, size: 1, color: "EEEEEE" },
+                    bottom: { style: BorderStyle.SINGLE, size: 1, color: "EEEEEE" },
+                    left: { style: BorderStyle.SINGLE, size: 1, color: "EEEEEE" },
+                    right: { style: BorderStyle.SINGLE, size: 1, color: "EEEEEE" },
+                    insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "EEEEEE" },
+                    insideVertical: { style: BorderStyle.SINGLE, size: 1, color: "EEEEEE" },
+                }
+            }));
+        } else {
+            // Standard Stacked Layout
+            subtitles.forEach(line => {
+                const alts = getAlternativeLines(line);
+                if (options.showTimestamp) {
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({ text: `[${formatTime(line.start)}]`, bold: true, color: "00A3FF", size: 16 })],
+                    }));
+                }
+                if (options.showS1) {
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({ text: line.text, bold: true, size: 24 })],
+                    }));
+                }
+                if (options.showS2 && alts.s2) {
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({ text: alts.s2.text, color: "10B981", size: 20 })],
+                    }));
+                }
+                if (options.showS3 && alts.s3) {
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({ text: alts.s3.text, color: "F59E0B", size: 18 })],
+                    }));
+                }
+                docChildren.push(new Paragraph({ text: "" }));
+            });
+        }
+
         const doc = new Document({
             sections: [{
-                properties: {},
-                children: [
-                    new Paragraph({
-                        text: lessonTitle || "Lesson Script",
-                        heading: HeadingLevel.HEADING_1,
-                        alignment: AlignmentType.CENTER,
-                    }),
-                    new Paragraph({ text: "" }), // Spacer
-                    ...subtitles.flatMap(line => {
-                        const alts = getAlternativeLines(line);
-                        const lines = [];
-                        
-                        let headerText = "";
-                        if (options.showTimestamp) headerText += `[${formatTime(line.start)}] `;
-                        
-                        if (headerText) {
-                            lines.push(new Paragraph({
-                                children: [new TextRun({ text: headerText, bold: true, color: "00A3FF", size: 16 })],
-                            }));
-                        }
-
-                        if (options.showS1) {
-                            lines.push(new Paragraph({
-                                children: [new TextRun({ text: line.text, bold: true, size: 24 })],
-                                spacing: { before: 100 }
-                            }));
-                        }
-
-                        if (options.showS2 && alts.s2) {
-                            lines.push(new Paragraph({
-                                children: [new TextRun({ text: alts.s2.text, color: "10B981", size: 20 })],
-                            }));
-                        }
-
-                        if (options.showS3 && alts.s3) {
-                            lines.push(new Paragraph({
-                                children: [new TextRun({ text: alts.s3.text, color: "F59E0B", size: 18 })],
-                            }));
-                        }
-
-                        lines.push(new Paragraph({ text: "" })); // Spacer
-                        return lines;
-                    })
-                ],
+                properties: {
+                    page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } // Smaller margins
+                },
+                children: docChildren,
             }],
         });
 
@@ -186,12 +230,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
                         <div className="space-y-4">
                             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Layout</h3>
-                            <button 
-                                onClick={() => setOptions(prev => ({ ...prev, compact: !prev.compact }))}
-                                className={`w-full p-3 rounded-xl text-xs font-bold transition-all border ${options.compact ? 'bg-white text-slate-950 border-white' : 'text-slate-400 border-white/10 hover:border-white/20'}`}
-                            >
-                                {options.compact ? 'Compact (Inline)' : 'Standard (Stacked)'}
-                            </button>
+                            <div className="grid grid-cols-1 gap-2">
+                                <button 
+                                    onClick={() => setOptions(prev => ({ ...prev, compact: !prev.compact }))}
+                                    className={`w-full p-3 rounded-xl text-xs font-bold transition-all border ${options.compact ? 'bg-white text-slate-950 border-white' : 'text-slate-400 border-white/10 hover:border-white/20'}`}
+                                >
+                                    {options.compact ? 'Compact (Inline)' : 'Standard (Stacked)'}
+                                </button>
+                                <button 
+                                    onClick={() => setOptions(prev => ({ ...prev, useTable: !prev.useTable }))}
+                                    className={`w-full p-3 rounded-xl text-xs font-bold transition-all border ${options.useTable ? 'bg-emerald-500 text-slate-950 border-emerald-500' : 'text-slate-400 border-white/10 hover:border-white/20'}`}
+                                >
+                                    {options.useTable ? 'Table Mode (Saving Paper)' : 'Normal Mode'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
