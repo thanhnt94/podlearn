@@ -1,13 +1,15 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
 from functools import wraps
-from ..extensions import db
+from ..extensions import db, csrf
 from app.modules.identity.models import User
 from app.modules.content.models import Video
 from app.modules.study.models import Lesson
 from app.modules.content.models import SubtitleTrack
 from app.modules.engagement.models import AppSetting
 import time
+import requests
+from app.utils.sso_helper import EcosystemAuth
 
 admin_api_bp = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
@@ -26,6 +28,8 @@ def vip_required(f):
             return jsonify({"error": "VIP access required"}), 403
         return f(*args, **kwargs)
     return decorated_function
+
+
 
 @admin_api_bp.route('/stats')
 @login_required
@@ -149,16 +153,13 @@ def delete_user(user_id):
 @admin_required
 def get_settings():
     """Fetch AI and Auth settings."""
-    secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
-    masked_secret = f"{secret[:4]}...{secret[-4:]}" if len(secret) > 8 else "********" if secret else ""
-    
     return jsonify({
         'GEMINI_API_KEY': AppSetting.get('GEMINI_API_KEY', ''),
         'GEMINI_MODEL': AppSetting.get('GEMINI_MODEL', 'gemini-2.0-flash'),
         'AUTH_PROVIDER': AppSetting.get('AUTH_PROVIDER', 'local'),
         'CENTRAL_AUTH_SERVER_ADDRESS': AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', ''),
         'CENTRAL_AUTH_CLIENT_ID': AppSetting.get('CENTRAL_AUTH_CLIENT_ID', ''),
-        'CENTRAL_AUTH_CLIENT_SECRET': masked_secret
+        'CENTRAL_AUTH_CLIENT_SECRET': AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
     })
 
 @admin_api_bp.route('/settings/gemini', methods=['POST'])
@@ -215,14 +216,23 @@ def test_auth_connection():
     import requests
     data = request.get_json()
     base_url = data.get('base_url', '').rstrip('/')
-    client_id = data.get('client_id', '')
-    client_secret = data.get('client_secret', '')
+    client_id = str(data.get('client_id', '')).strip()
+    client_secret = str(data.get('client_secret', '')).strip()
 
-    # If the user didn't change the secret (it's the masked version or '(Unchanged)'),
-    # we don't want to save the mask.
+    # If the user didn't change the secret (it's a masked version),
+    # we don't want to use the mask for handshake.
     current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
-    if client_secret == '(Unchanged)' or (client_secret and '*' in client_secret and len(client_secret) < 15):
+    is_masked = '*' in client_secret or '...' in client_secret
+    if client_secret == '(Unchanged)' or is_masked:
         client_secret = current_secret
+    
+    # Final cleanup to remove any potential JSON quotes if they leaked in
+    if isinstance(client_secret, str):
+        client_secret = client_secret.strip('"').strip("'")
+    if isinstance(client_id, str):
+        client_id = client_id.strip('"').strip("'")
+
+    print(f"[AUTH_TEST] URL: {base_url}, ID: |{client_id}|, Secret: |{client_secret}|")
 
     try:
         # 1. Discovery Check (Server up?)
@@ -230,31 +240,95 @@ def test_auth_connection():
         if discovery_response.status_code != 200:
             return jsonify({'success': False, 'message': 'Không thể kết nối tới Discovery endpoint của Central Auth.'}), 400
         
-        # 2. Credential Handshake (Official Validation)
-        validate_url = f"{base_url}/api/auth/validate-client"
-        v_res = requests.post(validate_url, json={
-            "client_id": client_id,
-            "client_secret": client_secret
-        }, timeout=5)
+        # Use the provided secret for validation
+        validation_secret = client_secret if client_secret else current_secret
         
-        v_data = v_res.json()
-        if not v_res.ok or not v_data.get('success'):
-            error_msg = v_data.get('error', 'Client ID hoặc Secret không hợp lệ.')
-            return jsonify({'success': False, 'message': f'Bắt tay thất bại: {error_msg}'}), 401
+        auth_helper = EcosystemAuth(base_url, client_id, validation_secret)
+        validation = auth_helper.validate_client()
+        
+        if not validation.get('success'):
+            return jsonify({"success": False, "message": f"Bắt tay thất bại: {validation.get('error', 'Unknown Error')}"}), 401
             
-        # 3. Save Config ONLY if handshake succeeded
+        # 3. Successful Handshake - SAVE SETTINGS PERMANENTLY
         AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
         AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
-        if client_secret and client_secret != current_secret:
+        
+        # Always save the secret if it was provided in the request to ensure it's in the DB
+        # This fixes the "lost secret" issue after reload.
+        if client_secret:
             AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
         
         return jsonify({
             'success': True, 
-            'message': f'Kết nối thành công! Đã xác thực client: {v_data.get("client_name")}', 
+            'message': f'Kết nối thành công! Đã xác thực client: {validation.get("client_name")}', 
             'discovery': discovery_response.json()
         })
     except Exception as e:
         return jsonify({'success': False, 'message': f'Lỗi hệ thống: {str(e)}'}), 500
+
+@admin_api_bp.route('/ecosystem-sync', methods=['POST'])
+@csrf.exempt
+def ecosystem_sync_webhook():
+    """Incoming sync from CentralAuth Hub."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "Missing data"}), 400
+        
+    hub_secret = data.get('hub_secret')
+    # Verify using current saved secret OR the system's master SECRET_KEY
+    current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
+    master_key = current_app.config.get('SECRET_KEY')
+    
+    if not hub_secret or (hub_secret != current_secret and hub_secret != master_key):
+        return jsonify({"success": False, "message": "Unauthorized Hub Sync"}), 401
+        
+    # 1. Update settings
+    if 'server_address' in data:
+        val = str(data['server_address']).strip().strip('"').strip("'")
+        AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', val, category='auth')
+    if 'client_id' in data:
+        val = str(data['client_id']).strip().strip('"').strip("'")
+        AppSetting.set('CENTRAL_AUTH_CLIENT_ID', val, category='auth')
+    if 'client_secret' in data:
+        val = str(data['client_secret']).strip().strip('"').strip("'")
+        AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', val, category='auth')
+
+    # 2. Update Users (Bulk Provisioning)
+    users_data = data.get('users', [])
+    if users_data:
+        from app.modules.identity.models import User
+        sync_count = 0
+        for u_info in users_data:
+            # Check if user already exists by email OR username
+            user = User.query.filter(
+                (User.email == u_info['email']) | 
+                (User.username == u_info['username'])
+            ).first()
+            
+            if not user:
+                # Create new shadow user
+                user = User(
+                    username=u_info['username'],
+                    email=u_info['email'],
+                    full_name=u_info.get('full_name', ''),
+                    role=u_info.get('role', 'free')
+                )
+                import uuid
+                user.set_password(str(uuid.uuid4()))
+                db.session.add(user)
+                sync_count += 1
+            else:
+                # Update existing user info if Hub is master, 
+                # but keep local identity if there's a conflict
+                if user.email == u_info['email']:
+                    user.username = u_info['username']
+                user.full_name = u_info.get('full_name', user.full_name)
+        
+        if sync_count > 0:
+            db.session.commit()
+            return jsonify({"success": True, "message": f"Ecosystem Sync Successful. Provisioned {sync_count} users."})
+        
+    return jsonify({"success": True, "message": "Ecosystem Sync Successful (Settings only)"})
 
 @admin_api_bp.route('/toggle-sso', methods=['POST'])
 @login_required

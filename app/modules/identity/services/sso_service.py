@@ -12,7 +12,7 @@ class SSOService:
     @staticmethod
     def get_client():
         # Central Auth Settings (usually in .env or settings table)
-        server_url = AppSetting.get('CENTRAL_AUTH_API_URL', 'http://127.0.0.1:5000')
+        server_url = AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://127.0.0.1:5000')
         client_id = AppSetting.get('CENTRAL_AUTH_CLIENT_ID', 'podlearn-v1')
         client_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', 'podlearn_secret_123')
         

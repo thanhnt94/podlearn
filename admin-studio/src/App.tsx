@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
 import { Dashboard } from './components/modules/Dashboard'
 import { MemberHub } from './components/modules/MemberHub'
@@ -17,7 +17,26 @@ const PlaceholderModule: React.FC<{ name: string }> = ({ name }) => (
 );
 
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return ['dashboard', 'members', 'ai-studio', 'ecosystem', 'settings'].includes(hash) ? hash : 'dashboard';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (['dashboard', 'members', 'ai-studio', 'ecosystem', 'settings'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleTabChange = (tab: string) => {
+    window.location.hash = tab;
+    setActiveTab(tab);
+  };
 
   const renderModule = () => {
     switch (activeTab) {
@@ -37,7 +56,7 @@ function App() {
   };
 
   return (
-    <MainLayout activeTab={activeTab} onTabChange={setActiveTab}>
+    <MainLayout activeTab={activeTab} onTabChange={handleTabChange}>
       {renderModule()}
     </MainLayout>
   )

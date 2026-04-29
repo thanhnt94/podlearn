@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { 
   Globe, Server, Shield, 
   Activity, CheckCircle2, Zap, AlertTriangle,
-  Lock, ArrowRight, Fingerprint
+  Lock, ArrowRight, Fingerprint, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AdminSettings } from '../../types';
 
 export const SSOSettings: React.FC = () => {
   const [settings, setSettings] = useState<AdminSettings | null>(null);
+  const [clientSecret, setClientSecret] = useState((window as any).__PODLEARN_ADMIN_DATA__?.sso_client_secret || '');
+  const [showSecret, setShowSecret] = useState(false);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -151,18 +153,27 @@ export const SSOSettings: React.FC = () => {
                    />
                 </div>
 
-                <div className="space-y-3">
-                   <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">
-                     <Shield size={12} /> Client Secret
-                   </label>
-                   <input 
-                     type="password"
-                     value={settings.CENTRAL_AUTH_CLIENT_SECRET}
-                     onChange={(e) => setSettings({...settings, CENTRAL_AUTH_CLIENT_SECRET: e.target.value})}
-                     placeholder="••••••••••••••••"
-                     className="w-full bg-slate-950/60 border border-white/5 rounded-2xl px-8 py-6 text-sm font-mono focus:border-sky-500/40 focus:bg-slate-950/80 transition-all outline-none"
-                   />
+                <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2 flex items-center gap-2">
+                   <Shield size={12} /> Client Secret
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showSecret ? "text" : "password"} 
+                    value={clientSecret} 
+                    onChange={e => setClientSecret(e.target.value)}
+                    placeholder="Enter secret key..."
+                    className="w-full bg-slate-950/50 border border-white/5 rounded-2xl p-6 pr-16 text-sm outline-none focus:border-indigo-500/50 transition-all text-white font-mono" 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowSecret(!showSecret)}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-all"
+                  >
+                    {showSecret ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
+              </div>
               </div>
 
               <div className="pt-4">

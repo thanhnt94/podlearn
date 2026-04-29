@@ -48,6 +48,21 @@ class EcosystemAuth:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def validate_client(self):
+        """Official Handshake: Verifies if the credentials are valid on the server."""
+        validate_url = f"{self.server_url}/api/auth/validate-client"
+        try:
+            r = requests.post(validate_url, json={
+                "client_id": self.client_id,
+                "client_secret": self.client_secret
+            }, timeout=5)
+            data = r.json()
+            if r.ok and data.get('success'):
+                return {"success": True, "client_name": data.get('client_name')}
+            return {"success": False, "error": data.get('error', 'Invalid Credentials')}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def get_logout_url(self, return_to=None):
         """Initiates Global Logout."""
         url = f"{self.server_url}/api/auth/logout"
