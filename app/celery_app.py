@@ -20,6 +20,7 @@ def celery_init_app(app):
     celery_app.conf.task_default_queue = 'podlearn_tasks'
     
     print(f"[CELERY_INIT] Broker: {celery_app.conf.broker_url}", flush=True)
+    print(f"[CELERY_INIT] Default Queue: {celery_app.conf.task_default_queue}", flush=True)
     celery_app.set_default()
 
     # Celery Beat settings for scheduled tasks
