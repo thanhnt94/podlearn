@@ -8,167 +8,228 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@100;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Swiper.js for mobile-like experience -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     
     <style>
+        :root {
+            --primary: #8b5cf6;
+            --secondary: #d946ef;
+            --accent: #0ea5e9;
+            --bg: #020617;
+        }
         body {
-            font-family: 'Space Grotesk', sans-serif;
-            background-color: #030712;
-            color: #f8fafc;
+            font-family: 'Be Vietnam Pro', sans-serif;
+            background-color: var(--bg);
+            color: #f1f5f9;
             overflow-x: hidden;
         }
         .text-glow {
-            text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+            text-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
         }
         .bg-tech {
-            background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #030712 100%);
+            background: 
+                radial-gradient(circle at 50% 0%, rgba(30, 27, 75, 0.5) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(88, 28, 135, 0.2) 0%, transparent 50%),
+                var(--bg);
         }
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        .glass {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .accent-gradient {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            background: linear-gradient(135deg, #a78bfa 0%, #d946ef 50%, #0ea5e9 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        .btn-podlearn {
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        .btn-premium {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.4);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .btn-podlearn:hover {
-            transform: scale(1.02);
-            box-shadow: 0 0 25px rgba(168, 85, 247, 0.5);
+        .btn-premium:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 20px 35px -5px rgba(139, 92, 246, 0.6);
         }
-        .floating-orb {
+        .swiper-slide {
+            height: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .mobile-card {
+            width: 280px;
+            height: 500px;
+            border-radius: 40px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            background: #0f172a;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .feature-orb {
             position: absolute;
-            width: 400px;
-            height: 400px;
+            width: 200px;
+            height: 200px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
-            filter: blur(60px);
+            filter: blur(40px);
             z-index: 0;
-            pointer-events: none;
+            opacity: 0.2;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
         }
     </style>
 </head>
 <body class="bg-tech selection:bg-indigo-500/30">
-    <div class="floating-orb top-[-100px] right-[-100px]"></div>
-    <div class="floating-orb bottom-[100px] left-[-200px]"></div>
-
-    <!-- Header/Navbar -->
-    <header class="fixed top-0 left-0 right-0 z-50 glass-panel border-b border-white/5">
-        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
+    <!-- Navbar -->
+    <header class="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5 py-4">
+        <nav class="container mx-auto px-6 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
                     <i data-lucide="headphones" class="text-white w-6 h-6"></i>
-                <span class="text-2xl font-bold tracking-tight text-white">Pod<span class="text-indigo-400">Learn</span></span>
+                </div>
+                <span class="text-xl font-black tracking-tight text-white uppercase italic">Pod<span class="text-indigo-400">Learn</span></span>
             </div>
-            <div class="hidden md:flex items-center space-x-6">
-                <a href="{{ url_for('auth.login') }}" class="text-sm font-medium hover:text-white transition-colors">Đăng nhập</a>
-                <a href="{{ url_for('auth.register') }}" class="btn-podlearn px-6 py-2 rounded-full text-sm font-bold text-white">Bắt đầu ngay</a>
-            </div>
-            <div class="md:hidden">
-                <i data-lucide="menu" class="w-6 h-6"></i>
+            <div class="flex items-center gap-6">
+                <a href="{{ url_for('auth.login') }}" class="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Đăng nhập</a>
+                <a href="{{ url_for('auth.register') }}" class="btn-premium px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white">Bắt đầu ngay</a>
             </div>
         </nav>
     </header>
 
-    <!-- Hero Section -->
-    <section class="relative pt-40 pb-20 md:pt-60 md:pb-40 px-6 overflow-hidden">
+    <!-- Hero -->
+    <section class="relative pt-48 pb-20 px-6">
         <div class="container mx-auto text-center relative z-10">
-            <div class="inline-flex items-center space-x-2 px-4 py-2 rounded-full glass-panel mb-8 border border-indigo-500/20">
-                <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i>
-                <span class="text-xs font-semibold text-indigo-300 uppercase tracking-widest">Master Communication Instinct</span>
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass mb-8 border-indigo-500/20">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                </span>
+                <span class="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">AI-Powered Learning Ecosystem</span>
             </div>
-            <h1 class="text-6xl md:text-8xl font-black mb-8 leading-[1.1] tracking-tight">
-                PodLearn - Phá vỡ rào cản,<br>
+            <h1 class="text-5xl md:text-8xl font-black mb-8 leading-[1] tracking-tighter">
+                Phá vỡ rào cản,<br>
                 <span class="accent-gradient">Mở luồng giao tiếp</span>
             </h1>
-            <p class="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed font-light">
-                Nền tảng luyện phản xạ <strong>Shadowing</strong> đa ngôn ngữ bằng AI. Chuyển hóa kiến thức từ vựng, ngữ pháp thành bản năng giao tiếp thực chiến chỉ với 15 phút mỗi ngày.
+            <p class="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed font-medium">
+                Chuyển hóa 15 phút rảnh rỗi mỗi ngày thành <strong>bản năng giao tiếp</strong>. Luyện Shadowing cùng trí tuệ nhân tạo trên mọi video yêu thích của bạn.
             </p>
-            <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-                <a href="{{ url_for('auth.register') }}" class="btn-podlearn px-12 py-5 rounded-2xl font-black text-xl flex items-center group w-full sm:w-auto justify-center">
-                    Trải nghiệm PodLearn miễn phí
-                    <i data-lucide="chevron-right" class="ml-2 w-6 h-6 group-hover:translate-x-1 transition-transform"></i>
+            
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-6 mb-24">
+                <a href="{{ url_for('auth.register') }}" class="btn-premium px-12 py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest flex items-center group shadow-2xl">
+                    Trải nghiệm miễn phí
+                    <i data-lucide="arrow-right" class="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
                 </a>
             </div>
-        </div>
 
-        <!-- UI Hint -->
-        <div class="mt-24 max-w-6xl mx-auto relative group">
-            <div class="absolute inset-0 bg-indigo-500/10 blur-[100px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
-            <div class="glass-panel rounded-[2rem] p-4 border border-white/10 shadow-2xl overflow-hidden shadow-indigo-500/10 transform transition-all duration-700 hover:scale-[1.01]">
-                <img src="{{ url_for('static', filename='images/hero.png') }}" alt="PodLearn Platform" class="rounded-2xl w-full opacity-90">
-            </div>
-        </div>
-    </section>
-
-    <!-- Feature Section (Dual Track) -->
-    <section class="container mx-auto px-6 py-32">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
-            <!-- Column 1: Trạm Khám Phá -->
-            <div class="glass-panel p-12 rounded-[2.5rem] relative overflow-hidden group hover:border-indigo-500/30 transition-all">
-                <div class="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/5 rounded-full blur-[80px] group-hover:bg-indigo-500/10 transition-all"></div>
-                <div class="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-8">
-                    <i data-lucide="headphones" class="text-indigo-400 w-8 h-8"></i>
-                </div>
-                <h3 class="text-indigo-400 font-bold tracking-widest uppercase text-sm mb-4">Trạm Khám Phá</h3>
-                <h2 class="text-4xl font-bold mb-6 text-white leading-tight">Hấp thụ ngôn ngữ tự nhiên</h2>
-                <p class="text-slate-400 text-lg leading-relaxed mb-8">
-                    Học qua <strong>YouTube, Podcast</strong>. Tra từ điển trực tiếp trên phụ đề và trích xuất mẫu câu khó (JLPT N2, IELTS...) chỉ với 1 click. Xây dựng nền tảng từ vựng và ngữ pháp trong ngữ cảnh thực tế.
-                </p>
-                <div class="flex flex-wrap gap-3">
-                    <span class="px-4 py-1 rounded-full glass-panel border border-white/5 text-xs text-slate-300">Contextual Grammar</span>
-                    <span class="px-4 py-1 rounded-full glass-panel border border-white/5 text-xs text-slate-300">1-Click Extraction</span>
-                    <span class="px-4 py-1 rounded-full glass-panel border border-white/5 text-xs text-slate-300">Smart Subtitles</span>
+            <!-- Preview Image -->
+            <div class="max-w-6xl mx-auto relative">
+                <div class="absolute inset-0 bg-indigo-600/20 blur-[120px] opacity-30"></div>
+                <div class="glass p-2 rounded-[3rem] border-white/10 shadow-2xl relative overflow-hidden group">
+                    <img src="/static/images/hero.png" alt="PodLearn UI" class="rounded-[2.5rem] w-full transform group-hover:scale-[1.01] transition-transform duration-1000">
                 </div>
             </div>
-
-            <!-- Column 2: Trạm Phản Xạ -->
-            <div class="glass-panel p-12 rounded-[2.5rem] relative overflow-hidden group hover:border-purple-500/30 transition-all">
-                <div class="absolute -top-24 -right-24 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] group-hover:bg-purple-500/10 transition-all"></div>
-                <div class="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-8">
-                    <i data-lucide="waves" class="text-purple-400 w-8 h-8"></i>
-                </div>
-                <h3 class="text-purple-400 font-bold tracking-widest uppercase text-sm mb-4">Trạm Phản Xạ</h3>
-                <h2 class="text-4xl font-bold mb-6 text-white leading-tight">Luyện tập thành bản năng</h2>
-                <p class="text-slate-400 text-lg leading-relaxed mb-8">
-                    Tính năng <strong>Shadowing</strong> đột phá. Thu âm giọng nói của bạn, AI sẽ chấm điểm phát âm chính xác đến từng âm tiết và phản hồi tức thì để bạn cải thiện. Biến kiến thức thụ động thành phản xạ giao tiếp tự nhiên.
-                </p>
-                <div class="flex flex-wrap gap-3">
-                    <span class="px-4 py-1 rounded-full glass-panel border border-white/5 text-xs text-slate-300">AI Scoring Engine</span>
-                    <span class="px-4 py-1 rounded-full glass-panel border border-white/5 text-xs text-slate-300">Shadowing Loops</span>
-                    <span class="px-4 py-1 rounded-full glass-panel border border-white/5 text-xs text-slate-300">Real-time Feedback</span>
-                </div>
-            </div>
-
         </div>
     </section>
 
-    <!-- CTA Section -->
-    <section class="container mx-auto px-6 py-24 text-center">
-        <h2 class="text-4xl font-bold mb-8">Sẵn sàng để "Flow" cùng ngôn ngữ?</h2>
-        <a href="{{ url_for('auth.register') }}" class="btn-podlearn px-12 py-5 rounded-2xl font-black text-xl w-full sm:w-auto inline-block">Bắt đầu hành trình PodLearn</a>
+    <!-- App-Like Card Showcase -->
+    <section class="py-32 bg-slate-950/30">
+        <div class="container mx-auto px-6 text-center mb-16">
+            <h2 class="text-4xl font-black text-white uppercase tracking-tighter mb-4 italic">The Future of Shadowing</h2>
+            <p class="text-slate-500 text-xs font-bold uppercase tracking-widest">Trải nghiệm mượt mà như ứng dụng di động</p>
+        </div>
+
+        <div class="swiper mySwiper py-12">
+            <div class="swiper-wrapper">
+                <!-- Card 1 -->
+                <div class="swiper-slide">
+                    <div class="mobile-card">
+                        <div class="feature-orb bg-indigo-600 top-[-20px] left-[-20px]"></div>
+                        <div class="relative z-10 h-full flex flex-col">
+                            <div class="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/30">
+                                <i data-lucide="zap" class="text-indigo-400"></i>
+                            </div>
+                            <h3 class="text-2xl font-black text-white leading-tight mb-4 uppercase italic">Live Subtitles Extraction</h3>
+                            <p class="text-sm text-slate-400 leading-relaxed font-medium">Khai phá mọi mẫu câu từ video YouTube. AI tự động tách từ vựng, phân tích ngữ pháp và dịch thuật tức thì.</p>
+                            <div class="mt-auto pt-6 border-t border-white/5">
+                                <div class="flex items-center gap-2 text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                                    <i data-lucide="check" size="14"></i> Powered by Gemini 2.0
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Card 2 -->
+                <div class="swiper-slide">
+                    <div class="mobile-card border-purple-500/20">
+                        <div class="feature-orb bg-purple-600 bottom-[-20px] right-[-20px]"></div>
+                        <div class="relative z-10 h-full flex flex-col">
+                            <div class="w-12 h-12 bg-purple-500/20 rounded-2xl flex items-center justify-center mb-6 border border-purple-500/30">
+                                <i data-lucide="mic" class="text-purple-400"></i>
+                            </div>
+                            <h3 class="text-2xl font-black text-white leading-tight mb-4 uppercase italic">Shadowing Feedback</h3>
+                            <p class="text-sm text-slate-400 leading-relaxed font-medium">Ghi âm và so sánh giọng nói của bạn. AI chấm điểm độ chính xác đến từng âm tiết (Phoneme-level scoring).</p>
+                            <div class="mt-auto pt-6 border-t border-white/5">
+                                <div class="flex items-center gap-2 text-[10px] font-black text-purple-400 uppercase tracking-widest">
+                                    <i data-lucide="check" size="14"></i> Visual Waveform Analysis
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Card 3 -->
+                <div class="swiper-slide">
+                    <div class="mobile-card border-emerald-500/20">
+                        <div class="feature-orb bg-emerald-600 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+                        <div class="relative z-10 h-full flex flex-col">
+                            <div class="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/30">
+                                <i data-lucide="brain-circuit" class="text-emerald-400"></i>
+                            </div>
+                            <h3 class="text-2xl font-black text-white leading-tight mb-4 uppercase italic">Smart Vocabulary Hub</h3>
+                            <p class="text-sm text-slate-400 leading-relaxed font-medium">Lưu trữ từ vựng thông minh. Hệ thống tự động xây dựng lộ trình ôn tập Spaced Repetition cho bạn.</p>
+                            <div class="mt-auto pt-6 border-t border-white/5">
+                                <div class="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                                    <i data-lucide="check" size="14"></i> Anki Integration Ready
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="swiper-pagination !-bottom-2"></div>
+        </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="border-t border-white/5 py-12 px-6 bg-[#010309]">
-        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center opacity-50 text-sm">
-            <div class="flex items-center space-x-2 mb-4 md:mb-0">
-                <span class="font-bold text-white">PodLearn</span>
-                <span>© 2024. All rights reserved.</span>
+    <!-- Final CTA -->
+    <section class="container mx-auto px-6 py-40 text-center">
+        <h2 class="text-5xl md:text-7xl font-black mb-12 uppercase italic tracking-tighter">Sẵn sàng để <span class="accent-gradient">Flow</span>?</h2>
+        <a href="{{ url_for('auth.register') }}" class="btn-premium px-16 py-6 rounded-[2.5rem] font-black text-xl uppercase tracking-[0.2em] inline-block shadow-2xl">
+            Join the Ecosystem
+        </a>
+    </section>
+
+    <footer class="border-t border-white/5 py-16 px-6 bg-slate-950/80">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+            <div class="flex flex-col items-center md:items-start gap-2">
+                <span class="text-lg font-black uppercase italic tracking-tighter">PodLearn</span>
+                <span class="text-[10px] font-bold text-slate-600 uppercase tracking-widest">© 2024 Mindstack. All rights reserved.</span>
             </div>
-            <div class="flex space-x-8">
-                <a href="#" class="hover:text-white transition-colors">Privacy</a>
-                <a href="#" class="hover:text-white transition-colors">Terms</a>
-                <a href="#" class="hover:text-white transition-colors">Support</a>
+            <div class="flex gap-12 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <a href="#" class="hover:text-indigo-400 transition-colors">Privacy</a>
+                <a href="#" class="hover:text-indigo-400 transition-colors">Terms</a>
+                <a href="#" class="hover:text-indigo-400 transition-colors">System Status</a>
             </div>
         </div>
     </footer>
@@ -176,18 +237,30 @@
     <script>
         lucide.createIcons();
         
-        // Horizontal scroll animation for feature cards
+        var swiper = new Swiper(".mySwiper", {
+            effect: "cards",
+            grabCursor: true,
+            centeredSlides: true,
+            slidesPerView: "auto",
+            initialSlide: 1,
+            pagination: {
+                el: ".swiper-pagination",
+                dynamicBullets: true,
+            },
+        });
+
+        // Intersection Observer for fade-in
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     entry.target.classList.add('opacity-100', 'translate-y-0');
-                    entry.target.classList.remove('opacity-0', 'translate-y-10');
+                    entry.target.classList.remove('opacity-0', 'translate-y-20');
                 }
             });
         }, { threshold: 0.1 });
 
         document.querySelectorAll('section').forEach(section => {
-            section.classList.add('transition-all', 'duration-700', 'opacity-0', 'translate-y-10');
+            section.classList.add('transition-all', 'duration-1000', 'opacity-0', 'translate-y-20');
             observer.observe(section);
         });
     </script>
