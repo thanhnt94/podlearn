@@ -173,8 +173,9 @@ export const ShadowingPanel: React.FC = () => {
         const { subtitles, activeLineIndex } = usePlayerStore.getState();
         setShadowingResult(null);
         if (subtitles && activeLineIndex < subtitles.length - 1) {
-            const nextLine = subtitles[activeLineIndex + 1];
-            requestSeek(nextLine.start, activeLineIndex + 1);
+            const nextIdx = activeLineIndex + 1;
+            const nextLine = subtitles[nextIdx];
+            requestSeek(nextLine.start, nextIdx);
             // Small delay to let the seek complete before playing
             setTimeout(() => {
                 usePlayerStore.getState().setPlaying(true);
@@ -190,8 +191,9 @@ export const ShadowingPanel: React.FC = () => {
             const { currentTime, mode } = usePlayerStore.getState();
             if (mode !== 'shadowing') return;
             
-            // Did the video pause because we reached the end of the current line?
-            if (currentTime >= activeLine.end - 0.2) {
+            // Did the video pause because we reached the end of the current line (with padding)?
+            const padding = 0.3;
+            if (currentTime >= activeLine.end + padding - 0.1) {
                 const timerId = setTimeout(() => {
                     startRecording();
                 }, 300); // 300ms delay to avoid mic picking up video audio
@@ -212,7 +214,7 @@ export const ShadowingPanel: React.FC = () => {
                     <button 
                         onClick={() => {
                             if (activeLine) {
-                                requestSeek(activeLine.start);
+                                requestSeek(activeLine.start, activeLineIndex);
                                 setTimeout(() => setPlaying(true), 100);
                             }
                         }}
@@ -350,7 +352,7 @@ export const ShadowingPanel: React.FC = () => {
                                     onClick={() => {
                                         setShadowingResult(null);
                                         if (activeLine) {
-                                            requestSeek(activeLine.start);
+                                            requestSeek(activeLine.start, activeLineIndex);
                                             setTimeout(() => setPlaying(true), 100);
                                         }
                                     }}

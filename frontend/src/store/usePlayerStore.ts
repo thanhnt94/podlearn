@@ -375,9 +375,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setCurrentTime: (time) => {
     const { subtitles, activeLineIndex, abLoop, requestSeek, isSeeking, lastSeekTime, settings } = get();
     
-    // overwriting the state before the player actually seeks.
-    // Increased to 1000ms because YouTube player can be slow to report new position.
-    if (isSeeking || (Date.now() - lastSeekTime < 1000)) {
+    // 1. CRITICAL: Auto-pause logic must happen BEFORE seek guards.
+    // If we overshoot the end of the line, we MUST pause, even if we just seeked.
+    const { mode, isPlaying } = get();
+    if (mode === 'shadowing' && isPlaying && activeLineIndex !== -1) {
+        const activeLine = subtitles[activeLineIndex];
+        const padding = 0.3; 
+        if (time > activeLine.end + padding) {
+            set({ isPlaying: false, currentTime: time });
+            return;
+        }
+    }
+
+    // 2. Seek Guard: Ignore updates for a short time after a manual seek to avoid jitter
+    if (isSeeking || (Date.now() - lastSeekTime < 1500)) {
       return; 
     }
 
@@ -392,20 +403,21 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const adjustedTime = time + (settings.syncOffset || 0);
     const newIndex = subtitles.findIndex(line => adjustedTime >= line.start && adjustedTime <= line.end);
     
-    // Auto-pause at end of sentence in shadowing mode
-    // Strategy: detect when the player LEAVES the current subtitle line
-    // (either into a gap or into the next line). This is 100% reliable
-    // regardless of polling interval, unlike a tiny time-window check.
-    const { mode, isPlaying } = get();
-    if (mode === 'shadowing' && isPlaying && activeLineIndex !== -1) {
-        if (newIndex !== activeLineIndex) {
-            // We left the active line — pause immediately
-            set({ isPlaying: false });
+    // Grace period check for the CURRENT line (to avoid premature index jumping)
+    if (mode === 'shadowing' && activeLineIndex !== -1) {
+        const activeLine = subtitles[activeLineIndex];
+        if (time > activeLine.end && time <= activeLine.end + 0.3) {
             return;
         }
     }
 
     if (newIndex !== -1 && newIndex !== activeLineIndex) {
+      // 3. CRITICAL: In shadowing mode, NEVER let the poller jump the index automatically.
+      // This prevents the store from "stealing" the focus from the practice tab.
+      if (mode === 'shadowing') {
+          return;
+      }
+      
       set({ activeLineIndex: newIndex, lastAnalyzedIndex: newIndex });
       
       // Auto-analyze for focus area

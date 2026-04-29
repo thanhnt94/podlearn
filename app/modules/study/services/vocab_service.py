@@ -68,25 +68,42 @@ def get_dict_connection(db_path):
 
 def query_offline_dict(db_path, term):
     """Query a SQLite dictionary for a term with high-performance indexing."""
+    if not term or term.lower() == 'skip':
+        return None
+        
     if not os.path.exists(db_path):
         return None
         
     try:
         conn = get_dict_connection(db_path)
+        # Always use a local cursor
         cursor = conn.cursor()
-        # idx_word ensure this is lightning fast
         cursor.execute("SELECT reading, meanings_json FROM dictionary WHERE word = ? LIMIT 1", (term,))
         row = cursor.fetchone()
         
         if row:
             reading, meanings_json = row
-            means_list = json.loads(meanings_json)
-            meanings = [m.get('mean', '') for m in means_list]
-            return {
-                'reading': reading,
-                'meanings': meanings,
-                'source': os.path.basename(db_path).replace('.db', '')
-            }
+            if not meanings_json:
+                return {
+                    'reading': reading,
+                    'meanings': [],
+                    'source': os.path.basename(db_path).replace('.db', '')
+                }
+            
+            try:
+                means_list = json.loads(meanings_json)
+                meanings = [m.get('mean', '') for m in means_list] if isinstance(means_list, list) else []
+                return {
+                    'reading': reading,
+                    'meanings': meanings,
+                    'source': os.path.basename(db_path).replace('.db', '')
+                }
+            except:
+                return {
+                    'reading': reading,
+                    'meanings': [],
+                    'source': os.path.basename(db_path).replace('.db', '')
+                }
     except Exception as e:
         logger.error(f"SQLite query error for {term} in {db_path}: {e}")
     return None

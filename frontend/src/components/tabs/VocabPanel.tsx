@@ -3,6 +3,8 @@ import { Book, Plus, Check, Search, Loader2, Activity, Globe, Languages, Chevron
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface AnalyzedVocab {
     id: string; // STABLE UNIQUE ID for Reorder
@@ -634,9 +636,9 @@ export const VocabPanel: React.FC = () => {
                                                             <h4 className="text-lg font-bold text-white leading-none">{item.lemma}</h4>
                                                             <span className="text-[10px] text-slate-500 font-mono bg-white/5 px-2 py-0.5 rounded">[{item.reading}]</span>
                                                         </div>
-                                                        <p className="text-[13px] text-slate-400 pr-10 leading-relaxed font-medium">
-                                                            {Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}
-                                                        </p>
+                                                        <div className="prose prose-invert max-w-none text-slate-400 text-[11px] leading-relaxed font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
+                                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}</ReactMarkdown>
+                                                        </div>
                                                     </div>
                                                     {(() => {
                                                         const isJustAdded = justAdded.has(item.id);
@@ -819,7 +821,9 @@ export const VocabPanel: React.FC = () => {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <p className="text-sm text-slate-500 leading-relaxed pr-12 font-medium italic">{v.definition}</p>
+                                                <div className="prose prose-invert max-w-none text-slate-500 text-[11px] leading-relaxed pr-12 font-medium italic font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{v.definition}</ReactMarkdown>
+                                                </div>
                                             </div>
                                             <button 
                                                 onClick={() => handleRemoveTerm(v.term)}

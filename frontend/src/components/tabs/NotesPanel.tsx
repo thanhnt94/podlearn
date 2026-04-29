@@ -3,6 +3,8 @@ import { Plus, Trash2, Clock, Send, X, Edit2, Save } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const NotesPanel: React.FC = () => {
   const { 
@@ -219,9 +221,9 @@ export const NotesPanel: React.FC = () => {
                         {formatTime(note.timestamp)}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed indent-0 whitespace-pre-wrap">
-                      {note.content}
-                    </p>
+                    <div className="prose prose-invert max-w-none text-slate-300 text-[11px] leading-relaxed font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all">
                     <button 
