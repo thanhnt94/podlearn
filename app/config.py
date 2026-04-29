@@ -46,8 +46,8 @@ class Config:
 
     # Celery settings — Support automatic fallback to SQLite if Redis is missing
     CELERY = {
-        "broker_url": os.environ.get("CELERY_BROKER_URL", "sqla+sqlite:///" + os.path.join(project_root, "../Storage/database/celery_broker.db")),
-        "result_backend": os.environ.get("CELERY_RESULT_BACKEND", "db+sqlite:///" + os.path.join(project_root, "../Storage/database/celery_results.db")),
+        "broker_url": os.environ.get("CELERY_BROKER_URL", "sqla+sqlite:///" + os.path.join(project_root, "../Storage/database/PodLearn_celery_broker.db")),
+        "result_backend": os.environ.get("CELERY_RESULT_BACKEND", "db+sqlite:///" + os.path.join(project_root, "../Storage/database/PodLearn_celery_results.db")),
         "task_default_queue": "podlearn_tasks",
         "broker_connection_retry_on_startup": True
     }
