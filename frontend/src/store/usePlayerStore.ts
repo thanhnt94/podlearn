@@ -1103,12 +1103,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const { lessonId } = get();
     if (!lessonId) return;
     try {
-        const res = await axios.get(`/api/subtitles/video/${lessonId}`);
-        set({ availableTracks: res.data });
+        const res = await axios.get(`/api/subtitles/available/${lessonId}`);
+        const tracks = res.data.subtitles || [];
+        set({ availableTracks: tracks });
         
-        // If any track is translating, poll again in 3s
-        const hasTranslating = res.data.some((t: any) => t.status === 'translating');
-        if (hasTranslating) {
+        // If any track is translating, pending, or processing, poll again in 3s
+        const hasActiveTasks = tracks.some((t: any) => 
+            t.status === 'translating' || t.status === 'pending' || t.status === 'processing'
+        );
+        if (hasActiveTasks) {
             setTimeout(() => get().fetchAvailableTracks(), 3000);
         }
     } catch (e) { console.error("Failed to fetch tracks", e); }

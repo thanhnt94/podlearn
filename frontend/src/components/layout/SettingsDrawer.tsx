@@ -49,13 +49,6 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const [editingTrackId, setEditingTrackId] = useState<number | null>(null);
     const [editTrackName, setEditTrackName] = useState('');
 
-    const refreshAvailableTracks = async () => {
-        if (!lessonId) return;
-        try {
-            const res = await axios.get(`/api/subtitles/available/${lessonId}`);
-            setAvailableTracks(res.data.subtitles);
-        } catch (err) { console.error(err); }
-    };
 
     const fetchYoutubeSources = async () => {
         if (!videoId) return;
@@ -76,10 +69,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
             }, { headers: { 'X-CSRF-Token': data.csrf_token } });
             
             // Refresh to see the 'pending' track
-            await refreshAvailableTracks();
-            
-            // Auto-refresh after 5 seconds to check if completed
-            setTimeout(refreshAvailableTracks, 5000);
+            await fetchAvailableTracks();
         } catch (err) { alert("Import failed."); } finally { setImportingLang(null); }
     };
 
@@ -100,7 +90,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                     'Content-Type': 'multipart/form-data'
                 }
             });
-            await refreshAvailableTracks();
+            await fetchAvailableTracks();
         } catch (err) { alert("Upload failed."); } finally { setIsUploading(false); }
     };
 
@@ -184,13 +174,13 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         
         // Optimistic UI Update: Remove from local state immediately
         const originalTracks = [...availableTracks];
-        setAvailableTracks(prev => prev.filter(t => t.id !== tid));
+        setAvailableTracks(availableTracks.filter((t: any) => t.id !== tid));
 
         try {
             const data = (window as any).__PODLEARN_DATA__;
             await axios.delete(`/api/subtitles/${tid}`, { headers: { 'X-CSRF-Token': data.csrf_token } });
             // Optionally refresh to sync with server, but don't clear the list
-            await refreshAvailableTracks();
+            await fetchAvailableTracks();
         } catch (err) { 
             alert("Failed to delete track. Reverting..."); 
             // Rollback on failure

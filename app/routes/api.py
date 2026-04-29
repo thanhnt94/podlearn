@@ -982,6 +982,7 @@ def get_available_subtitles(lesson_id):
             'uploader_id': t.uploader_id,
             'fetched_at': t.fetched_at.isoformat() if hasattr(t, 'fetched_at') and t.fetched_at else None,
             'line_count': len(t.content_json) if t.content_json else 0,
+            'status': t.status,
             'note': t.note
         })
     return jsonify({'subtitles': results})
