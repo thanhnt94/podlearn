@@ -1029,30 +1029,28 @@ def download_youtube_sub(lesson_id):
     if not lang_code:
         return jsonify({'error': 'lang_code is required'}), 400
 
-    result = download_and_parse_youtube_sub(lesson.video.youtube_id, lang_code, is_auto)
-    if 'error' in result:
-        status_code = 429 if result['error'] == '429' else 400
-        return jsonify(result), status_code
-
-    parsed_lines = result['lines']
-    
-    # Always create a new track for the user who fetched it
+    # Create a placeholder track first
     track = SubtitleTrack(
         video_id=lesson.video.id, 
         language_code=lang_code,
-        content_json=parsed_lines,
+        content_json=[], # Empty for now
         is_auto_generated=is_auto,
         uploader_id=current_user.id,
         uploader_name=current_user.username,
+        status='pending', # New field for tracking
         fetched_at=datetime.now(timezone.utc)
     )
     db.session.add(track)
     db.session.commit()
+
+    # Trigger background task
+    from app.modules.content.tasks import fetch_youtube_subtitle_background
+    fetch_youtube_subtitle_background.delay(track.id, lesson.video.youtube_id, lang_code, is_auto)
     
     return jsonify({
         'success': True, 
-        'track_id': track.id,
-        'line_count': len(parsed_lines)
+        'message': 'Subtitle download started in background.',
+        'track_id': track.id
     })
 
 

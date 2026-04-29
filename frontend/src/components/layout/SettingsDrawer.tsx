@@ -74,7 +74,12 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
             await axios.post(`/api/youtube/subtitles-download/${lessonId}`, {
                 lang_code: lang, is_auto: isAuto
             }, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            
+            // Refresh to see the 'pending' track
             await refreshAvailableTracks();
+            
+            // Auto-refresh after 5 seconds to check if completed
+            setTimeout(refreshAvailableTracks, 5000);
         } catch (err) { alert("Import failed."); } finally { setImportingLang(null); }
     };
 
@@ -176,11 +181,21 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
 
     const handleDeleteTrack = async (tid: number) => {
         if (!confirm("!!! DELETE TRACK !!!\n\nThis will permanently remove this subtitle file. Are you sure?")) return;
+        
+        // Optimistic UI Update: Remove from local state immediately
+        const originalTracks = [...availableTracks];
+        setAvailableTracks(prev => prev.filter(t => t.id !== tid));
+
         try {
             const data = (window as any).__PODLEARN_DATA__;
             await axios.delete(`/api/subtitles/${tid}`, { headers: { 'X-CSRF-Token': data.csrf_token } });
-            await fetchAvailableTracks();
-        } catch (err) { alert("Failed to delete track."); }
+            // Optionally refresh to sync with server, but don't clear the list
+            await refreshAvailableTracks();
+        } catch (err) { 
+            alert("Failed to delete track. Reverting..."); 
+            // Rollback on failure
+            setAvailableTracks(originalTracks);
+        }
     };
 
     useEffect(() => {
@@ -528,15 +543,24 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">My Study Tracks</h3>
                                            </div>
                                            <div className="grid gap-3">
-                                               {availableTracks.map(t => (
-                                                   <div key={t.id} className="group bg-white/5 border border-white/5 rounded-2xl p-4 flex items-center justify-between hover:bg-white/10 transition-all">
-                                                       <div>
-                                                           <div className="text-xs font-bold text-white uppercase">{t.name || t.language_code}</div>
-                                                           <div className="text-[9px] text-slate-600 tracking-tight">{t.uploader_name} • {t.line_count} lines</div>
+                                               {availableTracks.map(t => {
+                                                   const isProcessing = t.status === 'pending' || t.status === 'processing';
+                                                   return (
+                                                       <div key={t.id} className="group bg-white/5 border border-white/5 rounded-2xl p-4 flex items-center justify-between hover:bg-white/10 transition-all">
+                                                           <div className="flex items-center gap-3">
+                                                               {isProcessing && <RefreshCw size={14} className="text-sky-500 animate-spin" />}
+                                                               <div>
+                                                                   <div className="text-xs font-bold text-white uppercase flex items-center gap-2">
+                                                                       {t.name || t.language_code}
+                                                                       {isProcessing && <span className="text-[8px] text-sky-500 animate-pulse">PROCESSING...</span>}
+                                                                   </div>
+                                                                   <div className="text-[9px] text-slate-600 tracking-tight">{t.uploader_name} • {t.line_count} lines</div>
+                                                               </div>
+                                                           </div>
+                                                           <button onClick={() => handleDeleteTrack(t.id)} className="p-2 opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all"><Trash2 size={16} /></button>
                                                        </div>
-                                                       <button onClick={() => handleDeleteTrack(t.id)} className="p-2 opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all"><Trash2 size={16} /></button>
-                                                   </div>
-                                               ))}
+                                                   );
+                                                })}
                                            </div>
                                        </section>
 

@@ -6,18 +6,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 @shared_task(queue='podlearn_tasks')
-def fetch_youtube_subtitle_background(video_id_db: int, youtube_id: str, language_code: str):
+def fetch_youtube_subtitle_background(track_id: int, youtube_id: str, language_code: str, is_auto: bool = False):
     from app.modules.content.services.subtitle_service import download_and_parse_youtube_sub
     
-    track = SubtitleTrack.query.filter_by(video_id=video_id_db, language_code=language_code).first()
+    track = db.session.get(SubtitleTrack, track_id)
     if not track:
+        logger.error(f"SubtitleTrack {track_id} not found.")
         return {"status": "error", "message": "Track not found in DB"}
         
     track.status = "processing"
     db.session.commit()
     
     try:
-        res = download_and_parse_youtube_sub(youtube_id, language_code, is_auto=True)
+        res = download_and_parse_youtube_sub(youtube_id, language_code, is_auto=is_auto)
         if res.get('error'):
             # Fallback to manual
             res = download_and_parse_youtube_sub(youtube_id, language_code, is_auto=False)
