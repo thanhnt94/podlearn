@@ -26,6 +26,12 @@ export const MainLayout: React.FC<{ children: React.ReactNode; activeTab: string
           </div>
 
           <div className="flex items-center gap-4">
+            <a 
+              href="/"
+              className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 font-black text-[10px] tracking-widest hover:text-white hover:bg-white/10 transition-all"
+            >
+              EXIT STUDIO
+            </a>
             <button className="p-3 rounded-2xl bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all relative">
               <Bell size={20} />
               <div className="absolute top-3 right-3 w-2 h-2 bg-sky-500 rounded-full border-2 border-[#020617]" />

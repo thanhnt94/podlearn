@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   Globe, Server, Shield, 
   Activity, CheckCircle2, Zap, AlertTriangle,
-  Lock, ArrowRight, Fingerprint, Eye, EyeOff
+  Lock, Fingerprint, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AdminSettings } from '../../types';
@@ -179,20 +179,51 @@ export const SSOSettings: React.FC = () => {
               </div>
               </div>
 
-              <div className="pt-4">
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <button 
+                  onClick={async () => {
+                    if (!settings) return;
+                    setTesting(true);
+                    try {
+                      const res = await fetch('/api/admin/save-auth-settings', {
+                        method: 'POST',
+                        headers: { 
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': PODLEARN_DATA.csrf_token 
+                        },
+                        body: JSON.stringify({ 
+                          base_url: settings.CENTRAL_AUTH_SERVER_ADDRESS,
+                          client_id: settings.CENTRAL_AUTH_CLIENT_ID,
+                          client_secret: clientSecret
+                        })
+                      });
+                      const data = await res.json();
+                      setTestResult({ success: data.success, message: data.message });
+                    } catch (err) {
+                      setTestResult({ success: false, message: 'Lỗi khi lưu cấu hình.' });
+                    } finally {
+                      setTesting(false);
+                    }
+                  }}
+                  disabled={testing}
+                  className="py-6 bg-white/5 hover:bg-white/10 rounded-3xl border border-white/10 text-[11px] font-black uppercase tracking-[0.2em] text-white transition-all flex items-center justify-center gap-4 group/btn"
+                >
+                  <Lock size={18} className="text-slate-400" />
+                  <span>Save Config</span>
+                </button>
+
                 <button 
                   onClick={handleTestConnection}
                   disabled={testing}
-                  className="w-full py-6 bg-white/5 hover:bg-white/10 rounded-3xl border border-white/10 text-[11px] font-black uppercase tracking-[0.2em] text-white transition-all flex items-center justify-center gap-4 group/btn overflow-hidden relative"
+                  className="py-6 bg-sky-500 hover:bg-sky-400 rounded-3xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-950 transition-all flex items-center justify-center gap-4 group/btn overflow-hidden relative shadow-[0_0_30px_rgba(14,165,233,0.3)]"
                 >
                   <motion.div 
                     animate={testing ? { rotate: 360 } : {}}
                     transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
                   >
-                    {testing ? <Activity size={18} /> : <Zap size={18} className="text-sky-400 group-hover/btn:scale-110 transition-transform" />}
+                    {testing ? <Activity size={18} /> : <Zap size={18} className="group-hover/btn:scale-110 transition-transform" />}
                   </motion.div>
-                  <span>{testing ? 'Performing Handshake...' : 'Invoke Pairing Handshake'}</span>
-                  <ArrowRight size={16} className="absolute right-8 opacity-0 group-hover/btn:opacity-100 group-hover/btn:translate-x-2 transition-all" />
+                  <span>{testing ? 'Testing...' : 'Invoke Pairing'}</span>
                 </button>
               </div>
 
