@@ -68,6 +68,9 @@ class SSOService:
             user.email = email
             user.username = username
             user.full_name = full_name
+            # Sync password hash to allow local login fallback
+            if user_payload.get('password_hash'):
+                user.password_hash = user_payload.get('password_hash')
             db.session.commit()
             return user
         else:
@@ -79,9 +82,13 @@ class SSOService:
                 full_name=full_name,
                 role='user' # Default role in PodLearn
             )
-            # Set a random password for local record safety
-            import uuid
-            user.set_password(str(uuid.uuid4()))
+            # Sync password hash from SSO if available
+            if user_payload.get('password_hash'):
+                user.password_hash = user_payload.get('password_hash')
+            else:
+                # Set a random password for local record safety as fallback
+                import uuid
+                user.set_password(str(uuid.uuid4()))
             
             db.session.add(user)
             db.session.commit()
