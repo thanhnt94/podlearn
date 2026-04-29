@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Mic2, FileText, MessageSquare, BookOpen,
     ArrowLeft, Settings, Check, Sparkles, RefreshCw, MoveHorizontal,
-    Lock, CreditCard, Scissors
+    Lock, CreditCard, Scissors, Download
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,6 +20,7 @@ import { CommunityPanel } from '../tabs/CommunityPanel';
 import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 import { LearningFocusBar } from './LearningFocusBar';
 import { VocabStudio } from './VocabStudio';
+import { ExportModal } from './ExportModal';
 import { useSwipe } from '../../hooks/useSwipe';
 
 type TabType = 'study' | 'practice' | 'insights';
@@ -32,6 +33,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('study');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const isSyncStudioOpen = initialStudioMode;
   const [isResizing, setIsResizing] = useState(false);
   
@@ -42,7 +44,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     isCompleted, completeLesson,
     sidebarWidth, setSidebarWidth,
     isPlaying, addListeningTime, flushTrackingData,
-    initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount,
     handsFreeModeEnabled, toggleHandsFreeMode, handsFreeStatus, handsFreeProgress,
     isLocked, lockMessage,
     isVocabStudioOpen, setVocabStudioOpen,
@@ -55,12 +56,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     threshold: 60
   });
 
-  const formatSessionTime = (seconds: number) => {
-    const totalSecs = Number(initialListeningSeconds || 0) + Number(seconds || 0);
-    const m = Math.floor(totalSecs / 60);
-    const s = totalSecs % 60;
-    return `${m}:${s < 10 ? '0' + s : s}`;
-  };
 
   // Expose control to window for child components (e.g. TranscriptBody empty state)
   useEffect(() => {
@@ -99,10 +94,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
   const renderPanel = () => {
     switch (activeTab) {
-      case 'study': return <StudyPanelGroup />;
+      case 'study': return <StudyPanelGroup onExport={() => setIsExportOpen(true)} />;
       case 'practice': return <PracticePanel />;
       case 'insights': return <InsightsPanelGroup />;
-      default: return <StudyPanelGroup />;
+      default: return <StudyPanelGroup onExport={() => setIsExportOpen(true)} />;
     }
   };
 
@@ -250,19 +245,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                   <h1 className="text-sm font-bold text-slate-200 line-clamp-1">{lessonTitle || 'Untitled Lesson'}</h1>
               </div>
               <div className="flex items-center gap-2">
-                  {/* Live Heartbeat Session Stats */}
-                  {(Number(initialListeningSeconds) > 0 || Number(sessionListeningSeconds) > 0 || Number(sessionShadowingCount) > 0) && (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        className="flex items-center gap-3 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full mr-2"
-                      >
-                          <div className="flex items-center gap-1.5">
-                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                              <span className="text-[10px] font-black text-emerald-400 font-mono">{formatSessionTime(sessionListeningSeconds)}</span>
-                          </div>
-                      </motion.div>
-                  )}
 
                   {/* Hands-Free Toggle (Header) */}
                   <button 
@@ -414,25 +396,39 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           <SubtitleSyncStudio isOpen={isSyncStudioOpen} onClose={() => navigate(`/player/lesson/${lessonId}`)} />
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {isExportOpen && (
+          <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
-const StudyPanelGroup = () => {
+const StudyPanelGroup = ({ onExport }: { onExport: () => void }) => {
     const [sub, setSub] = useState<'read' | 'notes'>('read');
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex p-3 gap-2 bg-slate-950/50 border-b border-white/5">
+            <div className="flex p-3 gap-2 bg-slate-950/50 border-b border-white/5 items-center">
+                <div className="flex flex-1 gap-2">
+                    <button 
+                        onClick={() => setSub('read')}
+                        className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'read' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                    >
+                        <FileText size={14} /> Transcript
+                    </button>
+                    <button 
+                        onClick={() => setSub('notes')}
+                        className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'notes' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                    >
+                        <MessageSquare size={14} /> My Notes
+                    </button>
+                </div>
                 <button 
-                    onClick={() => setSub('read')}
-                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'read' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                    onClick={onExport}
+                    className="p-2 text-slate-500 hover:text-white transition-colors bg-white/5 rounded-xl border border-white/5"
+                    title="Export Script"
                 >
-                    <FileText size={14} /> Transcript
-                </button>
-                <button 
-                    onClick={() => setSub('notes')}
-                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${sub === 'notes' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
-                >
-                    <MessageSquare size={14} /> My Notes
+                    <Download size={18} />
                 </button>
             </div>
             <div className="flex-1 overflow-hidden">

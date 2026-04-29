@@ -2,7 +2,10 @@ import React from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 
 export const SubtitleOverlay: React.FC = () => {
-    const { s1Lines, s2Lines, s3Lines, aiInsights, currentTime, settings, trackIds } = usePlayerStore();
+    const { 
+        s1Lines, s2Lines, s3Lines, aiInsights, currentTime, settings, trackIds,
+        showFurigana, analyzedWords, originalLang 
+    } = usePlayerStore();
     
     // Find active lines for each track independently
     const findActiveLine = (lines: any[]) => {
@@ -59,7 +62,20 @@ export const SubtitleOverlay: React.FC = () => {
                         textShadow: '0 2px 4px rgba(0,0,0,0.5)'
                     }}
                 >
-                    {line.text}
+                    {sid === 's1' && originalLang === 'ja' && showFurigana && analyzedWords.length > 0 ? (
+                        <div className="flex flex-wrap justify-center gap-x-1">
+                            {analyzedWords.map((word, idx) => (
+                                <ruby key={idx} className="ruby-base">
+                                    {word.surface}
+                                    {word.reading && word.reading !== word.surface && (
+                                        <rt className="text-[0.4em] mb-[-0.2em] opacity-80">{word.reading}</rt>
+                                    )}
+                                </ruby>
+                            ))}
+                        </div>
+                    ) : (
+                        line.text
+                    )}
                 </div>
             </div>
         );

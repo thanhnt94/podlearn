@@ -75,7 +75,7 @@ def process_video_metadata(video_id_int: int):
 
         # 2. Fetch initial subtitles
         logger.info(f"Fetching initial subtitles for language {video.language_code}...")
-        track = get_subtitle_track(video.id, video.language_code)
+        track = get_subtitle_track(video.id, video.youtube_id, video.language_code)
         if track:
             logger.info(f"Subtitles fetched: {track.name}")
         else:

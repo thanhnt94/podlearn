@@ -487,11 +487,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       };
 
       // Optimistically clear the counts locally right away to avoid double flushing
-      set({ 
+      // And add them to initialListeningSeconds to keep the UI timer smooth
+      set(s => ({ 
+          initialListeningSeconds: s.initialListeningSeconds + state.sessionListeningSeconds,
           sessionListeningSeconds: 0, 
           sessionShadowingCount: 0,
           sessionShadowingSeconds: 0
-      });
+      }));
 
       try {
           // Use fetch for API call (CSRF handled internally by app or bypass)
@@ -514,6 +516,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                } else {
                    // Re-add on failure (network error etc)
                    set(s => ({
+                       initialListeningSeconds: s.initialListeningSeconds - payload.listening_seconds,
                        sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
                        sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
                        sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds
@@ -526,6 +529,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       } catch (err) {
           // Re-add on failure
           set(s => ({
+              initialListeningSeconds: s.initialListeningSeconds - payload.listening_seconds,
               sessionListeningSeconds: s.sessionListeningSeconds + payload.listening_seconds,
               sessionShadowingCount: s.sessionShadowingCount + payload.shadowing_count,
               sessionShadowingSeconds: s.sessionShadowingSeconds + payload.shadowing_seconds

@@ -26,7 +26,7 @@ export const VideoSection: React.FC = () => {
   const { 
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
     volume, setVolume, playbackRate, isLockedPaused, isNativeCCOn, nativeCCLang, originalLang,
-    requestSeek
+    requestSeek, initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount
   } = usePlayerStore();
 
   const [isReady, setIsReady] = React.useState(false);
@@ -132,6 +132,13 @@ export const VideoSection: React.FC = () => {
       clearInterval(pollInterval.current);
       pollInterval.current = null;
     }
+  };
+
+  const formatSessionTime = (seconds: number) => {
+    const totalSecs = Number(initialListeningSeconds || 0) + Number(seconds || 0);
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
+    return `${m}:${s < 10 ? '0' + s : s}`;
   };
 
   // Sync isPlaying state from Store to Player (manual control)
@@ -283,6 +290,20 @@ export const VideoSection: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+      
+      {/* Floating Session Timer (Top Right) */}
+      {(Number(initialListeningSeconds) > 0 || Number(sessionListeningSeconds) > 0 || Number(sessionShadowingCount) > 0) && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-4 right-4 z-[60] flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 rounded-full shadow-[0_0_30px_rgba(16,185,129,0.2)]"
+          >
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[11px] font-black text-emerald-400 font-mono tracking-tighter">
+                {formatSessionTime(sessionListeningSeconds)}
+              </span>
+          </motion.div>
+      )}
 
       <SubtitleOverlay />
       <NoteOverlay />
