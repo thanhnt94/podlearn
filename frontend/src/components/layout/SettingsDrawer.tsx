@@ -280,15 +280,19 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                                             const val = e.target.value;
                                                                             setTrackIds({ [activeDisplayTrack]: val === 'ai-track' ? 'ai' : (parseInt(val) || null) });
                                                                         }}
-                                                                        className="w-full bg-slate-950 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-sky-500/50 outline-none">
-                                                                    <option value="">(Click to assign...)</option>
+                                                                        className="w-full bg-slate-900 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-sky-500/50 outline-none cursor-pointer appearance-none">
+                                                                    <option value="" className="bg-slate-900">(Click to assign...)</option>
                                                                     {aiInsights.length > 0 && (
-                                                                        <optgroup label="✨ AI Intelligence">
-                                                                            <option value="ai-track">🔹 AI Linguistic Insight (VN)</option>
+                                                                        <optgroup label="✨ AI Intelligence" className="bg-slate-900">
+                                                                            <option value="ai-track" className="bg-slate-900">🔹 AI Linguistic Insight (VN)</option>
                                                                         </optgroup>
                                                                     )}
-                                                                    <optgroup label="Standard Tracks">
-                                                                        {availableTracks.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                                    <optgroup label="Standard Tracks" className="bg-slate-900 text-slate-400">
+                                                                        {availableTracks.map(t => (
+                                                                            <option key={t.id} value={t.id} className="bg-slate-900 text-white">
+                                                                                {t.name || `${t.language_code?.toUpperCase()} Track`}
+                                                                            </option>
+                                                                        ))}
                                                                     </optgroup>
                                                                 </select>
                                                             </div>
