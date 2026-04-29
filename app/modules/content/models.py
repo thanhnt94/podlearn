@@ -49,6 +49,11 @@ class Video(db.Model):
     status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # Curated content by managers
+    curated_overview = db.Column(db.Text, nullable=True)
+    curated_grammar = db.Column(db.Text, nullable=True)
+    curated_vocabulary = db.Column(db.Text, nullable=True)
+
     owner = db.relationship('User', backref='uploaded_videos')
     playlists = db.relationship('Playlist', secondary=playlist_items, back_populates='videos')
     subtitle_tracks = db.relationship('SubtitleTrack', back_populates='video', lazy='dynamic', cascade='all, delete-orphan')

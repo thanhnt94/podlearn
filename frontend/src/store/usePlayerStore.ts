@@ -111,6 +111,15 @@ interface PlayerState {
   subtitleWorker: Worker | null;
   isSeeking: boolean; // NEW: Lock for navigation
   
+  // NEW: Curated Content
+  curatedContent: {
+    overview: string;
+    grammar: string;
+    vocabulary: string;
+  };
+  fetchCuratedContent: () => Promise<void>;
+  updateCuratedContent: (data: Partial<PlayerState['curatedContent']>) => Promise<void>;
+  
   isNativeCCOn: boolean; // NEW: YouTube Native CC Toggle
   nativeCCLang: string;
   comments: any[];
@@ -248,6 +257,35 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   lastSeekTime: 0,
   subtitleWorker: null,
   isSeeking: false,
+
+  curatedContent: {
+    overview: '',
+    grammar: '',
+    vocabulary: ''
+  },
+  fetchCuratedContent: async () => {
+    const { videoId } = get();
+    if (!videoId) return;
+    try {
+        const res = await axios.get(`/api/content/curated/${videoId}`);
+        set({ curatedContent: res.data });
+    } catch (e) { console.error("Failed to fetch curated content", e); }
+  },
+  updateCuratedContent: async (data) => {
+    const { videoId, curatedContent } = get();
+    if (!videoId) return;
+    try {
+        const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
+        await axios.patch(`/api/content/curated/${videoId}`, data, {
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+        set({ curatedContent: { ...curatedContent, ...data } });
+    } catch (e) { 
+        console.error("Failed to update curated content", e);
+        throw e;
+    }
+  },
+
   isNativeCCOn: false,
   nativeCCLang: 'ja',
   comments: [],
@@ -745,6 +783,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 aiSummary: aiRes.data.overall_summary || null
             });
         }
+        
+        // 2. Fetch Curated Content
+        const curatedRes = await axios.get(`/api/content/curated/${m.video_id}`).catch(() => ({ data: { overview: '', grammar: '', vocabulary: '' } }));
+        if (get().lessonId === id) set({ curatedContent: curatedRes.data });
+
         const notesRes = await axios.get(`/api/lesson/${id}/notes`);
         if (notesRes.data.notes && get().lessonId === id) set({ notes: notesRes.data.notes });
     } catch (err: any) { 

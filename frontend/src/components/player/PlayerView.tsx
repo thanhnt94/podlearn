@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Mic2, FileText, MessageSquare, BookOpen,
     ArrowLeft, Settings, Check, Sparkles, RefreshCw, MoveHorizontal,
-    Lock, CreditCard, Scissors, Download
+    Lock, CreditCard, Scissors, Download, Layout, Edit2, Save
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,7 +23,7 @@ import { VocabStudio } from './VocabStudio';
 import { ExportModal } from './ExportModal';
 import { useSwipe } from '../../hooks/useSwipe';
 
-type TabType = 'study' | 'practice' | 'insights';
+type TabType = 'overview' | 'study' | 'practice' | 'insights';
 
 interface PlayerViewProps {
   initialStudioMode?: boolean;
@@ -31,7 +31,7 @@ interface PlayerViewProps {
 
 export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('study');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const isSyncStudioOpen = initialStudioMode;
@@ -92,20 +92,22 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     };
   }, [flushTrackingData]);
 
-  const renderPanel = () => {
-    switch (activeTab) {
-      case 'study': return <StudyPanelGroup onExport={() => setIsExportOpen(true)} />;
-      case 'practice': return <PracticePanel />;
-      case 'insights': return <InsightsPanelGroup />;
-      default: return <StudyPanelGroup onExport={() => setIsExportOpen(true)} />;
-    }
-  };
-
   const tabs = [
+    { id: 'overview', label: 'Overview', icon: Layout },
     { id: 'study', label: 'Study', icon: BookOpen },
     { id: 'practice', label: 'Practice', icon: Mic2 },
     { id: 'insights', label: 'Insights', icon: Sparkles },
   ];
+
+  const renderPanel = () => {
+    switch (activeTab) {
+      case 'overview': return <OverviewPanel />;
+      case 'study': return <StudyPanelGroup onExport={() => setIsExportOpen(true)} />;
+      case 'practice': return <PracticePanel />;
+      case 'insights': return <InsightsPanelGroup />;
+      default: return <OverviewPanel />;
+    }
+  };
 
   // Resize Logic
   useEffect(() => {
@@ -491,6 +493,113 @@ const InsightsPanelGroup = () => {
             <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
                 {sub === 'ai' ? <InsightsPanel /> : <CommunityPanel />}
             </div>
+        </div>
+    );
+};
+
+const OverviewPanel = () => {
+    const { curatedContent, updateCuratedContent } = usePlayerStore();
+    const [sub, setSub] = useState<'overview' | 'grammar' | 'vocab'>('overview');
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedContent, setEditedContent] = useState(curatedContent);
+    const isAdmin = (window as any).__PODLEARN_DATA__?.is_admin;
+
+    useEffect(() => {
+        setEditedContent(curatedContent);
+    }, [curatedContent]);
+
+    const handleSave = async () => {
+        try {
+            await updateCuratedContent(editedContent);
+            setIsEditing(false);
+        } catch (e) {
+            alert("Lỗi khi lưu nội dung!");
+        }
+    };
+
+    const renderContent = (key: 'overview' | 'grammar' | 'vocabulary') => {
+        const text = curatedContent[key];
+        if (isEditing) {
+            return (
+                <textarea 
+                    className="w-full h-[400px] bg-slate-900 border border-white/10 rounded-xl p-4 text-slate-300 font-sans text-sm focus:outline-none focus:border-sky-500 transition-colors"
+                    value={editedContent[key]}
+                    onChange={(e) => setEditedContent(prev => ({ ...prev, [key]: e.target.value }))}
+                    placeholder={`Nhập nội dung ${sub}...`}
+                />
+            );
+        }
+        
+        if (!text) {
+            return (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-600">
+                    <BookOpen size={40} strokeWidth={1} className="mb-4 opacity-20" />
+                    <p className="text-xs uppercase tracking-widest font-black">Chưa có nội dung tổng hợp</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-sans">
+                {text}
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-4 pb-3 flex gap-2 items-center shrink-0">
+                <button 
+                    onClick={() => setSub('overview')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'overview' ? 'bg-sky-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    Tổng quan
+                </button>
+                <button 
+                    onClick={() => setSub('grammar')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'grammar' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    Ngữ pháp
+                </button>
+                <button 
+                    onClick={() => setSub('vocab')}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${sub === 'vocab' ? 'bg-amber-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    Từ vựng
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
+                {renderContent(sub === 'vocab' ? 'vocabulary' : sub)}
+            </div>
+
+            {isAdmin && (
+                <div className="p-4 border-t border-white/5 bg-slate-950/50 flex justify-end shrink-0">
+                    {isEditing ? (
+                        <div className="flex gap-2 w-full">
+                            <button 
+                                onClick={() => setIsEditing(false)}
+                                className="flex-1 py-3 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all"
+                            >
+                                Hủy
+                            </button>
+                            <button 
+                                onClick={handleSave}
+                                className="flex-1 py-3 bg-sky-500 text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-sky-400 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Save size={14} /> Lưu thay đổi
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            onClick={() => setIsEditing(true)}
+                            className="w-full py-3 bg-white/5 text-slate-400 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all flex items-center justify-center gap-2"
+                        >
+                            <Edit2 size={14} /> Chỉnh sửa nội dung (Admin)
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
