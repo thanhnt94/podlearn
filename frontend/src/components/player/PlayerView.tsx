@@ -24,6 +24,7 @@ import { ExportModal } from './ExportModal';
 import { useSwipe } from '../../hooks/useSwipe';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { DictationPanel } from '../tabs/DictationPanel';
 import { MasteryPanel } from '../tabs/MasteryPanel';
 
@@ -560,7 +561,12 @@ const OverviewPanel = () => {
 
         return (
             <div className="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                >
+                    {text}
+                </ReactMarkdown>
             </div>
         );
     };

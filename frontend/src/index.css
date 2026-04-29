@@ -65,3 +65,28 @@
 .ai-markdown code {
   @apply bg-white/10 px-1.5 py-0.5 rounded text-sky-300 text-xs font-mono;
 }
+
+/* Markdown Table Enhancements */
+.ai-markdown table {
+  @apply w-full border-collapse my-4 rounded-xl overflow-hidden border border-white/10 text-[12px];
+}
+.ai-markdown th {
+  @apply bg-white/10 text-white font-black uppercase tracking-wider p-3 text-left border-b border-white/10;
+}
+.ai-markdown td {
+  @apply p-3 border-b border-white/5 text-slate-300 align-top;
+}
+.ai-markdown tr:last-child td {
+  @apply border-b-0;
+}
+.ai-markdown tr:nth-child(even) {
+  @apply bg-white/[0.02];
+}
+.ai-markdown tr:hover {
+  @apply bg-white/[0.05] transition-colors;
+}
+
+/* Custom Highlight Span within Markdown */
+.ai-markdown span {
+  @apply inline-block;
+}

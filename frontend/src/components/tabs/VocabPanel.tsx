@@ -5,6 +5,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 
 interface AnalyzedVocab {
     id: string; // STABLE UNIQUE ID for Reorder
@@ -637,7 +638,12 @@ export const VocabPanel: React.FC = () => {
                                                             <span className="text-[10px] text-slate-500 font-mono bg-white/5 px-2 py-0.5 rounded">[{item.reading}]</span>
                                                         </div>
                                                         <div className="prose prose-invert max-w-none text-slate-400 text-[11px] leading-relaxed font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
-                                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}</ReactMarkdown>
+                                                            <ReactMarkdown 
+                                                                remarkPlugins={[remarkGfm]}
+                                                                rehypePlugins={[rehypeRaw]}
+                                                            >
+                                                                {Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}
+                                                            </ReactMarkdown>
                                                         </div>
                                                     </div>
                                                     {(() => {
@@ -822,7 +828,12 @@ export const VocabPanel: React.FC = () => {
                                                     )}
                                                 </div>
                                                 <div className="prose prose-invert max-w-none text-slate-500 text-[11px] leading-relaxed pr-12 font-medium italic font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{v.definition}</ReactMarkdown>
+                                                    <ReactMarkdown 
+                                                        remarkPlugins={[remarkGfm]}
+                                                        rehypePlugins={[rehypeRaw]}
+                                                    >
+                                                        {v.definition}
+                                                    </ReactMarkdown>
                                                 </div>
                                             </div>
                                             <button 

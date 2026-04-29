@@ -8,6 +8,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 
 interface CardData {
     title: string;
@@ -250,7 +251,12 @@ export const InsightsPanel: React.FC = () => {
                                                             {cards[cardIndex]?.title}
                                                         </div>
                                                         <div className="ai-markdown prose prose-invert max-w-none text-[14px] text-slate-200 leading-relaxed font-medium prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
-                                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{cards[cardIndex]?.content || ''}</ReactMarkdown>
+                                                            <ReactMarkdown 
+                                                                remarkPlugins={[remarkGfm]} 
+                                                                rehypePlugins={[rehypeRaw]}
+                                                            >
+                                                                {cards[cardIndex]?.content || ''}
+                                                            </ReactMarkdown>
                                                         </div>
                                                     </motion.div>
                                                 </AnimatePresence>
