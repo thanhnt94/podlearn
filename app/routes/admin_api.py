@@ -239,8 +239,14 @@ def test_auth_connection():
 
     print(f"[AUTH_TEST] URL: {base_url}, ID: |{client_id}|, Secret: |{client_secret}|")
 
+    # 1. ALWAYS SAVE SETTINGS FIRST (User requested persistence even on failure)
+    AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
+    AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
+    if client_secret and not is_masked:
+        AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
+
     try:
-        # 1. Discovery Check (Server up?)
+        # 2. Discovery Check (Server up?)
         discovery_response = requests.get(f"{base_url}/api/auth/discovery", timeout=5)
         if discovery_response.status_code != 200:
             return jsonify({'success': False, 'message': 'Không thể kết nối tới Discovery endpoint của Central Auth.'}), 400
@@ -256,15 +262,6 @@ def test_auth_connection():
             print(f"[AUTH_TEST] Handshake FAILED: {err_msg}")
             return jsonify({"success": False, "message": f"Bắt tay thất bại: {err_msg}"}), 401
             
-        # 3. Successful Handshake - SAVE SETTINGS PERMANENTLY
-        AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
-        AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
-        
-        # Always save the secret if it was provided in the request to ensure it's in the DB
-        # This fixes the "lost secret" issue after reload.
-        if client_secret:
-            AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
-        
         return jsonify({
             'success': True, 
             'message': f'Kết nối thành công! Đã xác thực client: {validation.get("client_name")}', 
