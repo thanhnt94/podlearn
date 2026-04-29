@@ -21,9 +21,19 @@ export const TranscriptBody: React.FC = () => {
         const findBestMatch = (lines: any[]) => {
             if (!lines || lines.length === 0) return undefined;
             
-            // Strategy: Find any line that overlaps with the s1Line's duration
-            // Overlap condition: (StartA <= EndB) and (EndA >= StartB)
-            return lines.find(l => (s1Line.start <= l.end) && (s1Line.end >= l.start));
+            // Refined Strategy: Find the line that has the MOST temporal overlap with s1Line
+            // Intersection = min(end1, end2) - max(start1, start2)
+            let bestLine = undefined;
+            let maxOverlap = -1;
+
+            for (const l of lines) {
+                const intersection = Math.min(s1Line.end, l.end) - Math.max(s1Line.start, l.start);
+                if (intersection > maxOverlap && intersection > 0) {
+                    maxOverlap = intersection;
+                    bestLine = l;
+                }
+            }
+            return bestLine;
         };
         
         return {

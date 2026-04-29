@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { X, Copy, Printer, Check, Languages, FileText } from 'lucide-react';
+import { X, Copy, Download, Printer, Check, Languages, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from 'docx';
+import { saveAs } from 'file-saver';
 
 interface ExportModalProps {
     isOpen: boolean;
@@ -22,7 +24,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     const getAlternativeLines = (s1Line: any) => {
         const findBestMatch = (lines: any[]) => {
             if (!lines || lines.length === 0) return undefined;
-            return lines.find(l => (s1Line.start <= l.end) && (s1Line.end >= l.start));
+            let bestLine = undefined;
+            let maxOverlap = -1;
+            for (const l of lines) {
+                const intersection = Math.min(s1Line.end, l.end) - Math.max(s1Line.start, l.start);
+                if (intersection > maxOverlap && intersection > 0) {
+                    maxOverlap = intersection;
+                    bestLine = l;
+                }
+            }
+            return bestLine;
         };
         return { s2: findBestMatch(s2Lines), s3: findBestMatch(s3Lines) };
     };
@@ -51,6 +62,60 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
         navigator.clipboard.writeText(generateText());
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleDownloadDocx = async () => {
+        const doc = new Document({
+            sections: [{
+                properties: {},
+                children: [
+                    new Paragraph({
+                        text: lessonTitle || "Lesson Script",
+                        heading: HeadingLevel.HEADING_1,
+                        alignment: AlignmentType.CENTER,
+                    }),
+                    new Paragraph({ text: "" }), // Spacer
+                    ...subtitles.flatMap(line => {
+                        const alts = getAlternativeLines(line);
+                        const lines = [];
+                        
+                        let headerText = "";
+                        if (options.showTimestamp) headerText += `[${formatTime(line.start)}] `;
+                        
+                        if (headerText) {
+                            lines.push(new Paragraph({
+                                children: [new TextRun({ text: headerText, bold: true, color: "00A3FF", size: 16 })],
+                            }));
+                        }
+
+                        if (options.showS1) {
+                            lines.push(new Paragraph({
+                                children: [new TextRun({ text: line.text, bold: true, size: 24 })],
+                                spacing: { before: 100 }
+                            }));
+                        }
+
+                        if (options.showS2 && alts.s2) {
+                            lines.push(new Paragraph({
+                                children: [new TextRun({ text: alts.s2.text, color: "10B981", size: 20 })],
+                            }));
+                        }
+
+                        if (options.showS3 && alts.s3) {
+                            lines.push(new Paragraph({
+                                children: [new TextRun({ text: alts.s3.text, color: "F59E0B", size: 18 })],
+                            }));
+                        }
+
+                        lines.push(new Paragraph({ text: "" })); // Spacer
+                        return lines;
+                    })
+                ],
+            }],
+        });
+
+        const blob = await Packer.toBlob(doc);
+        saveAs(blob, `${lessonTitle || 'script'}.docx`);
     };
 
     const handlePrint = () => {
@@ -154,12 +219,20 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
                         {/* Footer Actions */}
                         <div className="p-6 border-t border-white/5 bg-slate-900/50 flex items-center justify-between gap-4">
-                            <button 
-                                onClick={handlePrint}
-                                className="px-6 py-3 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all flex items-center gap-2"
-                            >
-                                <Printer size={16} /> Print PDF
-                            </button>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={handlePrint}
+                                    className="px-4 py-3 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all flex items-center gap-2"
+                                >
+                                    <Printer size={16} /> Print
+                                </button>
+                                <button 
+                                    onClick={handleDownloadDocx}
+                                    className="px-4 py-3 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-sky-500 transition-all flex items-center gap-2"
+                                >
+                                    <Download size={16} /> Download .DOCX
+                                </button>
+                            </div>
                             
                             <div className="flex items-center gap-3">
                                 <button 

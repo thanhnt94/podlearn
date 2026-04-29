@@ -63,15 +63,20 @@ export const SubtitleOverlay: React.FC = () => {
                     }}
                 >
                     {sid === 's1' && originalLang === 'ja' && showFurigana && analyzedWords.length > 0 ? (
-                        <div className="flex flex-wrap justify-center gap-x-1">
-                            {analyzedWords.map((word, idx) => (
-                                <ruby key={idx} className="ruby-base">
-                                    {word.surface}
-                                    {word.reading && word.reading !== word.surface && (
-                                        <rt className="text-[0.4em] mb-[-0.2em] opacity-80">{word.reading}</rt>
-                                    )}
-                                </ruby>
-                            ))}
+                        <div className="flex flex-wrap justify-center gap-x-1.5 gap-y-2">
+                            {analyzedWords.map((word, idx) => {
+                                const hasKanji = /[一-龠]/.test(word.surface);
+                                return (
+                                    <ruby key={idx} className="ruby-base inline-flex flex-col items-center leading-none">
+                                        <span className="ruby-text block leading-[1.1]">{word.surface}</span>
+                                        {hasKanji && word.reading && word.reading !== word.surface && (
+                                            <rt className="text-[0.45em] leading-none mb-0.5 opacity-90 select-none block" style={{ rubyPosition: 'over' }}>
+                                                {word.reading}
+                                            </rt>
+                                        )}
+                                    </ruby>
+                                );
+                            })}
                         </div>
                     ) : (
                         line.text
