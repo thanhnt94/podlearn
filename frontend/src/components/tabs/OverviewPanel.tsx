@@ -9,9 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export const OverviewPanel: React.FC = () => {
     const { user } = useAppStore();
-    const { 
-        curatedContent, 
-        isEditingCurated: isEditing, 
+    const {
+        curatedContent,
+        isEditingCurated: isEditing,
         setEditingCurated,
         draftCuratedContent: editedContent,
         setDraftCuratedContent: setEditedContent
@@ -19,7 +19,7 @@ export const OverviewPanel: React.FC = () => {
 
     const [activeTabId, setActiveTabId] = useState<string>('overview');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    
+
     const isAdmin = user?.is_vip || user?.is_admin;
 
     // Sync active tab if deleted or on first load
@@ -42,7 +42,7 @@ export const OverviewPanel: React.FC = () => {
 
         const id = `tab_${Date.now()}`;
         const newSection = { id, title: 'Tab mới', content: '' };
-        
+
         // Use a functional update to ensure we have the latest content if we just entered edit mode
         if (!isEditing) {
             setEditedContent([...curatedContent, newSection]);
@@ -66,11 +66,11 @@ export const OverviewPanel: React.FC = () => {
     };
 
     const sections = isEditing ? editedContent : curatedContent;
-    
+
     // If total tabs > 3, we switch to a single "Dropdown Selector" mode for ALL tabs
     // Otherwise, we show individual buttons.
     const useFullDropdownMode = sections.length > 3;
-    
+
     const activeSection = sections.find(s => s.id === activeTabId) || sections[0];
 
     return (
@@ -81,7 +81,7 @@ export const OverviewPanel: React.FC = () => {
                     // SHOW INDIVIDUAL BUTTONS (for 1-3 tabs)
                     <div className="flex gap-2 items-center">
                         {sections.map(tab => (
-                            <SubTabButton 
+                            <SubTabButton
                                 key={tab.id}
                                 active={activeTabId === tab.id}
                                 onClick={() => setActiveTabId(tab.id)}
@@ -95,7 +95,7 @@ export const OverviewPanel: React.FC = () => {
                 ) : (
                     // SHOW SINGLE DROPDOWN SELECTOR (for > 3 tabs)
                     <div className="relative">
-                        <button 
+                        <button
                             onClick={() => setIsMenuOpen(!isMenuOpen)}
                             className="flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-sky-500/30 bg-sky-500/10 text-sky-400 shadow-lg shadow-sky-500/10 transition-all hover:bg-sky-500/20 active:scale-95 min-w-[160px]"
                         >
@@ -108,7 +108,7 @@ export const OverviewPanel: React.FC = () => {
 
                         <AnimatePresence>
                             {isMenuOpen && (
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -120,16 +120,15 @@ export const OverviewPanel: React.FC = () => {
                                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                                         {sections.map(tab => (
                                             <div key={tab.id} className="flex items-center group">
-                                                <button 
+                                                <button
                                                     onClick={() => { setActiveTabId(tab.id); setIsMenuOpen(false); }}
-                                                    className={`flex-1 text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${
-                                                        activeTabId === tab.id ? 'bg-sky-500/20 text-sky-400' : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'
-                                                    }`}
+                                                    className={`flex-1 text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${activeTabId === tab.id ? 'bg-sky-500/20 text-sky-400' : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'
+                                                        }`}
                                                 >
                                                     {tab.title}
                                                 </button>
                                                 {isEditing && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleDeleteTab(tab.id)}
                                                         className="p-3 text-slate-600 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
                                                     >
@@ -147,7 +146,7 @@ export const OverviewPanel: React.FC = () => {
 
                 {/* ALWAYS VISIBLE ADD BUTTON */}
                 {isAdmin && (
-                    <button 
+                    <button
                         onClick={handleAddTab}
                         className="p-2.5 bg-white/5 text-slate-500 hover:text-sky-400 hover:bg-sky-500/10 rounded-2xl border border-dashed border-white/10 hover:border-sky-500/30 transition-all active:scale-90 flex items-center justify-center"
                         title="Thêm tab mới"
@@ -165,14 +164,14 @@ export const OverviewPanel: React.FC = () => {
                             <>
                                 <div className="flex items-center gap-3 px-4 py-3 bg-slate-900/50 rounded-2xl border border-white/5">
                                     <Edit3 size={14} className="text-sky-500" />
-                                    <input 
+                                    <input
                                         value={activeSection.title}
                                         onChange={(e) => handleUpdateTabTitle(activeSection.id, e.target.value)}
                                         className="bg-transparent border-none outline-none text-white text-xs font-black uppercase tracking-widest w-full"
                                         placeholder="Tên tab..."
                                     />
                                 </div>
-                                <textarea 
+                                <textarea
                                     className="flex-1 min-h-[400px] bg-slate-900/80 border border-white/10 rounded-2xl p-6 text-slate-300 font-sans text-sm focus:outline-none focus:border-sky-500/50 transition-all shadow-inner resize-none custom-scrollbar"
                                     value={activeSection.content}
                                     onChange={(e) => handleUpdateContent(e.target.value)}
@@ -188,7 +187,7 @@ export const OverviewPanel: React.FC = () => {
                 ) : (
                     activeSection ? (
                         <div className="pod-markdown">
-                            <ReactMarkdown 
+                            <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 rehypePlugins={[rehypeRaw]}
                             >
@@ -207,13 +206,13 @@ export const OverviewPanel: React.FC = () => {
     );
 };
 
-const SubTabButton: React.FC<{ 
-    active: boolean; 
-    onClick: () => void; 
-    label: string; 
+const SubTabButton: React.FC<{
+    active: boolean;
+    onClick: () => void;
+    label: string;
     isEditing?: boolean;
     onDelete?: () => void;
-    color: string 
+    color: string
 }> = ({ active, onClick, label, isEditing, onDelete, color }) => {
     const colors: Record<string, string> = {
         sky: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
@@ -225,14 +224,13 @@ const SubTabButton: React.FC<{
         <div className="flex items-center gap-1">
             <button
                 onClick={onClick}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${
-                    active ? `${colors[color]} shadow-lg shadow-${color}-500/10` : 'bg-transparent border-white/5 text-slate-500 hover:border-white/10 hover:text-slate-300'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${active ? `${colors[color]} shadow-lg shadow-${color}-500/10` : 'bg-transparent border-white/5 text-slate-500 hover:border-white/10 hover:text-slate-300'
+                    }`}
             >
                 {label}
             </button>
             {isEditing && active && (
-                <button 
+                <button
                     onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
                     className="p-2 text-slate-600 hover:text-rose-500 transition-colors"
                 >
@@ -240,5 +238,18 @@ const SubTabButton: React.FC<{
                 </button>
             )}
         </div>
+    );
+};
+{ label }
+            </button >
+    { isEditing && active && (
+        <button
+            onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+            className="p-2 text-slate-600 hover:text-rose-500 transition-colors"
+        >
+            <Trash2 size={12} />
+        </button>
+    )}
+        </div >
     );
 };

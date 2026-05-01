@@ -20,7 +20,7 @@
   .neon-glow {
     box-shadow: 0 0 15px rgba(52, 211, 153, 0.3);
   }
-  
+
   .glass-panel {
     @apply bg-slate-800/40 backdrop-blur-md border border-white/10;
   }
@@ -41,34 +41,100 @@
 }
 
 /* --- PREMIUM MARKDOWN STYLING (.pod-markdown) --- */
-.pod-markdown h1 { @apply text-2xl font-black text-white mt-8 mb-4 uppercase tracking-tighter; }
-.pod-markdown h2 { @apply text-xl font-black text-white mt-7 mb-3 uppercase tracking-tight; }
-.pod-markdown h3 { @apply text-lg font-black text-sky-400 mt-6 mb-2 tracking-normal; }
-.pod-markdown h4 { @apply text-base font-bold text-slate-200 mt-4 mb-2; }
+.pod-markdown h1 {
+  @apply text-2xl font-black text-white mt-8 mb-4 uppercase tracking-tighter;
+}
 
-.pod-markdown p { @apply text-slate-300 mb-5 leading-relaxed; }
+.pod-markdown h2 {
+  @apply text-xl font-black text-white mt-7 mb-3 uppercase tracking-tight;
+}
 
-.pod-markdown ul { @apply list-disc pl-6 mb-6 space-y-2; }
-.pod-markdown ol { @apply list-decimal pl-6 mb-6 space-y-2.5; }
-.pod-markdown li { @apply text-slate-300; }
-.pod-markdown li strong { @apply text-sky-400 font-bold; }
+.pod-markdown h3 {
+  @apply text-lg font-black text-sky-400 mt-6 mb-2 tracking-normal;
+}
 
-.pod-markdown strong { @apply text-white font-bold; }
-.pod-markdown em { @apply text-slate-400 italic; }
-.pod-markdown blockquote { @apply border-l-4 border-sky-500/50 bg-sky-500/5 pl-4 py-2 my-6 italic text-slate-400 rounded-r-lg; }
+.pod-markdown h4 {
+  @apply text-base font-bold text-slate-200 mt-4 mb-2;
+}
 
-.pod-markdown code { @apply bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded font-mono text-[0.85em] border border-white/5; }
-.pod-markdown pre { @apply bg-slate-900/80 border border-white/10 rounded-2xl p-4 my-6 overflow-x-auto custom-scrollbar; }
-.pod-markdown pre code { @apply bg-transparent border-none p-0 text-slate-300; }
+.pod-markdown p {
+  @apply text-slate-300 mb-5 leading-relaxed;
+}
 
-.pod-markdown table { @apply w-full border-collapse my-8 rounded-2xl overflow-hidden border border-white/10 text-[13px] shadow-2xl; }
-.pod-markdown th { @apply bg-white/5 text-sky-400 font-black uppercase tracking-widest p-4 text-left border-b border-white/10; }
-.pod-markdown td { @apply p-4 border-b border-white/5 text-slate-300 align-top transition-colors; border-right: 1px dashed rgba(255, 255, 255, 0.05); }
-.pod-markdown td:last-child { border-right: none; }
-.pod-markdown tr:last-child td { @apply border-b-0; }
-.pod-markdown tr:nth-child(even) { @apply bg-white/[0.015]; }
-.pod-markdown tr:hover td { @apply bg-white/[0.04] text-white; }
+.pod-markdown ul {
+  @apply list-disc pl-6 mb-6 space-y-2;
+}
+
+.pod-markdown ol {
+  @apply list-decimal pl-6 mb-6 space-y-2.5;
+}
+
+.pod-markdown li {
+  @apply text-slate-300;
+}
+
+.pod-markdown li strong {
+  @apply text-sky-400 font-bold;
+}
+
+.pod-markdown strong {
+  @apply text-white font-bold;
+}
+
+.pod-markdown em {
+  @apply text-slate-400 italic;
+}
+
+.pod-markdown blockquote {
+  @apply border-l-4 border-sky-500/50 bg-sky-500/5 pl-4 py-2 my-6 italic text-slate-400 rounded-r-lg;
+}
+
+.pod-markdown code {
+  @apply bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded font-mono text-[0.85em] border border-white/5;
+}
+
+.pod-markdown pre {
+  @apply bg-slate-900/80 border border-white/10 rounded-2xl p-4 my-6 overflow-x-auto custom-scrollbar;
+}
+
+.pod-markdown pre code {
+  @apply bg-transparent border-none p-0 text-slate-300;
+}
+
+.pod-markdown table {
+  @apply w-full border-collapse my-8 rounded-2xl overflow-hidden border border-white/10 text-[13px] shadow-2xl;
+}
+
+.pod-markdown th {
+  @apply bg-white/5 text-sky-400 font-black uppercase tracking-widest p-4 text-left border-b border-white/10;
+}
+
+.pod-markdown td {
+  @apply p-4 border-b border-white/5 text-slate-300 align-top transition-colors;
+  border-right: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.pod-markdown td:last-child {
+  border-right: none;
+}
+
+.pod-markdown tr:last-child td {
+  @apply border-b-0;
+}
+
+.pod-markdown tr:nth-child(even) {
+  @apply bg-white/[0.015];
+}
+
+.pod-markdown tr:hover td {
+  @apply bg-white/[0.04] text-white;
+}
 
 /* Legacy support for old classes */
-.ai-markdown { @apply pod-markdown; }
-.prose { @apply pod-markdown; }
+.ai-markdown {
+  @apply pod-markdown;
+}
+
+.prose {
+  @apply pod-markdown;
+}
