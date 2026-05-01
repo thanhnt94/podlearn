@@ -21,8 +21,10 @@ def get_player_data(lesson_id):
     available_tracks = [{
         'id': t.id,
         'language_code': t.language_code,
+        'is_auto_generated': t.is_auto_generated,
         'name': t.name or f"{t.language_code.upper()}_Original",
-        'uploader_name': t.uploader_name if t.uploader_id else 'YouTube'
+        'uploader_name': t.uploader_name or ("YouTube" if not t.uploader_id else "Unknown"),
+        'status': t.status
     } for t in all_tracks]
 
     return jsonify({
@@ -46,7 +48,7 @@ def get_player_data(lesson_id):
 @content_api.route('/subtitles/available/<int:lesson_id>', methods=['GET'])
 @jwt_required()
 def get_available_subtitles(lesson_id):
-    """List all available subtitle tracks for a lesson's video."""
+    """List all available subtitle tracks for a lesson's video with full metadata."""
     lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
     all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
     
@@ -54,8 +56,15 @@ def get_available_subtitles(lesson_id):
         "subtitles": [{
             'id': t.id,
             'language_code': t.language_code,
+            'is_auto_generated': t.is_auto_generated,
+            'is_original': t.is_original,
             'name': t.name or f"{t.language_code.upper()}_Original",
-            'uploader_name': t.uploader_name if t.uploader_id else 'YouTube'
+            'uploader_name': t.uploader_name or ("YouTube" if not t.uploader_id else "Unknown"),
+            'uploader_id': t.uploader_id,
+            'fetched_at': t.fetched_at.isoformat() if hasattr(t, 'fetched_at') and t.fetched_at else None,
+            'line_count': len(t.content_json) if t.content_json else 0,
+            'status': t.status,
+            'note': t.note
         } for t in all_tracks]
     })
 

@@ -100,13 +100,15 @@ def fetch_info_cached(video_id: str, extra_opts=None):
     if video_id in YT_INFO_CACHE:
         ts, info, cached_is_flat = YT_INFO_CACHE[video_id]
         if now - ts < YT_CACHE_TTL:
-            has_subs = bool(info.get('subtitles') or info.get('automatic_captions'))
-            # If we need a full extract but cache is flat, OR if we need full but cache has no subs
-            # we allow one re-fetch attempt to get tracks.
-            if not req_is_flat and (cached_is_flat or not has_subs):
-                print(f">>> [YT CACHE] Incomplete data for {video_id}. Attempting upgrade/re-fetch... <<<")
+            has_sub_keys = 'subtitles' in info or 'automatic_captions' in info
+            has_actual_subs = bool(info.get('subtitles') or info.get('automatic_captions'))
+            
+            # If we need a full extract (req_is_flat=False) but the cache is flat OR has NO sub keys at all
+            # (which happens if it was a fast metadata-only extract), we MUST re-fetch.
+            if not req_is_flat and (cached_is_flat or not has_sub_keys):
+                print(f">>> [YT CACHE] Incomplete data for {video_id} (Flat={cached_is_flat}, HasSubKeys={has_sub_keys}). Upgrading to full fetch... <<<")
             else:
-                print(f">>> [YT CACHE] Hit for {video_id} (Flat={cached_is_flat}, Subs={has_subs}) <<<")
+                print(f">>> [YT CACHE] Hit for {video_id} (Flat={cached_is_flat}, HasActualSubs={has_actual_subs}) <<<")
                 return info
     
     print(f">>> [YT FETCH] Extracting metadata for {video_id} (Flat={req_is_flat})... <<<")
@@ -116,8 +118,9 @@ def fetch_info_cached(video_id: str, extra_opts=None):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
         if info:
-            # Detect if it's flat or full. Flat often lacks 'formats' or has specific type
-            is_flat_result = info.get('_type') == 'url_composite' or 'formats' not in info
+            # A result is flat if it's explicitly marked as composite OR it lacks substantial data like 'formats' or 'subtitles'
+            # Note: extract_flat: True often skips 'subtitles' field entirely in the response dict
+            is_flat_result = info.get('_type') == 'url_composite' or ('formats' not in info and 'subtitles' not in info)
             YT_INFO_CACHE[video_id] = (now, info, is_flat_result)
         return info
 
@@ -127,35 +130,29 @@ def get_available_subs_from_youtube(video_id: str):
     try:
         sys.stderr.write(f"\n[YT-DEBUG] get_available_subs_from_youtube called for {video_id}\n")
         info = fetch_info_cached(video_id)
+        
+        def extract_from_info(info_dict):
+            subs = info_dict.get('subtitles', {}) or {}
+            autos = info_dict.get('automatic_captions', {}) or {}
+            available = []
+            for code, formats in subs.items():
+                available.append({'lang_code': code, 'name': formats[0].get('name', code) if formats else code, 'is_auto': False})
+            for code, formats in autos.items():
+                if any(a['lang_code'] == code for a in available): continue
+                available.append({'lang_code': code, 'name': (formats[0].get('name', code) if formats else code) + " (Auto)", 'is_auto': True})
+            return available
+
+        available = extract_from_info(info) if info else []
+        
+        # If still empty, maybe we have a bad/stale cache. FORCE a full fresh extract.
+        if not available:
+            sys.stderr.write(f"[YT-DEBUG] No subs in cache for {video_id}. Forcing fresh full extraction... \n")
+            info = fetch_info_cached(video_id, extra_opts={'extract_flat': False})
+            available = extract_from_info(info) if info else []
+            
         if not info:
-            sys.stderr.write(f"[YT-DEBUG] ERROR: No info returned for {video_id}\n")
             return {"error": "NotFound", "message": "Video not found or inaccessible"}
- 
-        sys.stderr.write(f"[YT-DEBUG] info dict keys found: {list(info.keys())[:15]}...\n")
 
-        subs = info.get('subtitles', {}) or {}
-        autos = info.get('automatic_captions', {}) or {}
-        
-        sys.stderr.write(f"[YT-DEBUG] Manual subs: {len(subs)} keys | Auto subs: {len(autos)} keys\n")
-        sys.stderr.flush()
-
-        available = []
-        # Manual subs
-        for code, formats in subs.items():
-            available.append({
-                'lang_code': code,
-                'name': formats[0].get('name', code) if formats else code,
-                'is_auto': False
-            })
-        # Auto subs
-        for code, formats in autos.items():
-            if any(a['lang_code'] == code for a in available): continue
-            available.append({
-                'lang_code': code,
-                'name': (formats[0].get('name', code) if formats else code) + " (Auto)",
-                'is_auto': True
-            })
-        
         sys.stderr.write(f"[YT-DEBUG] SUCCESS: Returning {len(available)} tracks to API\n")
         sys.stderr.flush()
         return {'subtitles': available}
