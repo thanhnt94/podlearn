@@ -49,7 +49,7 @@ export const HandsFreeEngine: React.FC = () => {
 
         const fetchOriginal = async () => {
             try {
-                const res = await fetch(`/api/handsfree/original/${videoId}`);
+                const res = await fetch(`/api/content/handsfree/original/${videoId}`);
                 const data = await res.json();
                 if (data.audio_url) {
                     setHandsFreeOriginalData(data.audio_url, data.total_duration);
@@ -70,7 +70,7 @@ export const HandsFreeEngine: React.FC = () => {
             setHandsFreeStatus('generating');
             
             try {
-                const cacheRes = await fetch(`/api/handsfree/cached/${videoId}?lang=vi`);
+                const cacheRes = await fetch(`/api/content/handsfree/cached/${videoId}?lang=vi`);
                 const cacheData = await cacheRes.json();
                 
                 if (cacheData.cached) {
@@ -79,7 +79,7 @@ export const HandsFreeEngine: React.FC = () => {
                     return;
                 }
 
-                const response = await fetch('/api/handsfree/generate', {
+                const response = await fetch('/api/content/handsfree/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -112,7 +112,7 @@ export const HandsFreeEngine: React.FC = () => {
 
         pollInterval.current = window.setInterval(async () => {
             try {
-                const res = await fetch(`/api/handsfree/status/${handsFreeTaskId}`);
+                const res = await fetch(`/api/content/handsfree/status/${handsFreeTaskId}`);
                 const data = await res.json();
 
                 setHandsFreeProgress(data.progress || 0, data.step || '');

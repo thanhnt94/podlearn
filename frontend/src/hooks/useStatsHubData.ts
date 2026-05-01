@@ -31,7 +31,7 @@ export function useStatsHubData() {
             try {
                 setIsLoading(true);
                 // Use axios for automatic JWT attachment
-                const response = await axios.get('/api/tracking/stats/summary');
+                const response = await axios.get('/api/study/stats/summary');
                 setData(response.data);
             } catch (err: any) {
                 console.error("Stats fetch error:", err);

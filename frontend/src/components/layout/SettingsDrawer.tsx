@@ -951,7 +951,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                    <button 
                                                         onClick={async () => {
                                                             if (confirm("!!! PERMANENT GLOBAL DELETE !!!\n\nAre you sure?")) {
-                                                                await axios.delete(`/api/video/${videoId}`);
+                                                                await axios.delete(`/api/content/video/${videoId}`);
                                                                 onClose();
                                                                 window.location.href = '/';
                                                             }

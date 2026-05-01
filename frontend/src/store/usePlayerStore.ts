@@ -49,6 +49,12 @@ interface PlayerState {
   activeLineIndex: number;
   isVocabStudioOpen: boolean;
   setVocabStudioOpen: (open: boolean) => void;
+  activeSidebarTab: string;
+  setActiveSidebarTab: (tab: string) => void;
+  isEditingCurated: boolean;
+  setEditingCurated: (editing: boolean) => void;
+  draftCuratedContent: PlayerState['curatedContent'];
+  setDraftCuratedContent: (data: Partial<PlayerState['curatedContent']>) => void;
   
   // UI / Interaction
   mode: 'watch' | 'shadowing' | 'loop';
@@ -142,6 +148,7 @@ interface PlayerState {
   lastAnalyzedIndex: number;
   hasTokens: boolean;
   isManualAnalysis: boolean;
+  savedVocab: any[];
   
   settings: {
       s1: TrackSettings;
@@ -195,12 +202,16 @@ interface PlayerState {
   setNotes: (notes: Note[]) => void;
   setNoteSettings: (settings: Partial<PlayerState['settings']['notes']>) => void;
   setSyncOffset: (offset: number) => void;
-  addNote: (note: Note) => void;
-  deleteNote: (id: number) => void;
-  updateNote: (id: number, content: string) => void;
+  addNote: (timestamp: number, content: string) => Promise<void>;
+  appendNote: (note: Note) => void;
+  deleteNote: (id: number) => Promise<void>;
+  updateNote: (id: number, content: string) => Promise<void>;
   fetchLessonData: (id: number) => Promise<void>;
   completeLesson: () => Promise<void>;
   fetchNotes: () => Promise<void>;
+  fetchVocab: () => Promise<void>;
+  addVocab: (word: string, reading: string, meaning: string) => Promise<void>;
+  removeVocab: (word: string) => Promise<void>;
   fetchShadowingStats: () => Promise<void>;
   setAutoNext: (isAutoNext: boolean) => void;
   setMode: (mode: 'watch' | 'shadowing' | 'loop') => void;
@@ -298,8 +309,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   lastAnalyzedIndex: -1,
   hasTokens: false,
   isManualAnalysis: false,
+  savedVocab: [],
   isVocabStudioOpen: false,
   setVocabStudioOpen: (open) => set({ isVocabStudioOpen: open }),
+  activeSidebarTab: 'Overview',
+  setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
+  isEditingCurated: false,
+  setEditingCurated: (editing) => set({ isEditingCurated: editing }),
+  draftCuratedContent: { overview: '', grammar: '', vocabulary: '' },
+  setDraftCuratedContent: (data) => set((state) => ({ 
+    draftCuratedContent: { ...state.draftCuratedContent, ...data } 
+  })),
   lessonId: null,
   lessonTitle: null,
   videoId: null,
@@ -398,13 +418,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
   fetchComments: async (video_id) => {
     try {
-        const res = await axios.get(`/api/community/comments/${video_id}`);
+        const res = await axios.get(`/api/engagement/comments/${video_id}`);
         set({ comments: res.data });
     } catch (err) {}
   },
   addComment: async (video_id, content, timestamp) => {
     try {
-        const res = await axios.post(`/api/community/comments/${video_id}`, { content, video_timestamp: timestamp });
+        const res = await axios.post(`/api/engagement/comments/${video_id}`, { content, video_timestamp: timestamp });
         set(state => ({ 
             comments: [...state.comments, res.data.comment].sort((a, b) => (a.video_timestamp || 0) - (b.video_timestamp || 0)) 
         }));
@@ -475,7 +495,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       const { lessonId } = get();
       if (!lessonId) return;
       try {
-          const res = await axios.get(`/api/study/subtitles/available/${lessonId}`);
+          const res = await axios.get(`/api/content/subtitles/available/${lessonId}`);
           set({ availableTracks: res.data.subtitles || [] });
       } catch (e) {}
   },
@@ -508,12 +528,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setTTSTrackSource: (source) => set({ ttsTrackSource: source }),
   generateHandsFreeMixed: () => set({ handsFreeAudioUrl: null, handsFreeTimeline: null, handsFreeTaskId: null, handsFreeStatus: 'idle' }),
   setAbLoop: (newLoop) => set((state) => ({ abLoop: { ...state.abLoop, ...newLoop } })),
-  setNotes: (notes) => set({ notes }),
-  addNote: (note) => set((state) => ({ notes: [...state.notes, note].sort((a,b) => a.timestamp - b.timestamp) })),
   setNoteSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, notes: { ...state.settings.notes, ...newSettings } } })),
   setSyncOffset: (offset) => set((state) => ({ settings: { ...state.settings, syncOffset: offset } })),
-  deleteNote: (id) => set((state) => ({ notes: state.notes.filter(n => n.id !== id) })),
-  updateNote: (id, content) => set((state) => ({ notes: state.notes.map(n => n.id === id ? { ...n, content } : n) })),
+  setNotes: (notes) => set({ notes }),
   setLessonData: (data) => set((state) => {
     let newSettings = { ...state.settings };
     if (data.settings) newSettings = { ...newSettings, ...data.settings };
@@ -544,10 +561,73 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         const trackIds = { s1: subs.track_1_id, s2: subs.track_2_id, s3: subs.track_3_id, ai: null };
         get().setTrackIds(trackIds);
         get().checkScanStatus(id);
+        get().fetchCuratedContent();
+        get().fetchNotes();
+        get().fetchVocab();
     } catch (e) { set({ isLoaded: false }); }
   },
   completeLesson: async () => {}, 
-  fetchNotes: async () => {},
+  fetchNotes: async () => {
+    const { lessonId } = get();
+    if (!lessonId) return;
+    try {
+        const res = await axios.get(`/api/study/lesson/${lessonId}/notes`);
+        set({ notes: res.data });
+    } catch (e) {}
+  },
+  addNote: async (timestamp: number, content: string) => {
+    const { lessonId, notes } = get();
+    if (!lessonId) return;
+    try {
+        const res = await axios.post(`/api/study/lesson/${lessonId}/notes`, { timestamp, content });
+        if (res.data.success) {
+            set({ notes: [...notes, res.data.note] });
+        }
+    } catch (e) { throw e; }
+  },
+  appendNote: (note: Note) => set((state) => ({ notes: [...state.notes, note] })),
+  updateNote: async (noteId: number, content: string) => {
+    const { notes } = get();
+    try {
+        const res = await axios.patch(`/api/study/notes/${noteId}`, { content });
+        if (res.data.success) {
+            set({ notes: notes.map(n => n.id === noteId ? { ...n, content } : n) });
+        }
+    } catch (e) {}
+  },
+  deleteNote: async (noteId: number) => {
+    const { notes } = get();
+    try {
+        const res = await axios.delete(`/api/study/notes/${noteId}`);
+        if (res.data.success) {
+            set({ notes: notes.filter(n => n.id !== noteId) });
+        }
+    } catch (e) {}
+  },
+  fetchVocab: async () => {
+    const { lessonId } = get();
+    if (!lessonId) return;
+    try {
+        const res = await axios.get(`/api/study/vocab/list/${lessonId}`);
+        set({ savedVocab: res.data.vocab });
+    } catch (e) {}
+  },
+  addVocab: async (word: string, reading: string, meaning: string) => {
+    const { lessonId } = get();
+    if (!lessonId) return;
+    try {
+        await axios.post('/api/study/vocab/add', { lesson_id: lessonId, word, reading, meaning });
+        get().fetchVocab();
+    } catch (e) {}
+  },
+  removeVocab: async (word: string) => {
+    const { lessonId } = get();
+    if (!lessonId) return;
+    try {
+        await axios.delete('/api/study/vocab/remove', { data: { lesson_id: lessonId, word } });
+        get().fetchVocab();
+    } catch (e) {}
+  },
   fetchShadowingStats: async () => {},
   setAIInsights: (data) => set({ aiInsights: data }),
   fetchAIInsights: async () => {},

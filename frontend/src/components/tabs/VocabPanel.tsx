@@ -46,7 +46,7 @@ export const VocabPanel: React.FC = () => {
     const { 
         lessonId, s1Lines, activeLineIndex, requestSeek, 
         setPlaying, setLockedPaused, setSeeking,
-        addNote, fetchNotes, setVocabStudioOpen
+        appendNote, fetchNotes, setVocabStudioOpen
     } = usePlayerStore();
     
     // States
@@ -138,7 +138,7 @@ export const VocabPanel: React.FC = () => {
         setIsAnalyzing(true);
 
         try {
-            const response = await axios.post('/api/vocab/analyze', { 
+            const response = await axios.post('/api/study/vocab/analyze', { 
                 text, 
                 priority: priority === 'edit_segments' ? 'mazii_offline' : priority,
                 lesson_id: lessonId,
@@ -180,7 +180,7 @@ export const VocabPanel: React.FC = () => {
     const fetchSavedVocab = async () => {
         if (!lessonId) return;
         try {
-            const response = await axios.get(`/api/vocab/list/${lessonId}`, {
+            const response = await axios.get(`/api/study/vocab/list/${lessonId}`, {
                 params: { priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority }
             });
             setSavedVocab(response.data.vocab || []);
@@ -192,7 +192,7 @@ export const VocabPanel: React.FC = () => {
     const handleRemoveTerm = async (term: string) => {
         if (!lessonId) return;
         try {
-            await axios.delete('/api/vocab/remove', {
+            await axios.delete('/api/study/vocab/remove', {
                 data: { lesson_id: lessonId, term }
             });
             fetchSavedVocab();
@@ -205,7 +205,7 @@ export const VocabPanel: React.FC = () => {
         const noteTimestamp = item.timestamp || 0;
 
         try {
-            const response = await axios.post(`/api/vocab/add`, {
+            const response = await axios.post(`/api/study/vocab/add`, {
                 lesson_id: lessonId,
                 term: item.lemma,
                 reading: item.reading,
@@ -223,7 +223,7 @@ export const VocabPanel: React.FC = () => {
                     content: `**${item.lemma}**${item.reading ? ` [${item.reading}]` : ''}\n${Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}`,
                     created_at: new Date().toISOString()
                 };
-                addNote(newNote); // Use hook function
+                appendNote(newNote); // Use hook function
                 
                 // Track locally that we added this to show the V icon
                 setJustAdded(prev => new Set(prev).add(item.id));
@@ -303,7 +303,7 @@ export const VocabPanel: React.FC = () => {
     const fetchAnalysis = async () => {
         if (!lessonId) return;
         try {
-            const res = await axios.get(`/api/vocab/lesson/${lessonId}/analysis`, {
+            const res = await axios.get(`/api/study/vocab/lesson/${lessonId}/analysis`, {
                 params: { priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority }
             });
             setAnalysisData(res.data.analysis || []);
@@ -327,7 +327,7 @@ export const VocabPanel: React.FC = () => {
     const handleResetSegments = async () => {
         if (!lessonId) return;
         try {
-            await axios.delete('/api/vocab/tokens/clear', {
+            await axios.delete('/api/study/vocab/tokens/clear', {
                 data: { lesson_id: lessonId, line_index: activeLineIndex }
             });
             const line = s1Lines[activeLineIndex];
@@ -342,7 +342,7 @@ export const VocabPanel: React.FC = () => {
         if (!confirm("Are you sure you want to reset ALL segments to default for this entire lesson? This cannot be undone.")) return;
         
         try {
-            await axios.delete('/api/vocab/tokens/clear-all', { 
+            await axios.delete('/api/study/vocab/tokens/clear-all', { 
                 data: { lesson_id: lessonId }
             });
             // Re-fetch current line to reflect changes
@@ -356,7 +356,7 @@ export const VocabPanel: React.FC = () => {
     const saveTokens = async (tokens: string[]) => {
         if (!lessonId) return;
         try {
-            await axios.post('/api/vocab/tokens/save', {
+            await axios.post('/api/study/vocab/tokens/save', {
                 lesson_id: lessonId,
                 line_index: activeLineIndex,
                 tokens
@@ -364,7 +364,7 @@ export const VocabPanel: React.FC = () => {
             
             const line = s1Lines[activeLineIndex];
             if (line) {
-                const response = await axios.post('/api/vocab/analyze', { 
+                const response = await axios.post('/api/study/vocab/analyze', { 
                     text: line.text, 
                     priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority,
                     lesson_id: lessonId,
@@ -387,8 +387,8 @@ export const VocabPanel: React.FC = () => {
     };
 
     const filteredSaved = savedVocab.filter(v => 
-        v.term.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        v.definition.toLowerCase().includes(searchTerm.toLowerCase())
+        (v.term || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (v.definition || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const getBadge = (source?: string) => {

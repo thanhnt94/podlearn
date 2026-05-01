@@ -5,7 +5,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 
 export const CommunityPanel: React.FC = () => {
     const { 
-        lessonId, comments, fetchComments, addComment, 
+        videoId, comments, fetchComments, addComment, 
         currentTime, requestSeek 
     } = usePlayerStore();
     
@@ -14,18 +14,18 @@ export const CommunityPanel: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        if (lessonId) {
-            fetchComments(lessonId);
+        if (videoId) {
+            fetchComments(videoId);
         }
-    }, [lessonId, fetchComments]);
+    }, [videoId, fetchComments]);
 
     const handlePost = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newComment.trim() || !lessonId) return;
+        if (!newComment.trim() || !videoId) return;
 
         setIsSubmitting(true);
         const timestamp = useCurrentTime ? currentTime : undefined;
-        await addComment(lessonId, newComment, timestamp);
+        await addComment(videoId, newComment, timestamp);
         setNewComment('');
         setIsSubmitting(false);
     };

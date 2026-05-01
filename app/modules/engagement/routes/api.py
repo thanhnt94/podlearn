@@ -15,10 +15,23 @@ shares_api_bp = Blueprint('shares_api', __name__)
 
 # --- Community API (Comments & Discussion) ---
 
-@engagement_api_bp.route('/comments/<int:video_id>', methods=['GET'])
+def _resolve_video_id(video_id_or_yt_id):
+    """Resolve a video_id that could be an integer DB id or a YouTube string id."""
+    try:
+        return int(video_id_or_yt_id)
+    except (ValueError, TypeError):
+        from app.modules.content.models import Video
+        video = Video.query.filter_by(youtube_id=str(video_id_or_yt_id)).first()
+        return video.id if video else None
+
+@engagement_api_bp.route('/comments/<video_id>', methods=['GET'])
 def get_video_comments(video_id):
     """Fetch all comments for a video, including user info."""
-    comments = Comment.query.filter_by(video_id=video_id, parent_id=None).order_by(Comment.created_at.desc()).all()
+    resolved_id = _resolve_video_id(video_id)
+    if not resolved_id:
+        return jsonify([])
+    
+    comments = Comment.query.filter_by(video_id=resolved_id, parent_id=None).order_by(Comment.created_at.desc()).all()
     
     return jsonify([{
         "id": c.id,
@@ -34,10 +47,14 @@ def get_video_comments(video_id):
         "replies_count": c.replies.count()
     } for c in comments])
 
-@engagement_api_bp.route('/comments/<int:video_id>', methods=['POST'])
+@engagement_api_bp.route('/comments/<video_id>', methods=['POST'])
 @jwt_required()
 def post_new_comment(video_id):
     """Post a new comment or reply."""
+    resolved_id = _resolve_video_id(video_id)
+    if not resolved_id:
+        return jsonify({"error": "Video not found"}), 404
+    
     data = request.get_json() or {}
     content = data.get('content')
     timestamp = data.get('video_timestamp')
@@ -48,7 +65,7 @@ def post_new_comment(video_id):
 
     comment = Comment(
         user_id=current_user.id,
-        video_id=video_id,
+        video_id=resolved_id,
         content=content,
         video_timestamp=float(timestamp) if timestamp is not None else None,
         parent_id=parent_id
@@ -66,9 +83,16 @@ def post_new_comment(video_id):
         "comment": {
             "id": comment.id,
             "content": comment.content,
-            "created_at": comment.created_at.isoformat()
+            "video_timestamp": comment.video_timestamp,
+            "created_at": comment.created_at.isoformat(),
+            "user": {
+                "id": current_user.id,
+                "username": current_user.username,
+                "avatar_url": current_user.avatar_url or f"https://api.dicebear.com/7.x/bottts/svg?seed={current_user.username}"
+            }
         }
     }), 201
+
 
 # --- Gamification API (Streaks, Points, Badges) ---
 

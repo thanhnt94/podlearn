@@ -62,7 +62,7 @@ export const LearningFocusBar: React.FC = () => {
         subtitles,
         activeLineIndex,
         lessonId,
-        addNote,
+        appendNote,
         hasTokens,
         checkScanStatus,
         fetchAnalyzedWords,
@@ -155,7 +155,7 @@ export const LearningFocusBar: React.FC = () => {
         const timestamp = currentLine ? currentLine.start : 0;
 
         try {
-            const response = await axios.post(`/api/vocab/add`, {
+            const response = await axios.post(`/api/study/vocab/add`, {
                 lesson_id: lessonId,
                 term: word.lemma || word.surface,
                 reading: word.reading,
@@ -172,7 +172,7 @@ export const LearningFocusBar: React.FC = () => {
                     content: `**${word.lemma || word.surface}**${word.reading ? ` [${word.reading}]` : ''}\n${Array.isArray(word.meanings) ? word.meanings.join(', ') : word.meanings}`,
                     created_at: new Date().toISOString()
                 };
-                addNote(newNote);
+                appendNote(newNote);
             }
         } catch (err) {
             console.error("Save failed", err);
@@ -203,7 +203,7 @@ export const LearningFocusBar: React.FC = () => {
     const saveEditing = async () => {
         if (!lessonId || activeLineIndex === -1) return;
         try {
-            await axios.post('/api/vocab/tokens/save', {
+            await axios.post('/api/study/vocab/tokens/save', {
                 lesson_id: lessonId,
                 line_index: activeLineIndex,
                 tokens: editTokens
@@ -220,7 +220,7 @@ export const LearningFocusBar: React.FC = () => {
         if (!lessonId || activeLineIndex === -1) return;
         if (!confirm("Reset segmentation for this line?")) return;
         try {
-            await axios.delete('/api/vocab/tokens/clear', {
+            await axios.delete('/api/study/vocab/tokens/clear', {
                 data: { lesson_id: lessonId, line_index: activeLineIndex }
             });
             await fetchAnalyzedWords(currentLine?.text || '', 'ja');

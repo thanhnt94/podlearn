@@ -1,7 +1,8 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, current_user
 from app.core.extensions import db
-from app.modules.study.models import Lesson, Sentence, SentenceSet
+from app.modules.study.models import Lesson, Sentence, SentenceSet, VideoGlossary
+from app.modules.study.services import vocab_service
 from app.modules.engagement import interface as engagement_interface
 from app.modules.study.tasks import process_tracking_data
 import logging
@@ -229,6 +230,356 @@ def get_study_summary():
 def get_study_summary_legacy():
     return get_study_summary()
 
+# --- Notes API ---
+
+@study_api_bp.route('/lesson/<int:lesson_id>/notes', methods=['GET'])
+@jwt_required()
+def get_lesson_notes(lesson_id):
+    """Fetch all notes for a specific lesson."""
+    from app.modules.study.models import Note
+    notes = Note.query.filter_by(lesson_id=lesson_id, user_id=current_user.id).order_by(Note.timestamp.asc()).all()
+    return jsonify([{
+        "id": n.id,
+        "timestamp": n.timestamp,
+        "content": n.content,
+        "created_at": n.created_at.isoformat()
+    } for n in notes])
+
+@study_api_bp.route('/lesson/<int:lesson_id>/notes', methods=['POST'])
+@jwt_required()
+def add_lesson_note(lesson_id):
+    """Add a new note to a lesson."""
+    from app.modules.study.models import Note
+    data = request.get_json() or {}
+    timestamp = data.get('timestamp', 0)
+    content = data.get('content', '').strip()
+
+    if not content:
+        return jsonify({"error": "Content is required"}), 400
+
+    note = Note(
+        user_id=current_user.id,
+        lesson_id=lesson_id,
+        timestamp=float(timestamp),
+        content=content
+    )
+    db.session.add(note)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "note": {
+            "id": note.id,
+            "timestamp": note.timestamp,
+            "content": note.content,
+            "created_at": note.created_at.isoformat()
+        }
+    }), 201
+
+@study_api_bp.route('/notes/<int:note_id>', methods=['PATCH'])
+@jwt_required()
+def update_note(note_id):
+    from app.modules.study.models import Note
+    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+    
+    if 'content' in data:
+        note.content = data['content'].strip()
+    if 'timestamp' in data:
+        note.timestamp = float(data['timestamp'])
+        
+    db.session.commit()
+    return jsonify({"success": True})
+
+@study_api_bp.route('/notes/<int:note_id>', methods=['DELETE'])
+@jwt_required()
+def delete_note(note_id):
+    from app.modules.study.models import Note
+    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
+    db.session.delete(note)
+    db.session.commit()
+    return jsonify({"success": True})
+
+# --- Vocabulary CRUD API ---
+
+@study_api_bp.route('/vocab/list/<int:lesson_id>', methods=['GET'])
+@jwt_required()
+def list_lesson_vocab(lesson_id):
+    """List all vocabulary saved in a specific lesson context."""
+    from app.modules.study.models import VideoGlossary
+    items = VideoGlossary.query.filter_by(lesson_id=lesson_id).order_by(VideoGlossary.updated_at.desc()).all()
+    return jsonify({
+        "vocab": [{
+            "id": v.id,
+            "word": v.term,
+            "reading": v.reading,
+            "meaning": v.definition,
+            "source": v.source
+        } for v in items]
+    })
+
+@study_api_bp.route('/vocab/add', methods=['POST'])
+@jwt_required()
+def add_vocab():
+    from app.modules.study.models import VideoGlossary
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    term = data.get('word', '').strip()
+    reading = data.get('reading', '').strip()
+    definition = data.get('meaning', '').strip()
+    
+    if not term or not definition:
+        return jsonify({"error": "Word and meaning are required"}), 400
+
+    # Check if exists in this lesson context
+    existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
+    if existing:
+        existing.definition = definition
+        existing.reading = reading
+        existing.last_updated_by = current_user.id
+    else:
+        vocab = VideoGlossary(
+            lesson_id=lesson_id,
+            term=term,
+            reading=reading,
+            definition=definition,
+            last_updated_by=current_user.id
+        )
+        db.session.add(vocab)
+    
+    db.session.commit()
+    return jsonify({"success": True})
+
+@study_api_bp.route('/vocab/remove', methods=['DELETE'])
+@jwt_required()
+def remove_vocab():
+    from app.modules.study.models import VideoGlossary
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    term = data.get('word', '').strip()
+    
+    item = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first_or_404()
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"success": True})
+
+@study_api_bp.route('/vocab/tokens/save', methods=['POST'])
+@jwt_required()
+def save_vocab_tokens():
+    from app.modules.study.models import SentenceToken
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    line_index = data.get('line_index')
+    tokens = data.get('tokens', [])
+    
+    # Simple clear and replace for the line
+    SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
+    
+    for idx, t in enumerate(tokens):
+        token = SentenceToken(
+            lesson_id=lesson_id,
+            line_index=line_index,
+            token=t.get('surface', t.get('token')),
+            lemma_override=t.get('lemma'),
+            pos=t.get('pos'),
+            order_index=idx
+        )
+        db.session.add(token)
+    
+    db.session.commit()
+    return jsonify({"success": True})
+
+@study_api_bp.route('/vocab/tokens/clear', methods=['DELETE'])
+@jwt_required()
+def clear_vocab_tokens():
+    from app.modules.study.models import SentenceToken
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    line_index = data.get('line_index')
+    
+    SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
+    db.session.commit()
+    return jsonify({"success": True})
+
+@study_api_bp.route('/vocab/tokens/clear-all', methods=['DELETE'])
+@jwt_required()
+def clear_all_vocab_tokens():
+    from app.modules.study.models import SentenceToken
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    
+    if not lesson_id:
+        return jsonify({"error": "lesson_id required"}), 400
+        
+    SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
+    db.session.commit()
+    return jsonify({"success": True})
+
+@study_api_bp.route('/vocab/lesson/<int:lesson_id>/analysis', methods=['GET'])
+@jwt_required()
+def get_lesson_vocab_analysis(lesson_id):
+    from app.modules.study.models import SentenceToken
+    tokens = SentenceToken.query.filter_by(lesson_id=lesson_id).all()
+    
+    analysis = {}
+    for t in tokens:
+        idx = str(t.line_index)
+        if idx not in analysis:
+            analysis[idx] = []
+        analysis[idx].append({
+            "surface": t.token,
+            "lemma": t.lemma_override,
+            "pos": t.pos
+        })
+        
+    return jsonify({"analysis": analysis}) # Fixed key to match frontend expectation
+
+@study_api_bp.route('/vocab/sync-batch', methods=['POST'])
+@jwt_required()
+def sync_vocab_batch():
+    """
+    Processes a specific list of texts and adds them to the glossary map.
+    Only stores the terms (lemmas) to keep DB small.
+    """
+    try:
+        data = request.json
+        lesson_id = data.get('lesson_id')
+        texts = data.get('texts', [])
+        is_first_batch = data.get('is_first_batch', False)
+        
+        if not lesson_id or not texts:
+            return jsonify({"error": "Missing data"}), 400
+            
+        if is_first_batch:
+            # Clear old glossary mapping for this lesson
+            VideoGlossary.query.filter_by(lesson_id=lesson_id).delete()
+            db.session.commit()
+            
+        # Get unique terms from the segmented texts
+        results = vocab_service.analyze_batch_japanese(texts)
+        
+        lesson = Lesson.query.get(lesson_id)
+        video_id = lesson.video_id if lesson else None
+        
+        # Save only the terms
+        for res in results:
+            term = res['lemma']
+            # Check if term mapping already exists in this lesson
+            existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
+            if not existing:
+                item = VideoGlossary(
+                    lesson_id=lesson_id,
+                    video_id=video_id,
+                    term=term,
+                    definition="[LOOKUP_REQUIRED]", # Placeholder, meanings are fetched on-the-fly
+                    source="offline"
+                )
+                db.session.add(item)
+            
+        db.session.commit()
+        return jsonify({"status": "success", "count": len(results)})
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] sync-batch failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@study_api_bp.route('/vocab/analyze', methods=['POST'])
+@jwt_required()
+def analyze_vocab():
+    """Live word analysis for a single sentence."""
+    from app.modules.study.services.vocab_service import analyze_japanese_text
+    data = request.get_json() or {}
+    text = data.get('text', '').strip()
+    priority = data.get('priority', 'mazii_offline')
+    lesson_id = data.get('lesson_id')
+    line_index = data.get('line_index')
+    
+    if not text:
+        return jsonify([])
+
+    # Try to use existing tokens if available
+    from app.modules.study.models import SentenceToken
+    db_tokens = []
+    if lesson_id and line_index is not None:
+        db_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).order_by(SentenceToken.order_index.asc()).all()
+    
+    if db_tokens:
+        from app.modules.study.services.vocab_service import get_definitions_for_terms
+        lookup_terms = [t.lemma_override or t.token for t in db_tokens]
+        results = get_definitions_for_terms(lookup_terms, priority=priority)
+        
+        formatted = []
+        for i, r in enumerate(results):
+            t = db_tokens[i]
+            formatted.append({
+                "surface": t.token,
+                "lemma": t.lemma_override or t.token,
+                "reading": r.get('reading', ''),
+                "meanings": r.get('meanings', []) if isinstance(r.get('meanings'), list) else [r.get('definition', '')],
+                "source": r.get('source', priority)
+            })
+        return jsonify(formatted)
+
+    # Fallback to auto-analysis
+    words = analyze_japanese_text(text, priority=priority, include_all=True)
+    return jsonify(words)
+
+@study_api_bp.route('/video/analyze-sentence', methods=['POST'])
+@jwt_required()
+def analyze_sentence_full():
+    """Full linguistic analysis for Vocab Studio."""
+    from app.modules.study.services.vocab_service import analyze_japanese_text, get_definitions_for_terms
+    from app.modules.study.models import SentenceToken
+    
+    data = request.get_json() or {}
+    text = data.get('text', '').strip()
+    lesson_id = data.get('lesson_id')
+    active_line_index = data.get('active_line_index')
+    
+    if not text:
+        return jsonify({'words': []})
+        
+    db_tokens = []
+    if lesson_id and active_line_index is not None:
+        db_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=active_line_index).order_by(SentenceToken.order_index.asc()).all()
+        
+    if db_tokens:
+        lookup_terms = [t.lemma_override or t.token for t in db_tokens]
+        results = get_definitions_for_terms(lookup_terms, priority='mazii_offline')
+        formatted = []
+        for i, r in enumerate(results):
+            t = db_tokens[i]
+            formatted.append({
+                "surface": t.token,
+                "lemma": t.lemma_override or t.token,
+                "lemma_override": t.lemma_override,
+                "reading": r.get('reading', ''),
+                "pos": t.pos or 'manual',
+                "meanings": r.get('meanings', []) if isinstance(r.get('meanings'), list) else [r.get('definition', '')],
+                "source": r.get('source', 'none')
+            })
+        return jsonify({'words': formatted, 'is_manual': True})
+
+    # Auto analysis
+    words = analyze_japanese_text(text, priority='mazii_offline', include_all=True)
+    return jsonify({'words': words, 'is_manual': False})
+
+@study_api_bp.route('/vocab/generate-all', methods=['POST'])
+@jwt_required()
+def generate_all_vocab_api():
+    """Trigger background scan of the entire lesson."""
+    from app.modules.study.services.vocab_service import scan_lesson_transcript
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    priority = data.get('priority', 'mazii_offline')
+    
+    if not lesson_id:
+        return jsonify({"error": "lesson_id required"}), 400
+        
+    # We'll run it synchronously for now as it's usually fast enough for a few hundred lines
+    # but in a real high-load app this would be a Celery task.
+    scan_lesson_transcript(lesson_id, priority)
+    return jsonify({"success": True})
+
 # --- Playlist (Sets) Endpoints ---
 
 @study_api_bp.route('/playlists', methods=['GET'])
@@ -343,41 +694,7 @@ def get_sentence_details(sentence_id):
         }
     })
 
-# --- Legacy Compatibility & Miscellaneous ---
-
-@study_api_bp.route('/notifications', methods=['GET'])
-@jwt_required()
-def get_notifications():
-    notifs = engagement_interface.get_user_notifications_dto(current_user.id)
-    return jsonify(notifs)
-
-@study_api_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
-@jwt_required()
-def mark_notification_read(notif_id):
-    success = engagement_interface.mark_notification_read(notif_id, current_user.id)
-    return jsonify({'success': success}), 200 if success else 404
-
-@study_api_bp.route('/user/preferences', methods=['GET', 'POST'])
-@jwt_required()
-def handle_preferences():
-    if request.method == 'POST':
-        data = request.get_json() or {}
-        import json
-        current_user.preferences_json = json.dumps(data)
-        db.session.commit()
-        return jsonify({'success': True})
-    
-    import json
-    prefs = json.loads(current_user.preferences_json or '{}')
-    return jsonify(prefs)
-
-@study_api_bp.route('/vocab/scan-status/<int:lesson_id>', methods=['GET'])
-@jwt_required()
-def get_scan_status(lesson_id):
-    from app.modules.study.models import SentenceToken
-    # Just a placeholder for now to satisfy frontend
-    has_tokens = False 
-    return jsonify({'has_tokens': has_tokens, 'lesson_id': lesson_id})
+# --- Miscellaneous & Tools ---
 
 @study_api_bp.route('/score-pronunciation', methods=['POST'])
 @jwt_required()
@@ -385,11 +702,10 @@ def score_pronunciation():
     data = request.get_json() or {}
     original = data.get('original_text', '')
     spoken = data.get('spoken_text', '')
-    lang = data.get('lang_code', 'en')
+    lang = data.get('lang_code', 'ja')
     sentence_id = data.get('sentence_id')
     lesson_id = data.get('lesson_id')
     
-    # This is a simplified call to the engagement interface for now
     result = engagement_interface.evaluate_pronunciation_manual(
         user_id=current_user.id,
         lesson_id=lesson_id,
@@ -403,7 +719,6 @@ def score_pronunciation():
 @study_api_bp.route('/translate', methods=['POST'])
 @jwt_required()
 def translate():
-    """Proxy translation requests through server to avoid CORS/IP blocks."""
     try:
         data = request.get_json() or {}
         text = data.get('text', '').strip()
@@ -425,17 +740,31 @@ def translate():
     except Exception as e:
         return jsonify({'error': str(e), 'translated': None}), 500
 
-@study_api_bp.route('/vocab/analyze', methods=['POST'])
+@study_api_bp.route('/user/preferences', methods=['GET', 'POST'])
 @jwt_required()
-def analyze_vocab():
-    """Compatibility route for vocabulary analysis."""
-    data = request.get_json() or {}
-    text = data.get('text', '')
-    lang = data.get('lang', 'ja')
+def handle_preferences():
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        import json
+        current_user.preferences_json = json.dumps(data)
+        db.session.commit()
+        return jsonify({'success': True})
     
-    from app.modules.study.services import vocab_service
-    results = vocab_service.analyze_japanese_text(text)
-    return jsonify(results)
+    import json
+    prefs = json.loads(current_user.preferences_json or '{}')
+    return jsonify(prefs)
+
+@study_api_bp.route('/notifications', methods=['GET'])
+@jwt_required()
+def get_notifications():
+    notifs = engagement_interface.get_user_notifications_dto(current_user.id)
+    return jsonify(notifs)
+
+@study_api_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+@jwt_required()
+def mark_notification_read(notif_id):
+    success = engagement_interface.mark_notification_read(notif_id, current_user.id)
+    return jsonify({'success': success}), 200 if success else 404
 
 @study_api_bp.route('/health', methods=['GET'])
 def health():

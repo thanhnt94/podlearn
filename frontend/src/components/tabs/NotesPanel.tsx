@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Clock, Send, X, Edit2, Save } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
-import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -49,12 +48,7 @@ export const NotesPanel: React.FC = () => {
     if (!content.trim() || !lessonId) return;
     setIsSubmitting(true);
     try {
-      const res = await axios.post(`/api/lesson/${lessonId}/notes`, {
-        timestamp: currentTime,
-        content: content
-      });
-      
-      addNote(res.data.note);
+      await addNote(currentTime, content);
       setContent('');
       setIsAdding(false);
       setPlaying(true);
@@ -69,11 +63,7 @@ export const NotesPanel: React.FC = () => {
     if (!editContent.trim()) return;
     setIsSubmitting(true);
     try {
-      await axios.patch(`/api/notes/${id}`, {
-        content: editContent
-      });
-      
-      updateNote(id, editContent);
+      await updateNote(id, editContent);
       setEditingId(null);
     } catch (err) {
       console.error("Failed to update note", err);
@@ -86,8 +76,7 @@ export const NotesPanel: React.FC = () => {
     e.stopPropagation();
     if (!confirm("Are you sure?")) return;
     try {
-      await axios.delete(`/api/notes/${id}`);
-      deleteNote(id);
+      await deleteNote(id);
     } catch (err) {
       console.error("Failed to delete note", err);
     }

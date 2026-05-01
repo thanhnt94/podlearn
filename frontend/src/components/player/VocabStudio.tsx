@@ -63,7 +63,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ isOpen, onClose }) => 
 
             setIsAnalyzing(true);
             try {
-                const res = await axios.post('/api/video/analyze-sentence', {
+                const res = await axios.post('/api/study/video/analyze-sentence', {
                     text: line.text,
                     lang: 'ja',
                     lesson_id: lessonId,
@@ -137,7 +137,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ isOpen, onClose }) => 
         if (!lessonId) return;
         setIsSaving(true);
         try {
-            await axios.post('/api/vocab/tokens/save', {
+            await axios.post('/api/study/vocab/tokens/save', {
                 lesson_id: lessonId,
                 line_index: selectedLineIdx,
                 tokens: editTokens.map(t => ({
@@ -147,7 +147,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ isOpen, onClose }) => 
             });
             // Refresh analysis
             const line = s1Lines[selectedLineIdx];
-            const res = await axios.post('/api/video/analyze-sentence', {
+            const res = await axios.post('/api/study/video/analyze-sentence', {
                 text: line.text,
                 lang: 'ja',
                 lesson_id: lessonId,
@@ -174,7 +174,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ isOpen, onClose }) => 
             // Refresh current selected line
             const line = s1Lines[selectedLineIdx];
             if (line) {
-                const res = await axios.post('/api/video/analyze-sentence', {
+                const res = await axios.post('/api/study/video/analyze-sentence', {
                     text: line.text, lang: 'ja', lesson_id: lessonId, active_line_index: selectedLineIdx
                 });
                 const words = res.data.words || [];
@@ -197,7 +197,7 @@ export const VocabStudio: React.FC<VocabStudioProps> = ({ isOpen, onClose }) => 
         setIsAnalyzing(true);
         try {
             // Force re-analyze without saved tokens by using the raw analyze endpoint
-            const res = await axios.post('/api/video/analyze-sentence', {
+            const res = await axios.post('/api/study/video/analyze-sentence', {
                 text: line.text, lang: 'ja'
                 // No lesson_id → skip saved tokens, get fresh analysis
             });

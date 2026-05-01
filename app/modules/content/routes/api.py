@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app, Response
 from flask_jwt_extended import jwt_required, current_user
 from app.core.extensions import db
-from app.modules.content.models import SubtitleTrack, Video
+from app.modules.content.models import SubtitleTrack, Video, VideoCollaborator
 from app.modules.study.models import Lesson
 import os
 
@@ -42,6 +42,22 @@ def get_player_data(lesson_id):
         }
     })
 
+@content_api.route('/subtitles/available/<int:lesson_id>', methods=['GET'])
+@jwt_required()
+def get_available_subtitles(lesson_id):
+    """List all available subtitle tracks for a lesson's video."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
+    
+    return jsonify({
+        "subtitles": [{
+            'id': t.id,
+            'language_code': t.language_code,
+            'name': t.name or f"{t.language_code.upper()}_Original",
+            'uploader_name': t.uploader_name if t.uploader_id else 'YouTube'
+        } for t in all_tracks]
+    })
+
 @content_api.route('/subtitles/<int:track_id>', methods=['GET'])
 def get_subtitle_content(track_id):
     """Fetch the actual content_json of a subtitle track."""
@@ -52,15 +68,109 @@ def get_subtitle_content(track_id):
         "content": track.content_json
     })
 
+@content_api.route('/subtitles/<int:track_id>/export', methods=['GET'])
+def export_subtitle_track(track_id):
+    """Export a subtitle track as SRT or VTT file."""
+    from flask import Response
+    from app.modules.content.services.subtitle_service import export_track_to_string
+    
+    track = SubtitleTrack.query.get_or_404(track_id)
+    fmt = request.args.get('format', 'srt').lower()
+    
+    if fmt not in ('srt', 'vtt'):
+        return jsonify({"error": "Unsupported format. Use 'srt' or 'vtt'."}), 400
+    
+    content = export_track_to_string(track, fmt)
+    mime = 'text/vtt' if fmt == 'vtt' else 'application/x-subrip'
+    filename = f"{track.name or f'track_{track_id}'}.{fmt}"
+    
+    return Response(
+        content,
+        mimetype=mime,
+        headers={"Content-Disposition": f"attachment; filename=\"{filename}\""}
+    )
+
 # ── Hands-Free Audio ──────────────────────────────────────────
 
 @content_api.route('/handsfree/generate', methods=['POST'])
 @jwt_required()
 def generate_handsfree():
-    """Stub or Proxy for Hands-free generation."""
-    # Logic from handsfree_routes.py would go here
-    # For now, we maintain the API structure
-    return jsonify({"status": "processing", "message": "Hands-free generation started (Stub)"})
+    """Start a background task to generate podcast-style audio."""
+    from app.modules.content.services.handsfree_service import start_generation_task
+    from app.modules.content.models import SubtitleTrack
+    
+    data = request.get_json() or {}
+    video_id = data.get('video_id')
+    lesson_id = data.get('lesson_id')
+    track_source = data.get('track_source', 'original')
+    lang = data.get('lang', 'vi')
+    
+    if not video_id:
+        return jsonify({"error": "video_id is required"}), 400
+        
+    # Get subtitles for generation
+    # Primary (original)
+    original_track = SubtitleTrack.query.filter_by(video_id=video_id, language_code='ja').first()
+    # Secondary (translation)
+    trans_track = SubtitleTrack.query.filter_by(video_id=video_id, language_code=lang).first()
+    
+    if not original_track:
+        return jsonify({"error": "Original subtitles not found"}), 404
+        
+    task_id = start_generation_task(
+        video_id=video_id,
+        subtitles=original_track.content_json,
+        translation_lines=trans_track.content_json if trans_track else None,
+        lang=lang
+    )
+    
+    return jsonify({"status": "processing", "task_id": task_id})
+
+@content_api.route('/handsfree/status/<task_id>', methods=['GET'])
+@jwt_required()
+def get_handsfree_status(task_id):
+    """Check the status of an audio generation task."""
+    from app.modules.content.services.handsfree_service import handsfree_tasks
+    task = handsfree_tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+        
+    response = {
+        "status": task['status'],
+        "progress": task['progress'],
+        "step": task['step']
+    }
+    
+    if task['status'] == 'completed':
+        response.update(task['result'])
+    elif task['status'] == 'failed':
+        response['error'] = task['error']
+        
+    return jsonify(response)
+
+@content_api.route('/handsfree/cached/<video_id>', methods=['GET'])
+@jwt_required()
+def get_handsfree_cached(video_id):
+    """Check if a generated audio file already exists for this video."""
+    from app.modules.content.services.handsfree_service import build_handsfree_audio
+    from app.modules.content.models import SubtitleTrack
+    
+    lang = request.args.get('lang', 'vi')
+    # Use empty subtitles to just check cache in build_handsfree_audio
+    result = build_handsfree_audio(video_id, [], [], lang)
+    if result:
+        return jsonify({"cached": True, **result})
+    return jsonify({"cached": False})
+
+@content_api.route('/handsfree/original/<video_id>', methods=['GET'])
+@jwt_required()
+def get_handsfree_original(video_id):
+    """Get the original YouTube audio info (download if needed)."""
+    from app.modules.content.services.handsfree_service import get_original_audio_info
+    result = get_original_audio_info(video_id)
+    if result:
+        return jsonify(result)
+    return jsonify({"error": "Failed to fetch original audio"}), 500
 
 # ── AI ASSESSMENT STUBS (Cost Optimization) ───────────────────
 
@@ -106,3 +216,33 @@ def update_subtitle_line(track_id, line_index):
     db.session.commit()
     
     return jsonify({"status": "success", "line": line})
+
+@content_api.route('/curated/<string:youtube_id>', methods=['GET'])
+def get_curated_content(youtube_id):
+    video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
+    return jsonify({
+        "overview": video.curated_overview or "",
+        "grammar": video.curated_grammar or "",
+        "vocabulary": video.curated_vocabulary or ""
+    })
+
+@content_api.route('/curated/<string:youtube_id>', methods=['PATCH'])
+@jwt_required()
+def update_curated_content(youtube_id):
+    # Only admins or collaborators should be able to edit
+    if current_user.role != 'admin':
+        # Check if collaborator
+        video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
+        collab = VideoCollaborator.query.filter_by(video_id=video.id, user_id=current_user.id).first()
+        if not collab:
+            return jsonify({"error": "Unauthorized"}), 403
+    else:
+        video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
+
+    data = request.get_json() or {}
+    if 'overview' in data: video.curated_overview = data['overview']
+    if 'grammar' in data: video.curated_grammar = data['grammar']
+    if 'vocabulary' in data: video.curated_vocabulary = data['vocabulary']
+    
+    db.session.commit()
+    return jsonify({"status": "success"})

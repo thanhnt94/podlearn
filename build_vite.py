@@ -20,7 +20,7 @@ def build_frontend():
         print(f" [!] Frontend directory not found at {frontend_dir}. Skipping build.")
         return
 
-    print("--- 🚀 PodLearn Build System ---")
+    print("--- PodLearn Build System ---")
     print(f"Building React frontend in {frontend_dir}...")
     
     try:
@@ -31,10 +31,10 @@ def build_frontend():
 
         # Run build
         subprocess.run(['npm', 'run', 'build'], cwd=frontend_dir, check=True, shell=True)
-        print(" ✅ Frontend build successful.")
+        print(" [+] Frontend build successful.")
         print("--------------------------------")
     except Exception as e:
-        print(f" ❌ Frontend build failed: {e}")
+        print(f" [!] Frontend build failed: {e}")
         print(" [!] Continuing with existing assets if available.")
 
 if __name__ == '__main__':

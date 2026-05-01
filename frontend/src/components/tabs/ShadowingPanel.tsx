@@ -140,7 +140,7 @@ export const ShadowingPanel: React.FC = () => {
         if (!line || !text) return;
 
         try {
-            const response = await axios.post('/api/score-pronunciation', {
+            const response = await axios.post('/api/study/score-pronunciation', {
                 original_text: line.text,
                 spoken_text: text,
                 lesson_id: state.lessonId,
