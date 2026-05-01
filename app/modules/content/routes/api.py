@@ -100,6 +100,64 @@ def export_subtitle_track(track_id):
         headers={"Content-Disposition": f"attachment; filename=\"{filename}\""}
     )
 
+@content_api.route('/subtitles/<int:track_id>', methods=['PATCH'])
+@jwt_required()
+def update_subtitle_name(track_id):
+    """Update track name or metadata."""
+    track = SubtitleTrack.query.get_or_404(track_id)
+    data = request.get_json() or {}
+    
+    if 'name' in data:
+        track.name = data['name']
+    
+    db.session.commit()
+    return jsonify({"success": True})
+
+@content_api.route('/subtitles/<int:track_id>', methods=['DELETE'])
+@jwt_required()
+def delete_subtitle_track(track_id):
+    """Permanently remove a subtitle track."""
+    track = SubtitleTrack.query.get_or_404(track_id)
+    db.session.delete(track)
+    db.session.commit()
+    return jsonify({"success": True})
+
+@content_api.route('/subtitles/<int:track_id>/translate', methods=['POST'])
+@jwt_required()
+def translate_subtitle_track(track_id):
+    """Translate an entire subtitle track using AI (Google Translate)."""
+    track = SubtitleTrack.query.get_or_404(track_id)
+    data = request.get_json() or {}
+    target_lang = data.get('target_lang', 'vi')
+    new_name = data.get('name') or f"{track.name} ({target_lang.upper()})"
+
+    if not track.content_json:
+        return jsonify({"error": "Track has no content to translate"}), 400
+
+    from deep_translator import GoogleTranslator
+    translator = GoogleTranslator(source='auto', target=target_lang)
+    
+    new_content = []
+    for line in track.content_json:
+        translated_text = translator.translate(line.get('text', ''))
+        new_content.append({
+            **line,
+            'text': translated_text
+        })
+    
+    new_track = SubtitleTrack(
+        video_id=track.video_id,
+        language_code=target_lang,
+        name=new_name,
+        content_json=new_content,
+        uploader_id=current_user.id,
+        status='completed'
+    )
+    db.session.add(new_track)
+    db.session.commit()
+    
+    return jsonify({"success": True, "track_id": new_track.id})
+
 # ── Hands-Free Audio ──────────────────────────────────────────
 
 @content_api.route('/handsfree/generate', methods=['POST'])

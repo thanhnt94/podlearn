@@ -239,8 +239,7 @@ export const SettingsDrawer: React.FC<{
         setAvailableTracks(availableTracks.filter((t: any) => t.id !== tid));
 
         try {
-            await axios.delete(`/api/subtitles/${tid}`);
-            // Optionally refresh to sync with server, but don't clear the list
+            await axios.delete(`/api/content/subtitles/${tid}`);
             await fetchAvailableTracks();
         } catch (err) { 
             alert("Failed to delete track. Reverting..."); 

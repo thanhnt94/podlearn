@@ -33,21 +33,24 @@ def _get_ytdlp_opts(extra_opts=None):
     
     cookie_path = os.path.join(base_dir, 'youtube_cookies.txt')
 
-    print(f"\n[YT-CONFIG] Project Root detected: {base_dir}")
-    print(f"[YT-CONFIG] Checking for cookies at: {cookie_path}")
+    sys.stderr.write(f"\n[YT-CONFIG] Project Root detected: {base_dir}\n")
+    sys.stderr.write(f"[YT-CONFIG] Checking for cookies at: {cookie_path}\n")
+    sys.stderr.write(f"[YT-CONFIG] yt-dlp version: {yt_dlp.version.__version__}\n")
 
     opts = {
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'skip_download': True,
-        'socket_timeout': 15,
-        'connect_timeout': 5,
+        'socket_timeout': 30,
+        'connect_timeout': 10,
         'extractor_args': {
             'youtube': {
-                'skip': [] 
+                'skip': ['dash', 'hls'], # Try skipping manifest to see if it speeds up or bypasses
+                'player_client': ['android', 'web'],
             }
         },
+        'geo_bypass': True,
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -60,34 +63,33 @@ def _get_ytdlp_opts(extra_opts=None):
         'check_formats': False,
         'listsubtitles': True,
         'writesubtitles': True,
-        'writeautomaticsub': True,              # CRITICAL: Include auto-generated subs
-        'prefer_ffmpeg': True,
-        'youtube_include_dash_manifest': True,
-        'youtube_include_hls_manifest': True,
+        'writeautomaticsub': True,
+        'prefer_ffmpeg': False, # Subtitle listing doesn't need ffmpeg
+        'youtube_include_dash_manifest': False,
+        'youtube_include_hls_manifest': False,
     }
 
     if os.path.exists(cookie_path):
         if not os.access(cookie_path, os.R_OK):
-            print(f">>> [PODLEARN ERROR] Cookie file FOUND but NOT READABLE (Permissions issue) <<<")
+            sys.stderr.write(f">>> [PODLEARN ERROR] Cookie file FOUND but NOT READABLE (Permissions issue) <<<\n")
         else:
             try:
                 with open(cookie_path, 'r', encoding='utf-8') as f:
                     first_line = f.readline()
                     if "# Netscape HTTP Cookie File" not in first_line:
-                        print(f">>> [PODLEARN ERROR] Cookie file FOUND but INVALID FORMAT (Not Netscape) <<<")
+                        sys.stderr.write(f">>> [PODLEARN ERROR] Cookie file FOUND but INVALID FORMAT (Not Netscape) <<<\n")
                     else:
-                        print(f">>> [PODLEARN SUCCESS] Cookie file LOADED correctly <<<")
+                        sys.stderr.write(f">>> [PODLEARN SUCCESS] Cookie file LOADED correctly <<<\n")
                         opts['cookiefile'] = cookie_path
             except Exception as e:
-                print(f">>> [PODLEARN ERROR] Exception reading cookies: {e} <<<")
+                sys.stderr.write(f">>> [PODLEARN ERROR] Exception reading cookies: {e} <<<\n")
     else:
-        print(f">>> [PODLEARN WARN] Cookie file NOT FOUND at {cookie_path} <<<")
+        sys.stderr.write(f">>> [PODLEARN WARN] Cookie file NOT FOUND at {cookie_path} <<<\n")
     
     if extra_opts:
         opts.update(extra_opts)
         
-    # Force log visibility
-    sys.stdout.flush()
+    sys.stderr.flush()
     return opts
 
 def fetch_info_cached(video_id: str, extra_opts=None):
@@ -147,7 +149,16 @@ def get_available_subs_from_youtube(video_id: str):
         # If still empty, maybe we have a bad/stale cache. FORCE a full fresh extract.
         if not available:
             sys.stderr.write(f"[YT-DEBUG] No subs in cache for {video_id}. Forcing fresh full extraction... \n")
-            info = fetch_info_cached(video_id, extra_opts={'extract_flat': False})
+            # Clear cache for this video to ensure we get a fresh hit
+            if video_id in YT_INFO_CACHE:
+                del YT_INFO_CACHE[video_id]
+            
+            # Explicitly disable flat extraction and force list subtitles
+            info = fetch_info_cached(video_id, extra_opts={
+                'extract_flat': False, 
+                'listsubtitles': True,
+                'force_generic_extractor': False
+            })
             available = extract_from_info(info) if info else []
             
         if not info:

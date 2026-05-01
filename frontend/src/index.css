@@ -40,58 +40,35 @@
   @apply bg-slate-700 rounded-full hover:bg-sky-500/50 transition-colors;
 }
 
-/* AI Insight Markdown Styling */
-.ai-markdown p {
-  @apply mb-3 last:mb-0;
-}
-.ai-markdown strong {
-  @apply text-white font-bold;
-}
-.ai-markdown ul {
-  @apply list-disc pl-5 mb-3 space-y-1;
-}
-.ai-markdown ol {
-  @apply list-decimal pl-5 mb-3 space-y-1.5;
-}
-.ai-markdown li {
-  @apply text-slate-300;
-}
-.ai-markdown li strong {
-  @apply text-sky-400;
-}
-.ai-markdown h1, .ai-markdown h2, .ai-markdown h3 {
-  @apply text-white font-bold mb-2 mt-3;
-}
-.ai-markdown code {
-  @apply bg-white/10 px-1.5 py-0.5 rounded text-sky-300 text-xs font-mono;
-}
+/* --- PREMIUM MARKDOWN STYLING (.pod-markdown) --- */
+.pod-markdown h1 { @apply text-2xl font-black text-white mt-8 mb-4 uppercase tracking-tighter; }
+.pod-markdown h2 { @apply text-xl font-black text-white mt-7 mb-3 uppercase tracking-tight; }
+.pod-markdown h3 { @apply text-lg font-black text-sky-400 mt-6 mb-2 tracking-normal; }
+.pod-markdown h4 { @apply text-base font-bold text-slate-200 mt-4 mb-2; }
 
-/* Markdown Table Enhancements - Applied to .prose containers */
-.prose table, .ai-markdown table {
-  @apply w-full border-collapse my-6 rounded-2xl overflow-hidden border border-white/10 text-[13px] shadow-2xl;
-}
-.prose th, .ai-markdown th {
-  @apply bg-white/5 text-sky-400 font-black uppercase tracking-widest p-4 text-left border-b border-white/10;
-}
-.prose td, .ai-markdown td {
-  @apply p-4 border-b border-white/5 text-slate-300 align-top transition-colors;
-  /* Add subtle vertical divider */
-  border-right: 1px dashed rgba(255, 255, 255, 0.05);
-}
-.prose td:last-child, .ai-markdown td:last-child {
-  border-right: none;
-}
-.prose tr:last-child td, .ai-markdown tr:last-child td {
-  @apply border-b-0;
-}
-.prose tr:nth-child(even), .ai-markdown tr:nth-child(even) {
-  @apply bg-white/[0.015];
-}
-.prose tr:hover td, .ai-markdown tr:hover td {
-  @apply bg-white/[0.04] text-white;
-}
+.pod-markdown p { @apply text-slate-300 mb-5 leading-relaxed; }
 
-/* Custom Highlight Span within Markdown */
-.prose span, .ai-markdown span {
-  @apply inline-block;
-}
+.pod-markdown ul { @apply list-disc pl-6 mb-6 space-y-2; }
+.pod-markdown ol { @apply list-decimal pl-6 mb-6 space-y-2.5; }
+.pod-markdown li { @apply text-slate-300; }
+.pod-markdown li strong { @apply text-sky-400 font-bold; }
+
+.pod-markdown strong { @apply text-white font-bold; }
+.pod-markdown em { @apply text-slate-400 italic; }
+.pod-markdown blockquote { @apply border-l-4 border-sky-500/50 bg-sky-500/5 pl-4 py-2 my-6 italic text-slate-400 rounded-r-lg; }
+
+.pod-markdown code { @apply bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded font-mono text-[0.85em] border border-white/5; }
+.pod-markdown pre { @apply bg-slate-900/80 border border-white/10 rounded-2xl p-4 my-6 overflow-x-auto custom-scrollbar; }
+.pod-markdown pre code { @apply bg-transparent border-none p-0 text-slate-300; }
+
+.pod-markdown table { @apply w-full border-collapse my-8 rounded-2xl overflow-hidden border border-white/10 text-[13px] shadow-2xl; }
+.pod-markdown th { @apply bg-white/5 text-sky-400 font-black uppercase tracking-widest p-4 text-left border-b border-white/10; }
+.pod-markdown td { @apply p-4 border-b border-white/5 text-slate-300 align-top transition-colors; border-right: 1px dashed rgba(255, 255, 255, 0.05); }
+.pod-markdown td:last-child { border-right: none; }
+.pod-markdown tr:last-child td { @apply border-b-0; }
+.pod-markdown tr:nth-child(even) { @apply bg-white/[0.015]; }
+.pod-markdown tr:hover td { @apply bg-white/[0.04] text-white; }
+
+/* Legacy support for old classes */
+.ai-markdown { @apply pod-markdown; }
+.prose { @apply pod-markdown; }

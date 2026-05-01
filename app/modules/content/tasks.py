@@ -74,13 +74,13 @@ def process_video_metadata(video_id_int: int):
             db.session.commit()
             return {"error": "Failed to fetch metadata"}
 
-        # 2. Fetch initial subtitles
-        logger.info(f"Fetching initial subtitles for language {video.language_code}...")
-        track = get_subtitle_track(video.id, video.youtube_id, video.language_code)
-        if track:
-            logger.info(f"Subtitles fetched: {track.name}")
-        else:
-            logger.warning(f"No subtitles found for {video.language_code}")
+        # 2. Fetch initial subtitles (DISABLED per user request to avoid auto-download)
+        # logger.info(f"Fetching initial subtitles for language {video.language_code}...")
+        # track = get_subtitle_track(video.id, video.youtube_id, video.language_code)
+        # if track:
+        #     logger.info(f"Subtitles fetched: {track.name}")
+        # else:
+        #     logger.warning(f"No subtitles found for {video.language_code}")
 
         # Mark as completed
         video.status = 'completed'

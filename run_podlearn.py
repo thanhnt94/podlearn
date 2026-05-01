@@ -116,13 +116,30 @@ def cleanup():
 atexit.register(cleanup)
 
 if __name__ == '__main__':
-    # 1. Ensure media folders exist
-    media_folder = app.config.get('MEDIA_FOLDER')
-    if media_folder and not os.path.exists(media_folder):
-        os.makedirs(media_folder)
-        print(f"Created media directory: {media_folder}")
+    # 1. Ensure essential directories exist
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    storage_dir = os.path.abspath(os.path.join(base_dir, '..', 'Storage'))
+    db_dir = os.path.join(storage_dir, 'database')
+    media_dir = os.path.join(storage_dir, 'uploads', 'PodLearnMedia')
+    logs_dir = os.path.join(base_dir, 'logs')
+    
+    for d in [db_dir, media_dir, logs_dir]:
+        if not os.path.exists(d):
+            os.makedirs(d, exist_ok=True)
+            print(f"Created directory: {d}")
 
-    # 2. Build Frontend (Windows only, and only in main process)
+    # 2. Automatic Database Migration (Alembic)
+    print("Checking for database migrations...")
+    try:
+        from flask_migrate import upgrade as flask_db_upgrade
+        with app.app_context():
+            flask_db_upgrade()
+        print(" Database is up to date.")
+    except Exception as e:
+        print(f" [!] Migration failed: {e}")
+        print(" [!] You may need to run 'flask db migrate' locally first.")
+
+    # 3. Build Frontend (Windows only, and only in main process)
     if os.name == 'nt' and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
         try:
             import build_vite
@@ -130,7 +147,7 @@ if __name__ == '__main__':
         except ImportError:
             print(" [!] build_vite.py not found. Skipping automatic build.")
 
-    # 3. Start Celery
+    # 4. Start Celery
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
         if not os.environ.get('SKIP_CELERY'):
             start_celery()
