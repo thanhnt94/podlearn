@@ -605,25 +605,38 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const state = get();
     const updatedIds = { ...state.trackIds, ...newIds };
     set({ trackIds: updatedIds });
+
+    // Process subtitle data inline (no Worker needed for simple array mapping)
+    const processLines = (rawJson: any[]) => rawJson.map((line: any, index: number) => ({
+        ...line,
+        index,
+        searchKey: (line.text || '').toLowerCase().replace(/[^\w\s]/g, '')
+    }));
+
     const fetchTrack = async (tid: number | string | null, trackKey: 's1Lines' | 's2Lines' | 's3Lines') => {
-        if (!tid || !state.lessonId) { set({ [trackKey]: [] } as any); return; }
+        // Read lessonId freshly at call time to avoid stale closure bug
+        const currentLessonId = get().lessonId;
+        if (!tid || !currentLessonId) {
+            set({ [trackKey]: [] } as any);
+            return;
+        }
         try {
             const r = await axios.get(`/api/content/subtitles/${tid}`);
-            set(state => ({ trackMetadata: { ...state.trackMetadata, [trackKey]: r.data } }));
-            let worker = get().subtitleWorker;
-            if (!worker) {
-                worker = new Worker(new URL('../workers/subtitleWorker.ts', import.meta.url), { type: 'module' });
-                set({ subtitleWorker: worker });
-            }
-            worker.postMessage({ type: 'PARSE_SUBTITLES', data: { rawJson: r.data.content || [] } });
-            worker.onmessage = (e) => {
-                if (e.data.type === 'PARSE_SUBTITLES_COMPLETE') {
-                    set({ [trackKey]: e.data.data } as any);
-                    if (trackKey === 's1Lines') set({ subtitles: e.data.data });
-                }
-            };
-        } catch (e) {}
+            const metaKey = trackKey.replace('Lines', '') as 's1' | 's2' | 's3';
+            set(state => ({ trackMetadata: { ...state.trackMetadata, [metaKey]: r.data } }));
+            const processed = processLines(r.data.content || []);
+            set({ [trackKey]: processed } as any);
+            // NOTE: Do NOT set `subtitles` here.
+            // `subtitles` is the stable transcript array used by LearningFocusBar + activeLineIndex tracking.
+            // It is set once during lesson load (fetchLessonData) and must not be overwritten
+            // when the user changes which track is displayed on s1/s2/s3.
+        } catch (e) {
+            console.error(`[SubtitleStore] Failed to fetch track ${tid} for ${trackKey}:`, e);
+            set({ [trackKey]: [] } as any);
+        }
     };
+
+    // Fetch tracks independently (each with its own promise, no shared Worker)
     if (newIds.s1 !== undefined) fetchTrack(updatedIds.s1, 's1Lines');
     if (newIds.s2 !== undefined) fetchTrack(updatedIds.s2, 's2Lines');
     if (newIds.s3 !== undefined) fetchTrack(updatedIds.s3, 's3Lines');
@@ -797,7 +810,35 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         const subs = res.data.subtitles;
         get().setLessonData({ ...m, subtitles: subs });
         const trackIds = { s1: subs.track_1_id, s2: subs.track_2_id, s3: subs.track_3_id, ai: null };
-        get().setTrackIds(trackIds);
+
+        // Fetch the primary track (s1) first and use it as the stable `subtitles` array
+        // for transcript tracking + LearningFocusBar. This must only happen here, once.
+        if (subs.track_1_id) {
+            try {
+                const primaryRes = await axios.get(`/api/content/subtitles/${subs.track_1_id}`);
+                const processLines = (rawJson: any[]) => rawJson.map((line: any, index: number) => ({
+                    ...line, index,
+                    searchKey: (line.text || '').toLowerCase().replace(/[^\w\s]/g, '')
+                }));
+                const primaryLines = processLines(primaryRes.data.content || []);
+                // Set both s1Lines (display) and subtitles (transcript tracking) from primary track
+                set({ subtitles: primaryLines, s1Lines: primaryLines });
+                set(state => ({ trackMetadata: { ...state.trackMetadata, s1: primaryRes.data } }));
+            } catch (e) {
+                console.error('[PlayerStore] Failed to fetch primary track:', e);
+            }
+        }
+
+        // Fetch remaining tracks (s2, s3) for display only - they don't touch `subtitles`
+        const remainingIds: Partial<typeof trackIds> = {};
+        if (subs.track_2_id) remainingIds.s2 = subs.track_2_id;
+        if (subs.track_3_id) remainingIds.s3 = subs.track_3_id;
+        if (Object.keys(remainingIds).length > 0) {
+            get().setTrackIds({ ...trackIds, s1: undefined as any });
+        }
+        // Always update the stored trackIds (including s1) for UI reference
+        set({ trackIds });
+
         get().checkScanStatus(id);
         get().fetchCuratedContent();
         get().fetchNotes();

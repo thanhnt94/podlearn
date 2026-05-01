@@ -1,1 +1,0 @@
-(function(){self.onmessage=e=>{let{type:t,data:n}=e.data;if(t===`PARSE_SUBTITLES`){let{rawJson:e}=n,t=performance.now(),r=e.map((e,t)=>({...e,index:t,searchKey:e.text.toLowerCase().replace(/[^\w\s]/g,``)})),i=performance.now()-t;console.log(`[Worker] Subtitle parsing took ${i.toFixed(2)}ms`),self.postMessage({type:`PARSE_SUBTITLES_COMPLETE`,data:r})}}})();

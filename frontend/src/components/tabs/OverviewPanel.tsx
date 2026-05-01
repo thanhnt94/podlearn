@@ -240,16 +240,3 @@ const SubTabButton: React.FC<{
         </div>
     );
 };
-{ label }
-            </button >
-    { isEditing && active && (
-        <button
-            onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
-            className="p-2 text-slate-600 hover:text-rose-500 transition-colors"
-        >
-            <Trash2 size={12} />
-        </button>
-    )}
-        </div >
-    );
-};

@@ -59,8 +59,10 @@ export const SubtitleOverlay: React.FC = () => {
 
     const getLineForTrack = (tid: 's1' | 's2' | 's3', lines: any[]) => {
         const trackId = trackIds[tid];
-        if (!trackId) return null;
-        return lines.find(l => l.start <= currentTime && l.end >= currentTime);
+        // Must have a track assigned AND track must be enabled (visible)
+        if (!trackId || !settings[tid]?.enabled) return null;
+        if (!lines || lines.length === 0) return null;
+        return lines.find(l => l.start <= currentTime && l.end >= currentTime) || null;
     };
 
     const activeTracks = [
