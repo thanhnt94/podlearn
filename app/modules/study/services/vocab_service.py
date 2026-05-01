@@ -37,27 +37,46 @@ def get_tokenizer():
     return None
 
 def get_dict_paths():
-    """Detect all available SQLite dictionary files (.db)."""
-    # Accurate path to root from app/modules/study/services/vocab_service.py
+    """Detect all available SQLite dictionary files (.db) and parse [src-target] metadata."""
     current_dir = os.path.dirname(os.path.abspath(__file__)) 
-    # Search upwards for the 'dictionaries' folder
     root_dir = current_dir
-    for _ in range(5): # Go up at most 5 levels
+    for _ in range(5):
         if os.path.exists(os.path.join(root_dir, 'dictionaries')):
             break
         root_dir = os.path.dirname(root_dir)
         
+    # Editable dicts (Highest priority)
+    editable_dir = os.path.join(root_dir, 'dictionaries', 'editable')
+    # Legacy offline dicts (Secondary)
     base_dir = os.path.join(root_dir, 'dictionaries', 'database')
     
-    paths = {}
-    if os.path.exists(base_dir):
-        for f in os.listdir(base_dir):
+    dicts = []
+    
+    def scan_dir(d_path, is_editable=False):
+        if not os.path.exists(d_path): return
+        for f in os.listdir(d_path):
             if f.lower().endswith('.db'):
                 name = f.replace('.db', '')
-                paths[name] = os.path.join(base_dir, f)
+                path = os.path.join(d_path, f)
+                match = re.search(r'\[([a-z]{2,3})-([a-z]{2,3})\]', f)
+                src = match.group(1) if match else 'ja'
+                target = match.group(2) if match else 'vi'
+                dicts.append({
+                    'name': name,
+                    'path': path,
+                    'src': src,
+                    'target': target,
+                    'editable': is_editable
+                })
+
+    scan_dir(editable_dir, is_editable=True)
+    scan_dir(base_dir, is_editable=False)
     
-    print(f"DEBUG: Found {len(paths)} dictionaries in {base_dir}: {list(paths.keys())}")
-    return paths
+    # Sort: editable first, then by name
+    dicts.sort(key=lambda x: (not x['editable'], x['name']))
+    
+    legacy_paths = {d['name']: d['path'] for d in dicts}
+    return dicts, legacy_paths
 
 _dict_connections = {}
 
@@ -67,31 +86,22 @@ def get_dict_connection(db_path):
     return _dict_connections[db_path]
 
 def query_offline_dict(db_path, term):
-    """Query a SQLite dictionary for a term with high-performance indexing."""
+    """Query a SQLite dictionary for a term."""
     if not term or term.lower() == 'skip':
         return None
-        
     if not os.path.exists(db_path):
         return None
         
     try:
         conn = get_dict_connection(db_path)
-        # Always use a local cursor
         cursor = conn.cursor()
         cursor.execute("SELECT reading, meanings_json FROM dictionary WHERE word = ? LIMIT 1", (term,))
         row = cursor.fetchone()
         
         if row:
             reading, meanings_json = row
-            if not meanings_json:
-                return {
-                    'reading': reading,
-                    'meanings': [],
-                    'source': os.path.basename(db_path).replace('.db', '')
-                }
-            
             try:
-                means_list = json.loads(meanings_json)
+                means_list = json.loads(meanings_json) if meanings_json else []
                 meanings = [m.get('mean', '') for m in means_list] if isinstance(means_list, list) else []
                 return {
                     'reading': reading,
@@ -99,105 +109,83 @@ def query_offline_dict(db_path, term):
                     'source': os.path.basename(db_path).replace('.db', '')
                 }
             except:
-                return {
-                    'reading': reading,
-                    'meanings': [],
-                    'source': os.path.basename(db_path).replace('.db', '')
-                }
+                return {'reading': reading, 'meanings': [], 'source': os.path.basename(db_path).replace('.db', '')}
     except Exception as e:
         logger.error(f"SQLite query error for {term} in {db_path}: {e}")
     return None
 
-def get_definitions_for_terms(terms, priority='mazii_v2_results'):
-    """Bulk lookup using JSON dictionaries."""
-    dict_paths = get_dict_paths()
-    results = []
+def get_all_available_dicts(src_lang='ja', target_lang='vi', lesson_id=None):
+    """Returns a sorted list of all available dictionaries (DB + Offline)."""
+    from app.modules.study.models import VideoDictionary
     
-    # Establish dictionary priority order
-    order = []
-    if priority in dict_paths:
-        order.append(priority)
+    # 1. Fetch DB-based dictionaries
+    db_dicts = VideoDictionary.query.filter(
+        VideoDictionary.language_code == src_lang,
+        ((VideoDictionary.lesson_id == None) | (VideoDictionary.lesson_id == lesson_id))
+    ).order_by(VideoDictionary.name.asc()).all()
+
+    primary_db = [d for d in db_dicts if d.target_language_code == target_lang]
+    secondary_db = [d for d in db_dicts if d.target_language_code != target_lang]
     
-    other_dicts = [k for k in dict_paths.keys() if k != priority]
-    order.extend(other_dicts)
+    db_list = []
+    for d in primary_db + secondary_db:
+        db_list.append({
+            'type': 'db', 'id': d.id, 'name': d.name, 'src': d.language_code, 'target': d.target_language_code
+        })
 
-    for term in terms:
-        found = False
-        for d_name in order:
-            if d_name not in dict_paths: continue
-            res = query_offline_dict(dict_paths[d_name], term)
-            if res:
-                results.append({
-                    'word': term,
-                    'reading': res.get('reading', ''),
-                    'meanings': res.get('meanings', []),
-                    'definition': "\n".join(res.get('meanings', [])),
-                    'source': res.get('source', '')
-                })
-                found = True
-                break
-        
-        if not found:
-            results.append({
-                'word': term,
-                'reading': '',
-                'meanings': [],
-                'definition': '',
-                'source': 'none'
-            })
-            
-    return results
+    # 2. Fetch Offline File-based dictionaries
+    dicts_meta, _ = get_dict_paths()
+    offline_order = [d for d in dicts_meta if d['src'] == src_lang]
+    primary_off = [d for d in offline_order if d['target'] == target_lang]
+    others_off = [d for d in offline_order if d['target'] != target_lang]
+    
+    off_list = []
+    for d in primary_off + others_off:
+        off_list.append({
+            'type': 'file', 'path': d['path'], 'name': os.path.basename(d['path']).replace('.db', ''),
+            'src': d['src'], 'target': d['target']
+        })
 
-def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, include_all=False, custom_vocab=None):
-    """Segment text using Sudachi and lookup definitions in JSON dicts."""
+    return db_list + off_list
+
+def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None, include_all=False, custom_vocab=None):
+    """Segment text and lookup definitions in all available dicts."""
     tk = get_tokenizer()
     if not tk: return []
 
     if re.match(r'^[0-9\s.,!?;:()\[\]"\'\-+*/=<>]+$', text):
         return []
 
-    dict_paths = get_dict_paths()
-    dict_order = ['mazii_offline', 'javidict', 'suge', 'jamdict']
-    order = []
-    if priority in dict_order:
-        order.append(priority)
-    for d in dict_order:
-        if d not in order and d in dict_paths:
-            order.append(d)
-    for d in dict_paths:
-        if d not in order:
-            order.append(d)
+    all_dicts = get_all_available_dicts(src_lang, target_lang, lesson_id)
 
-    # 1. First, perform character-based maximal matching against dictionaries
     i = 0
-    char_matches = [] # List of (start, end, entry)
-    
+    char_matches = []
     while i < len(text):
         found_match = False
-        # Try matching window of up to 15 characters
         for length in range(min(15, len(text) - i), 1, -1):
             chunk = text[i:i+length]
             if chunk.strip() == "": continue
-            
-            # Check dictionaries in priority order
-            for d_name in order:
-                if d_name not in dict_paths: continue
-                res = query_offline_dict(dict_paths[d_name], chunk)
+            for d in all_dicts:
+                res = None
+                if d['type'] == 'db':
+                    from app.modules.study.models import VideoGlossary
+                    g = VideoGlossary.query.filter_by(dictionary_id=d['id'], term=chunk).first()
+                    if g:
+                        res = {'reading': g.reading, 'meanings': [g.definition] if g.definition else []}
+                else:
+                    res = query_offline_dict(d['path'], chunk)
+                
                 if res:
-                    char_matches.append((i, i + length, res))
+                    char_matches.append((i, i + length, res, d['name']))
                     i += length
                     found_match = True
                     break
             if found_match: break
-        
-        if not found_match:
-            i += 1
+        if not found_match: i += 1
 
-    # 2. Use Sudachi to fill the gaps and provide POS/Reading for non-dict parts
     try:
         sudachi_tokens = tk.tokenize(text, _sudachi_mode) if _sudachi_mode is not None else tk.tokenize(text)
-    except Exception as e:
-        logger.error(f"Sudachi error: {e}")
+    except:
         sudachi_tokens = []
 
     token_pos_map = []
@@ -206,102 +194,60 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
         s = m.surface()
         start = text.find(s, curr_ptr)
         if start != -1:
-            end = start + len(s)
             token_pos_map.append({
-                'start': start,
-                'end': end,
-                'surface': s,
-                'lemma': m.dictionary_form(),
-                'pos': m.part_of_speech()[0],
-                'reading': katakana_to_hiragana(m.reading_form())
+                'start': start, 'end': start + len(s), 'surface': s, 'lemma': m.dictionary_form(),
+                'pos': m.part_of_speech()[0], 'reading': katakana_to_hiragana(m.reading_form())
             })
-            curr_ptr = end
+            curr_ptr = start + len(s)
 
-    # Meaningless / Helper words to dim (Particles, Auxiliary Verbs, Symbols, Polite Endings)
     SKIP_POS = ['補助記号', '空白', '助詞', '助動詞', '記号']
-    SKIP_WORDS = [
-        'です', 'ます', 'でした', 'ました', 'でしょう', 'ましょう', 
-        'だ', 'である', 'た', 'て', 'に', 'を', 'は', 'が', 'も', 'です。', 'ます。',
-        'します', 'しました', 'し', 'しま', 'す'
-    ]
+    SKIP_WORDS = ['です', 'ます', 'でした', 'ました', 'でしょう', 'ましょう', 'だ', 'である', 'た', 'て', 'に', 'を', 'は', 'が', 'も', '。']
 
     final_results = []
     curr_idx = 0
     match_ptr = 0
-
     while curr_idx < len(text):
-        # Check if current index is start of a dictionary match
         current_match = None
         if match_ptr < len(char_matches) and char_matches[match_ptr][0] == curr_idx:
             current_match = char_matches[match_ptr]
             match_ptr += 1
         
         if current_match:
-            start, end, res = current_match
+            start, end, res, dict_name = current_match
             surface = text[start:end]
-            
-            best_pos = "名詞"
-            best_reading = res.get('reading', '')
-            best_lemma = surface
-            
+            best_pos, best_reading, best_lemma = "名詞", res.get('reading', ''), surface
             for t in token_pos_map:
                 if t['start'] >= start and t['end'] <= end:
                     best_pos = t['pos']
                     if not best_reading: best_reading = t['reading']
-                    # Use the lemma of the first token in the match as the "dictionary form"
-                    if t['start'] == start:
-                        best_lemma = t['lemma']
+                    if t['start'] == start: best_lemma = t['lemma']
             
-            # Check if this dictionary match should be dimmed
-            is_polite_ending = surface in SKIP_WORDS or best_pos in SKIP_POS
-            
-            furigana = None
-            if best_reading and best_reading != surface:
-                furigana = best_reading
-
+            is_polite = surface in SKIP_WORDS or best_pos in SKIP_POS
             final_results.append({
-                'surface': surface,
-                'original': surface,
-                'lemma': 'skip' if is_polite_ending else best_lemma,
-                'word': 'skip' if is_polite_ending else best_lemma,
-                'reading': best_reading,
-                'furigana': furigana,
-                'pos': '助詞' if is_polite_ending else best_pos,
-                'meanings': [] if is_polite_ending else res.get('meanings', []),
-                'definition': "" if is_polite_ending else "\n".join(res.get('meanings', [])),
-                'source': res.get('source', 'offline')
+                'surface': surface, 'original': surface, 'lemma': 'skip' if is_polite else best_lemma,
+                'word': 'skip' if is_polite else best_lemma, 'reading': best_reading,
+                'furigana': best_reading if best_reading and best_reading != surface else None,
+                'pos': '助詞' if is_polite else best_pos, 'meanings': [] if is_polite else res.get('meanings', []),
+                'definition': "" if is_polite else "\n".join(res.get('meanings', [])),
+                'source': 'none' if is_polite else dict_name
             })
             curr_idx = end
         else:
-            # Not a dict match, find the Sudachi token at this position
             token_found = False
             for t in token_pos_map:
                 if t['start'] == curr_idx:
                     is_meaningless = t['pos'] in SKIP_POS or t['surface'] in SKIP_WORDS or t['lemma'] in SKIP_WORDS
-                    
-                    if not include_all and is_meaningless:
-                        pass
-                    else:
-                        furigana = None
-                        if t['reading'] and t['reading'] != t['surface']:
-                            furigana = t['reading']
-
+                    if include_all or not is_meaningless:
                         final_results.append({
-                            'surface': t['surface'],
-                            'original': t['surface'],
+                            'surface': t['surface'], 'original': t['surface'], 
                             'lemma': 'skip' if is_meaningless else t['lemma'],
-                            'word': 'skip' if is_meaningless else t['lemma'],
-                            'reading': t['reading'],
-                            'furigana': furigana,
-                            'pos': '助詞' if is_meaningless else t['pos'],
-                            'meanings': [],
-                            'definition': "",
-                            'source': 'none'
+                            'word': 'skip' if is_meaningless else t['lemma'], 'reading': t['reading'],
+                            'furigana': t['reading'] if t['reading'] and t['reading'] != t['surface'] else None,
+                            'pos': '助詞' if is_meaningless else t['pos'], 'meanings': [], 'definition': "", 'source': 'none'
                         })
                     curr_idx = t['end']
                     token_found = True
                     break
-            
             if not token_found:
                 char = text[curr_idx]
                 if char.strip():
@@ -310,84 +256,57 @@ def analyze_japanese_text(text, priority='mazii_v2_results', strict=False, inclu
                         'reading': '', 'furigana': None, 'pos': '記号', 'meanings': [], 'definition': '', 'source': 'none'
                     })
                 curr_idx += 1
-
     return final_results
 
 def katakana_to_hiragana(text: str) -> str:
-    """Helper to convert Katakana to Hiragana."""
     if not text: return ''
     return "".join(chr(ord(c) - 96) if "\u30a1" <= c <= "\u30f6" else c for c in text)
 
-def analyze_batch_japanese(texts, priority='mazii_offline'):
-    """Segment a batch of texts and count lemma frequencies using Sudachi."""
-    counts = Counter()
-    tk = get_tokenizer()
+def get_definitions_for_terms(terms, src_lang='ja', target_lang='vi', lesson_id=None):
+    """Batch query definitions for a list of terms."""
+    from app.modules.study.models import VideoDictionary, VideoGlossary
+    all_dicts = get_all_available_dicts(src_lang, target_lang, lesson_id)
     
-    if not tk: return []
-
-    for text in texts:
-        if not text or len(text.strip()) == 0: continue
-        tokens = tk.tokenize(text, _sudachi_mode)
-        for token in tokens:
-            lemma = token.dictionary_form()
-            pos = token.part_of_speech()[0]
-            
-            if pos in ['補助記号', '空白', '助詞', '助動詞', '記号']:
-                continue
-            if any(char.isdigit() for char in lemma):
-                continue
-            if len(lemma) < 1:
-                continue
-                
-            counts[lemma] += 1
-    
-    # Return as list of dicts with count
-    return [{'lemma': lemma, 'count': count, 'reading': '', 'meanings': [], 'source': 'offline'} 
-            for lemma, count in counts.items()]
-def get_definitions_for_terms(terms, priority=None):
-    """Batch query definitions for a list of terms (strings)."""
-    dict_paths = get_dict_paths()
-    
-    # Explicit Priority Order
-    dict_order = ['mazii_offline', 'javidict', 'suge', 'jamdict']
-    order = []
-    if priority in dict_order:
-        order.append(priority)
-    for d in dict_order:
-        if d not in order and d in dict_paths:
-            order.append(d)
-    for d in dict_paths:
-        if d not in order:
-            order.append(d)
-            
     results = []
     for term in terms:
-        item_result = None
-        source = 'none'
+        if not term: continue
+        item_res, source = None, 'none'
+        for d in all_dicts:
+            if d['type'] == 'db':
+                g = VideoGlossary.query.filter_by(dictionary_id=d['id'], term=term).first()
+                if g:
+                    item_res = {'reading': g.reading, 'meanings': [g.definition] if g.definition else []}
+                    source = d['name']
+                    break
+            else:
+                item_res = query_offline_dict(d['path'], term)
+                if item_res:
+                    source = d['name']
+                    break
         
-        for d_name in order:
-            if d_name not in dict_paths: continue
-            res = query_offline_dict(dict_paths[d_name], term)
-            if res:
-                item_result = res
-                source = d_name
-                break
-        
-        if item_result:
-            meanings = item_result.get('meanings', [])
+        if item_res:
+            means = item_res.get('meanings', [])
             results.append({
-                'word': term,
-                'reading': item_result.get('reading', ''),
-                'meanings': meanings,
-                'definition': ', '.join(meanings) if meanings else 'No definition found offline.',
-                'source': source
+                'word': term, 'reading': item_res.get('reading', ''), 'meanings': means,
+                'definition': ', '.join(means) if means else 'No definition found.', 'source': source
             })
         else:
-            results.append({
-                'word': term,
-                'reading': '',
-                'meanings': [],
-                'definition': 'No definition found offline.',
-                'source': 'none'
-            })
+            results.append({'word': term, 'reading': '', 'meanings': [], 'definition': 'No definition found.', 'source': 'none'})
     return results
+
+def analyze_batch_japanese(texts):
+    """Process multiple lines and return unique non-skipped tokens."""
+    all_tokens = []
+    seen = set()
+    
+    for text in texts:
+        if not text: continue
+        # Use simple segmentation for batch sync
+        words = analyze_japanese_text(text, include_all=False)
+        for w in words:
+            lemma = w.get('lemma')
+            if lemma and lemma != 'skip' and lemma not in seen:
+                all_tokens.append(w)
+                seen.add(lemma)
+                
+    return all_tokens

@@ -5,7 +5,11 @@ from app.modules.study.models import Lesson, Sentence, SentenceSet, VideoGlossar
 from app.modules.study.services import vocab_service
 from app.modules.engagement import interface as engagement_interface
 from app.modules.study.tasks import process_tracking_data
+from datetime import datetime, timezone
+from app.modules.content.models import SubtitleTrack
+from app.modules.content.services import subtitle_service
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 study_api_bp = Blueprint('study_api', __name__)
@@ -276,6 +280,45 @@ def add_lesson_note(lesson_id):
         }
     }), 201
 
+@study_api_bp.route('/lesson/<int:lesson_id>/notes/batch', methods=['POST'])
+@jwt_required()
+def batch_add_lesson_notes(lesson_id):
+    """Add multiple notes to a lesson in one go."""
+    from app.modules.study.models import Note
+    data = request.get_json() or {}
+    notes_list = data.get('notes', [])
+
+    if not notes_list:
+        return jsonify({"error": "No notes provided"}), 400
+
+    added_notes = []
+    for item in notes_list:
+        content = item.get('content', '').strip()
+        if not content:
+            continue
+        
+        note = Note(
+            user_id=current_user.id,
+            lesson_id=lesson_id,
+            timestamp=float(item.get('timestamp', 0)),
+            content=content
+        )
+        db.session.add(note)
+        added_notes.append(note)
+    
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "count": len(added_notes),
+        "notes": [{
+            "id": n.id,
+            "timestamp": n.timestamp,
+            "content": n.content,
+            "created_at": n.created_at.isoformat()
+        } for n in added_notes]
+    }), 201
+
 @study_api_bp.route('/notes/<int:note_id>', methods=['PATCH'])
 @jwt_required()
 def update_note(note_id):
@@ -429,10 +472,172 @@ def get_lesson_vocab_analysis(lesson_id):
         analysis[idx].append({
             "surface": t.token,
             "lemma": t.lemma_override,
-            "pos": t.pos
+            "pos": t.pos,
+            "reading": t.reading,
+            "meaning": t.meaning,
+            "metadata": t.extra_data
         })
         
-    return jsonify({"analysis": analysis}) # Fixed key to match frontend expectation
+    return jsonify({"analysis": analysis}) 
+
+@study_api_bp.route('/lesson/<int:lesson_id>/import-ai-pack', methods=['POST'])
+@jwt_required()
+def import_ai_pack(lesson_id):
+    """
+    Import a full AI-segmented track:
+    - SRT for timing and structure.
+    - JSON for AI-generated word tokens (surface, reading, meaning, metadata).
+    """
+    from app.modules.content.models import SubtitleTrack
+    from app.modules.study.models import Lesson, SentenceToken
+    from app.modules.content.services.subtitle_service import parse_subtitle_text
+    
+    lesson = Lesson.query.get_or_404(lesson_id)
+    video_id = lesson.video_id
+    
+    # Get files
+    srt_file = request.files.get('srt_file')
+    json_file = request.files.get('json_file')
+    
+    if not srt_file or not json_file:
+        return jsonify({"error": "Missing SRT or JSON file"}), 400
+        
+    lang_code = request.form.get('language_code', 'ja')
+    track_name = request.form.get('name', f'[AI] {lang_code.upper()}')
+    
+    # 1. Parse SRT
+    srt_content = srt_file.read().decode('utf-8-sig')
+    parsed_srt = parse_subtitle_text(srt_content, '.srt')
+    if not parsed_srt.get('success'):
+        return jsonify({"error": "Failed to parse SRT", "details": parsed_srt.get('message')}), 400
+        
+    lines = parsed_srt['lines']
+    
+    # 2. Parse JSON Analysis
+    try:
+        import json
+        analysis_data = json.load(json_file)
+        # Expected format: {"lines": [{"line_index": 0, "tokens": [...]}, ...]}
+        # Or simple array of lines
+        ai_lines = analysis_data.get('lines', analysis_data) if isinstance(analysis_data, dict) else analysis_data
+    except Exception as e:
+        return jsonify({"error": "Failed to parse JSON", "details": str(e)}), 400
+        
+    # 3. Create Subtitle Track
+    from app.modules.content.services.subtitle_service import generate_unique_track_name
+    new_track = SubtitleTrack(
+        video_id=video_id,
+        language_code=lang_code,
+        name=generate_unique_track_name(video_id, track_name),
+        content_json=lines,
+        uploader_id=current_user.id,
+        uploader_name=current_user.username,
+        is_original=False
+    )
+    db.session.add(new_track)
+    db.session.flush() # Get track ID
+    
+    # 4. Create Sentence Tokens
+    tokens_count = 0
+    for ai_line in ai_lines:
+        l_idx = ai_line.get('line_index')
+        ai_tokens = ai_line.get('tokens', [])
+        
+        if l_idx is None or l_idx >= len(lines): continue
+        
+        for idx, t in enumerate(ai_tokens):
+            token = SentenceToken(
+                lesson_id=lesson_id,
+                line_index=l_idx,
+                token=t.get('surface', ''),
+                lemma_override=t.get('lemma'),
+                pos=t.get('pos'),
+                reading=t.get('reading'),
+                meaning=t.get('meaning'),
+                extra_data=t.get('metadata'),
+                order_index=idx
+            )
+            db.session.add(token)
+            tokens_count += 1
+            
+    db.session.commit()
+    
+    return jsonify({
+        "status": "success", 
+        "track_id": new_track.id,
+        "tokens_imported": tokens_count
+    })
+
+@study_api_bp.route('/lesson/<int:lesson_id>/analysis/import', methods=['POST'])
+@jwt_required()
+def import_analysis(lesson_id):
+    """Bulk import AI-generated linguistic analysis (segmentation)."""
+    from app.modules.study.models import SentenceToken
+    data = request.get_json() or {}
+    lines = data.get('lines', []) # Expected: [{"line_index": 0, "tokens": [...]}]
+
+    if not lines:
+        return jsonify({"error": "No lines provided"}), 400
+
+    # Clear old analysis for this lesson
+    SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
+
+    count = 0
+    for line_data in lines:
+        l_idx = line_data.get('line_index')
+        tokens = line_data.get('tokens', [])
+        for idx, t in enumerate(tokens):
+            token = SentenceToken(
+                lesson_id=lesson_id,
+                line_index=l_idx,
+                token=t.get('surface', ''),
+                lemma_override=t.get('lemma'),
+                pos=t.get('pos'),
+                reading=t.get('reading'),
+                meaning=t.get('meaning'),
+                extra_data=t.get('metadata'), # Input key stays metadata for AI compatibility
+                order_index=idx
+            )
+            db.session.add(token)
+            count += 1
+    
+    db.session.commit()
+    return jsonify({"success": True, "tokens_imported": count})
+
+@study_api_bp.route('/vocab/scan-status/<int:lesson_id>', methods=['GET'])
+@jwt_required()
+def get_scan_status(lesson_id):
+    """Check if a lesson has been analyzed (tokens or glossary items)."""
+    from app.modules.study.models import SentenceToken, VideoGlossary
+    
+    # Check per-line tokens
+    has_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id).first() is not None
+    
+    # Check glossary entries (created by sync-batch)
+    has_glossary = VideoGlossary.query.filter_by(lesson_id=lesson_id).first() is not None
+    
+    return jsonify({
+        'has_tokens': has_tokens or has_glossary,
+        'lesson_id': lesson_id
+    })
+
+@study_api_bp.route('/video/glossary/<int:lesson_id>', methods=['GET'])
+@jwt_required()
+def get_video_glossary(lesson_id):
+    from app.modules.study.models import Lesson, VideoGlossary
+    lesson = Lesson.query.get_or_404(lesson_id)
+    video_id = lesson.video_id
+    
+    entries = VideoGlossary.query.filter_by(video_id=video_id).all()
+    glossary = []
+    for e in entries:
+        glossary.append({
+            "term": e.term,
+            "reading": e.reading,
+            "meaning": e.meaning,
+            "extra_data": e.extra_data or {}
+        })
+    return jsonify({"glossary": glossary})
 
 @study_api_bp.route('/vocab/sync-batch', methods=['POST'])
 @jwt_required()
@@ -482,46 +687,236 @@ def sync_vocab_batch():
         logger.error(f"[VOCAB ERROR] sync-batch failed: {e}")
         return jsonify({"error": str(e)}), 500
 
+@study_api_bp.route('/lesson/<int:lesson_id>/dictionary/list', methods=['GET'])
+@jwt_required()
+def list_dictionaries(lesson_id):
+    from app.modules.study.models import VideoDictionary
+    dicts = VideoDictionary.query.filter_by(lesson_id=lesson_id).all()
+    return jsonify([{
+        "id": d.id,
+        "name": d.name,
+        "is_active": d.is_active,
+        "count": d.glossary_items.count()
+    } for d in dicts])
+
+@study_api_bp.route('/lesson/<int:lesson_id>/dictionary/toggle/<int:dict_id>', methods=['POST'])
+@jwt_required()
+def toggle_dictionary(lesson_id, dict_id):
+    from app.modules.study.models import VideoDictionary
+    d = VideoDictionary.query.filter_by(id=dict_id, lesson_id=lesson_id).first_or_404()
+    d.is_active = not d.is_active
+    db.session.commit()
+    return jsonify({"success": True, "is_active": d.is_active})
+
+@study_api_bp.route('/lesson/<int:lesson_id>/dictionary/delete/<int:dict_id>', methods=['DELETE'])
+@jwt_required()
+def delete_dictionary(lesson_id, dict_id):
+    from app.modules.study.models import VideoDictionary
+    d = VideoDictionary.query.filter_by(id=dict_id, lesson_id=lesson_id).first_or_404()
+    db.session.delete(d)
+    db.session.commit()
+    return jsonify({"success": True})
+
+@study_api_bp.route('/lesson/<int:lesson_id>/dictionary/import', methods=['POST'])
+@jwt_required()
+def import_dictionary(lesson_id):
+    """
+    Import a custom dictionary for the video associated with this lesson.
+    JSON format: {"name": "My Dict", "items": [{"term": "...", "reading": "...", "meaning": "...", "kanji_viet": "..."}]}
+    """
+    from app.modules.study.models import Lesson, VideoGlossary, VideoDictionary
+    lesson = Lesson.query.get_or_404(lesson_id)
+    video_id = lesson.video_id
+    
+    payload = request.json
+    if not payload:
+        return jsonify({"error": "Missing payload"}), 400
+        
+    # Support both list and {name, items} formats
+    if isinstance(payload, list):
+        data = payload
+        dict_name = "Main Glossary"
+        global_lang = 'ja'
+    else:
+        data = payload.get('items', [])
+        dict_name = payload.get('name', "Main Glossary")
+        global_lang = payload.get('lang', 'ja')
+
+    if not data or not isinstance(data, list):
+        return jsonify({"error": "Invalid items format. Expected an array."}), 400
+        
+    # Create or find dictionary
+    v_dict = VideoDictionary.query.filter_by(lesson_id=lesson_id, name=dict_name).first()
+    if not v_dict:
+        v_dict = VideoDictionary(lesson_id=lesson_id, name=dict_name)
+        db.session.add(v_dict)
+        db.session.flush()
+
+    added = 0
+    updated = 0
+    errors = []
+
+    for idx, item in enumerate(data):
+        try:
+            if not isinstance(item, dict):
+                errors.append(f"Item at index {idx} is not an object")
+                continue
+
+            term = item.get('term')
+            if not term:
+                errors.append(f"Item at index {idx} missing 'term'")
+                continue
+            
+            lang = item.get('lang', global_lang)
+            target_lang = item.get('target_lang', 'vi')
+            
+            # Check if exists in THIS dictionary
+            entry = VideoGlossary.query.filter_by(dictionary_id=v_dict.id, term=term).first()
+            if not entry:
+                entry = VideoGlossary(dictionary_id=v_dict.id, video_id=video_id, lesson_id=lesson_id, term=term)
+                db.session.add(entry)
+                added += 1
+            else:
+                updated += 1
+                
+            entry.reading = item.get('reading', entry.reading)
+            entry.definition = item.get('meaning', entry.definition or "")
+            entry.language_code = lang
+            entry.target_language_code = target_lang
+            entry.source = 'manual'
+            entry.extra_data = {
+                **(entry.extra_data or {}),
+                "kanji_viet": item.get('kanji_viet') or (entry.extra_data or {}).get('kanji_viet')
+            }
+        except Exception as e:
+            errors.append(f"Error at index {idx}: {str(e)}")
+            continue
+        
+    db.session.commit()
+    return jsonify({
+        "success": True, 
+        "added": added, 
+        "updated": updated, 
+        "errors": errors if errors else None
+    })
+
 @study_api_bp.route('/vocab/analyze', methods=['POST'])
 @jwt_required()
 def analyze_vocab():
     """Live word analysis for a single sentence."""
-    from app.modules.study.services.vocab_service import analyze_japanese_text
-    data = request.get_json() or {}
-    text = data.get('text', '').strip()
-    priority = data.get('priority', 'mazii_offline')
-    lesson_id = data.get('lesson_id')
-    line_index = data.get('line_index')
-    
-    if not text:
-        return jsonify([])
-
-    # Try to use existing tokens if available
-    from app.modules.study.models import SentenceToken
-    db_tokens = []
-    if lesson_id and line_index is not None:
-        db_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).order_by(SentenceToken.order_index.asc()).all()
-    
-    if db_tokens:
-        from app.modules.study.services.vocab_service import get_definitions_for_terms
-        lookup_terms = [t.lemma_override or t.token for t in db_tokens]
-        results = get_definitions_for_terms(lookup_terms, priority=priority)
+    try:
+        data = request.get_json() or {}
+        text = data.get('text', '').strip()
+        lesson_id = data.get('lesson_id')
+        line_index = data.get('line_index')
+        source = data.get('source', 'auto')
+        track_id = data.get('track_id')
+        auto_segmentation = data.get('auto_segmentation', True)
+        use_offline = data.get('use_offline', True)
+        original_lang = data.get('original_lang', 'ja')
+        target_lang = data.get('target_lang', 'vi')
+        preferred_dict_id = data.get('dict_id')
         
-        formatted = []
-        for i, r in enumerate(results):
-            t = db_tokens[i]
-            formatted.append({
-                "surface": t.token,
-                "lemma": t.lemma_override or t.token,
-                "reading": r.get('reading', ''),
-                "meanings": r.get('meanings', []) if isinstance(r.get('meanings'), list) else [r.get('definition', '')],
-                "source": r.get('source', priority)
-            })
-        return jsonify(formatted)
+        if source == 'track' and track_id and line_index is not None:
+            from app.modules.content.models import SubtitleTrack
+            track = SubtitleTrack.query.get(track_id)
+            if track and track.content_json and len(track.content_json) > line_index:
+                text = track.content_json[line_index].get('text', text)
 
-    # Fallback to auto-analysis
-    words = analyze_japanese_text(text, priority=priority, include_all=True)
-    return jsonify(words)
+        if not text:
+            return jsonify([])
+
+        # Pre-load lesson glossary for quick lookup
+        from app.modules.study.models import VideoDictionary, VideoGlossary
+        active_user_dicts = VideoDictionary.query.filter_by(lesson_id=lesson_id, is_active=True).all()
+        user_map = {}
+        if active_user_dicts:
+            dict_ids = [d.id for d in active_user_dicts]
+            # Include items from active dicts OR legacy items tied to lesson_id with no dict_id
+            glossary_items = VideoGlossary.query.filter(
+                (VideoGlossary.dictionary_id.in_(dict_ids)) | 
+                ((VideoGlossary.lesson_id == lesson_id) & (VideoGlossary.dictionary_id == None))
+            ).all()
+            user_map = {item.term: item.to_dict() for item in glossary_items}
+
+        delimiters = ['|', '/', ' ']
+        active_delimiter = next((d for d in delimiters if d in text), None)
+
+        if active_delimiter:
+            raw_segments = [s.strip() for s in text.split(active_delimiter) if s.strip()]
+            results = []
+            
+            from app.modules.study.services.vocab_service import get_dict_paths, query_offline_dict, get_definitions_for_terms
+            _, legacy_paths = get_dict_paths()
+            
+            for seg in raw_segments:
+                # Match "Surface [Lemma]" or "Surface [skip]"
+                match = re.search(r'(.+?)\[(.+?)\]', seg)
+                if match:
+                    surface = match.group(1).strip()
+                    lemma = match.group(2).strip()
+                else:
+                    surface = seg.strip()
+                    lemma = seg.strip()
+                    
+                is_skip = (lemma.lower() == 'skip')
+                if is_skip:
+                    results.append({"surface": surface, "lemma": "skip", "lemma_override": "skip", "word": surface, "reading": "", "meanings": [], "definition": "SKIP", "source": "none"})
+                    continue
+
+                found = False
+                # 1. Preferred Dictionary
+                if preferred_dict_id:
+                    dict_path = legacy_paths.get(preferred_dict_id)
+                    if dict_path:
+                        off_res = query_offline_dict(dict_path, lemma)
+                        if off_res:
+                            results.append({"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": off_res.get('reading', ''), "meanings": off_res.get('meanings', []), "definition": off_res.get('definition', ''), "source": off_res.get('source', 'offline')})
+                            found = True
+
+                # 2. Lesson Glossary
+                if not found and lemma in user_map:
+                    u = user_map[lemma]
+                    results.append({"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": u.get('reading', ''), "meanings": [u.get('meaning', '')], "definition": u.get('meaning', ''), "source": "user_glossary"})
+                    found = True
+
+                # 3. General Offline
+                if not found and use_offline:
+                    off_res_list = get_definitions_for_terms([lemma], src_lang=original_lang, target_lang=target_lang, lesson_id=lesson_id)
+                    if off_res_list and off_res_list[0].get('source') != 'none':
+                        o = off_res_list[0]
+                        results.append({"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": o.get('reading', ''), "meanings": o.get('meanings', []), "definition": o.get('definition', ''), "source": o.get('source', 'offline')})
+                        found = True
+                
+                if not found:
+                    results.append({"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": "", "meanings": [], "definition": "", "source": "none"})
+            
+            return jsonify(results)
+
+        # No delimiter found
+        if not auto_segmentation:
+            match = re.search(r'(.+?)\[(.+?)\]', text)
+            surface, lemma = (match.group(1).strip(), match.group(2).strip()) if match else (text, text)
+            
+            if lemma.lower() == 'skip':
+                return jsonify([{"surface": surface, "lemma": "skip", "lemma_override": "skip", "word": surface, "reading": "", "meanings": [], "definition": "SKIP", "source": "none"}])
+
+            from app.modules.study.services.vocab_service import get_definitions_for_terms
+            off_res = get_definitions_for_terms([lemma], src_lang=original_lang, target_lang=target_lang, lesson_id=lesson_id)
+            if off_res and off_res[0].get('source') != 'none':
+                o = off_res[0]
+                return jsonify([{"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": o.get('reading', ''), "meanings": o.get('meanings', []), "definition": o.get('definition', ''), "source": o.get('source', 'offline')}])
+            
+            return jsonify([{"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": "", "meanings": [], "definition": "", "source": "none"}])
+
+        # Auto Segmentation (default)
+        from app.modules.study.services.vocab_service import analyze_japanese_text
+        results = analyze_japanese_text(text, src_lang=original_lang, target_lang=target_lang, lesson_id=lesson_id, include_all=True)
+        return jsonify(results)
+
+    except Exception as e:
+        logger.error(f"[VOCAB ERROR] analyze_vocab failed: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 @study_api_bp.route('/video/analyze-sentence', methods=['POST'])
 @jwt_required()
@@ -544,7 +939,9 @@ def analyze_sentence_full():
         
     if db_tokens:
         lookup_terms = [t.lemma_override or t.token for t in db_tokens]
-        results = get_definitions_for_terms(lookup_terms, priority='mazii_offline')
+        original_lang = data.get('original_lang', 'ja')
+        target_lang = data.get('target_lang', 'vi')
+        results = get_definitions_for_terms(lookup_terms, src_lang=original_lang, target_lang=target_lang, lesson_id=lesson_id)
         formatted = []
         for i, r in enumerate(results):
             t = db_tokens[i]
@@ -694,6 +1091,149 @@ def get_sentence_details(sentence_id):
         }
     })
 
+# --- Dictionary Management (DictManager) ---
+
+@study_api_bp.route('/dictionaries/system', methods=['GET'])
+@jwt_required()
+def list_system_dictionaries():
+    """List all available dictionaries, prioritizing editable ones."""
+    from app.modules.study.services.vocab_service import get_dict_paths
+    dicts, _ = get_dict_paths()
+    return jsonify([{
+        "id": d['path'], # Use path as ID for physical files
+        "name": d['name'],
+        "src": d['src'],
+        "target": d['target'],
+        "is_active": True,
+        "is_editable": d.get('editable', False),
+        "count": "N/A" # Count requires opening the DB, skip for list
+    } for d in dicts])
+
+@study_api_bp.route('/dictionaries/system', methods=['POST'])
+@jwt_required()
+def create_system_dictionary():
+    """Create a new editable system dictionary file."""
+    data = request.get_json() or {}
+    name = data.get('name', 'New Dict')
+    src = data.get('src', 'ja')
+    target = data.get('target', 'vi')
+    
+    import os, sqlite3
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = current_dir
+    for _ in range(5):
+        if os.path.exists(os.path.join(root_dir, 'dictionaries')): break
+        root_dir = os.path.dirname(root_dir)
+        
+    filename = f"[{src}-{target}] {name}.db"
+    dict_path = os.path.join(root_dir, 'dictionaries', 'editable', filename)
+    
+    conn = sqlite3.connect(dict_path)
+    conn.execute('CREATE TABLE IF NOT EXISTS dictionary (id INTEGER PRIMARY KEY AUTOINCREMENT, word TEXT UNIQUE, reading TEXT, meanings_json TEXT)')
+    conn.close()
+    
+    return jsonify({"id": dict_path, "name": name})
+
+@study_api_bp.route('/dictionaries/items', methods=['GET'])
+@jwt_required()
+def get_dictionary_items():
+    """List all terms in a physical dictionary file."""
+    dict_path = request.args.get('id')
+    if not dict_path or not os.path.exists(dict_path):
+        return jsonify({'error': 'Invalid dictionary path'}), 400
+        
+    import sqlite3
+    conn = sqlite3.connect(dict_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, word, reading, meanings_json FROM dictionary ORDER BY word ASC")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    results = []
+    for r in rows:
+        import json
+        try:
+            means = json.loads(r[3]) if r[3] else []
+            definition = ", ".join([m.get('mean', '') for m in means]) if isinstance(means, list) else str(means)
+        except:
+            definition = str(r[3])
+            
+        results.append({
+            "id": r[0],
+            "term": r[1],
+            "reading": r[2],
+            "definition": definition,
+            "meanings_json": r[3]
+        })
+    return jsonify(results)
+
+@study_api_bp.route('/dictionaries/import', methods=['POST'])
+@jwt_required()
+def import_to_system_dictionary():
+    """Incremental JSON import into a physical dictionary file."""
+    data = request.get_json() or {}
+    dict_path = data.get('id')
+    items = data.get('items', [])
+    
+    if not dict_path or not os.path.exists(dict_path):
+        return jsonify({'error': 'Invalid dictionary path'}), 400
+        
+    import sqlite3, json
+    conn = sqlite3.connect(dict_path)
+    count = 0
+    for item in items:
+        term = item.get('term', '').strip()
+        if not term: continue
+        
+        reading = item.get('reading', '')
+        meaning = item.get('meaning', '')
+        # Convert to offline format: [{"mean": "..."}]
+        meanings_json = json.dumps([{"mean": meaning}])
+        
+        conn.execute("""
+            INSERT INTO dictionary (word, reading, meanings_json) 
+            VALUES (?, ?, ?)
+            ON CONFLICT(word) DO UPDATE SET 
+                reading = excluded.reading,
+                meanings_json = excluded.meanings_json
+        """, (term, reading, meanings_json))
+        count += 1
+    
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "count": count})
+
+@study_api_bp.route('/glossary/item', methods=['PATCH', 'DELETE'])
+@jwt_required()
+def manage_physical_glossary_item():
+    """Edit or delete a single item in a physical dictionary file."""
+    data = request.get_json() or {}
+    dict_path = data.get('dict_id') # In this architecture, dict_id is the path
+    item_id = data.get('item_id')
+    
+    if not dict_path or not os.path.exists(dict_path):
+        return jsonify({'error': 'Invalid dictionary path'}), 400
+        
+    import sqlite3, json
+    conn = sqlite3.connect(dict_path)
+    
+    if request.method == 'DELETE':
+        conn.execute("DELETE FROM dictionary WHERE id = ?", (item_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+        
+    term = data.get('term')
+    reading = data.get('reading')
+    meaning = data.get('meaning')
+    meanings_json = json.dumps([{"mean": meaning}])
+    
+    conn.execute("UPDATE dictionary SET word = ?, reading = ?, meanings_json = ? WHERE id = ?", 
+                 (term, reading, meanings_json, item_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
 # --- Miscellaneous & Tools ---
 
 @study_api_bp.route('/score-pronunciation', methods=['POST'])
@@ -760,12 +1300,146 @@ def get_notifications():
     notifs = engagement_interface.get_user_notifications_dto(current_user.id)
     return jsonify(notifs)
 
-@study_api_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+# --- Subtitle Management ---
+
+@study_api_bp.route('/subtitles/upload/<int:lesson_id>', methods=['POST'])
 @jwt_required()
-def mark_notification_read(notif_id):
-    success = engagement_interface.mark_notification_read(notif_id, current_user.id)
-    return jsonify({'success': success}), 200 if success else 404
+def upload_subtitle(lesson_id):
+    """Handle manual subtitle file upload (.srt or .vtt)."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    
+    file = request.files.get('file')
+    lang_code = request.form.get('language_code')
+    user_input_name = request.form.get('name')
+    note = request.form.get('note')
+
+    if not file or not lang_code:
+        return jsonify({'error': 'File and language_code are required'}), 400
+
+    from werkzeug.utils import secure_filename
+    import tempfile
+    import os
+    
+    filename = secure_filename(file.filename)
+    ext = os.path.splitext(filename)[1].lower()
+    
+    temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
+    try:
+        os.close(temp_fd)
+        file.save(temp_path)
+        
+        result = subtitle_service.parse_uploaded_subtitle(temp_path, ext)
+        if 'error' in result:
+            return jsonify(result), 400
+
+        parsed_lines = result['lines']
+        
+        display_name = user_input_name or f"Uploaded by {current_user.username}"
+        unique_name = subtitle_service.generate_unique_track_name(lesson.video.id, display_name)
+
+        track = SubtitleTrack(
+            video_id=lesson.video.id, 
+            language_code=lang_code,
+            content_json=parsed_lines,
+            uploader_id=current_user.id,
+            uploader_name=current_user.username,
+            name=unique_name,
+            note=note,
+            fetched_at=datetime.now(timezone.utc),
+            status='completed',
+            total_lines=len(parsed_lines),
+            progress=len(parsed_lines)
+        )
+        db.session.add(track)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'track_id': track.id,
+            'language_code': lang_code,
+            'line_count': len(parsed_lines),
+            'lines': parsed_lines
+        })
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+@study_api_bp.route('/subtitles/upload-text/<int:lesson_id>', methods=['POST'])
+@jwt_required()
+def upload_subtitle_text(lesson_id):
+    """Handle manual subtitle text paste."""
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    
+    data = request.get_json() or {}
+    text = data.get('text', '').strip()
+    lang_code = data.get('language_code')
+    user_input_name = data.get('name')
+    note = data.get('note')
+
+    if not text or not lang_code:
+        return jsonify({'error': 'Text and language_code are required'}), 400
+
+    result = subtitle_service.parse_subtitle_text(text)
+    if 'error' in result:
+        return jsonify(result), 400
+
+    parsed_lines = result['lines']
+    
+    display_name = user_input_name or f"Pasted by {current_user.username}"
+    unique_name = subtitle_service.generate_unique_track_name(lesson.video.id, display_name)
+
+    track = SubtitleTrack(
+        video_id=lesson.video.id, 
+        language_code=lang_code,
+        content_json=parsed_lines,
+        uploader_id=current_user.id,
+        uploader_name=current_user.username,
+        name=unique_name,
+        note=note,
+        fetched_at=datetime.now(timezone.utc),
+        status='completed',
+        total_lines=len(parsed_lines),
+        progress=len(parsed_lines)
+    )
+    db.session.add(track)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'track_id': track.id,
+        'language_code': lang_code,
+        'line_count': len(parsed_lines),
+        'lines': parsed_lines
+    })
 
 @study_api_bp.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok", "service": "PodLearn Study", "version": "2.0.0"}), 200
+
+@study_api_bp.route('/lesson/<int:lesson_id>/settings', methods=['PATCH'])
+@jwt_required()
+def update_lesson_settings(lesson_id):
+    from app.modules.study.models import Lesson
+    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+    
+    import json
+    try:
+        current_settings = json.loads(lesson.settings_json or '{}')
+    except:
+        current_settings = {}
+    
+    # Merge new settings
+    for key, value in data.items():
+        current_settings[key] = value
+        
+    lesson.settings_json = json.dumps(current_settings)
+    
+    # Also sync explicit track fields if they are in the settings
+    if 's1_track_id' in data: lesson.s1_track_id = data['s1_track_id']
+    if 's2_track_id' in data: lesson.s2_track_id = data['s2_track_id']
+    if 's3_track_id' in data: lesson.s3_track_id = data['s3_track_id']
+
+    from app.core.extensions import db
+    db.session.commit()
+    return jsonify({'success': True, 'settings': current_settings})

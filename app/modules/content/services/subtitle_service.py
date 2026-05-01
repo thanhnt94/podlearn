@@ -258,11 +258,9 @@ def _parse_timestamp(ts):
         return int(h) * 3600 + int(m) * 60 + float(s)
     return 0
 
-def _parse_srt(filepath):
-    """Simple regex-based SRT parser."""
+def _parse_srt(content: str):
+    """Simple regex-based SRT parser from string content."""
     import re
-    with open(filepath, 'r', encoding='utf-8-sig') as f:
-        content = f.read()
     
     content = content.replace('\r\n', '\n')
     blocks = content.split('\n\n')
@@ -289,25 +287,52 @@ def _parse_srt(filepath):
 
 def parse_uploaded_subtitle(file_path, ext):
     """Parse an uploaded subtitle file (.srt or .vtt)."""
+    try:
+        with open(file_path, 'r', encoding='utf-8-sig') as f:
+            content = f.read()
+        return parse_subtitle_text(content, ext)
+    except Exception as e:
+        return {"error": "ParseError", "message": str(e)}
+
+def parse_subtitle_text(content: str, ext: str = None):
+    """Parse subtitle content string (.srt or .vtt)."""
     parsed_lines = []
     try:
+        # Auto-detect if ext not provided
+        if not ext:
+            if 'WEBVTT' in content[:100]:
+                ext = '.vtt'
+            else:
+                ext = '.srt'
+
         if ext == '.vtt':
-            for caption in webvtt.read(file_path):
-                s = caption.start_in_seconds
-                e = caption.end_in_seconds
-                parsed_lines.append({
-                    'start': round(s, 3),
-                    'end': round(e, 3),
-                    'duration': round(e - s, 3),
-                    'text': caption.text.replace('\n', ' ').strip()
-                })
+            import tempfile
+            import os
+            # webvtt library unfortunately often needs a file or a specialized stream
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.vtt', delete=False, encoding='utf-8') as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+            
+            try:
+                for caption in webvtt.read(tmp_path):
+                    s = caption.start_in_seconds
+                    e = caption.end_in_seconds
+                    parsed_lines.append({
+                        'start': round(s, 3),
+                        'end': round(e, 3),
+                        'duration': round(e - s, 3),
+                        'text': caption.text.replace('\n', ' ').strip()
+                    })
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
         elif ext == '.srt':
-            parsed_lines = _parse_srt(file_path)
+            parsed_lines = _parse_srt(content)
         else:
-            return {"error": "UnsupportedFormat", "message": "Unsupported file format"}
+            return {"error": "UnsupportedFormat", "message": "Unsupported format"}
         
         if not parsed_lines:
-            return {"error": "EmptyFile", "message": "No lines found in file"}
+            return {"error": "EmptyContent", "message": "No lines found in content"}
             
         return {"success": True, "lines": parsed_lines}
     except Exception as e:

@@ -1,33 +1,10 @@
-import React from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 
 export const SubtitleOverlay: React.FC = () => {
     const { 
-        s1Lines, s2Lines, s3Lines, aiInsights, currentTime, settings, trackIds,
-        showFurigana, analyzedWords, originalLang 
+        s1Lines, s2Lines, s3Lines, currentTime, settings, trackIds,
+        analyzedWords, originalLang
     } = usePlayerStore();
-    
-    // Find active lines for each track independently
-    const findActiveLine = (lines: any[]) => {
-        return lines.find(line => (currentTime >= line.start) && (currentTime <= line.end));
-    };
-
-    const getLineForTrack = (sid: 's1' | 's2' | 's3', lines: any[]) => {
-        if (!settings[sid].enabled) return null;
-        if (trackIds[sid] === 'ai') {
-            const ai = aiInsights.find(i => (currentTime >= i.start) && (currentTime <= i.end));
-            return ai ? { text: ai.short, isAi: true } : null;
-        }
-        return findActiveLine(lines);
-    };
-
-    const activeTracks = [
-        { id: 's1' as const, line: getLineForTrack('s1', s1Lines) },
-        { id: 's2' as const, line: getLineForTrack('s2', s2Lines) },
-        { id: 's3' as const, line: getLineForTrack('s3', s3Lines) }
-    ].filter(t => !!t.line);
-
-    if (activeTracks.length === 0) return null;
 
     const convertHexToRgba = (hex: string, opacity: number) => {
         const r = parseInt(hex.slice(1, 3), 16);
@@ -39,6 +16,7 @@ export const SubtitleOverlay: React.FC = () => {
     const renderLine = (sid: 's1' | 's2' | 's3', line: any) => {
         const s = settings[sid];
         const alignDefault = s.textAlign || 'center';
+        const isAnalyzed = sid === 's1' && originalLang === 'ja' && analyzedWords.length > 0;
         
         return (
             <div 
@@ -59,32 +37,39 @@ export const SubtitleOverlay: React.FC = () => {
                         backgroundColor: convertHexToRgba(s.bgColor, s.bgOpacity),
                         lineHeight: 1.3,
                         backdropFilter: 'blur(8px)',
-                        textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+                        textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+                        textAlign: alignDefault
                     }}
                 >
-                    {sid === 's1' && originalLang === 'ja' && showFurigana && analyzedWords.length > 0 ? (
+                    {isAnalyzed ? (
                         <div className="flex flex-wrap justify-center gap-x-1.5 gap-y-2">
-                            {analyzedWords.map((word, idx) => {
-                                const hasKanji = /[一-龠]/.test(word.surface);
-                                return (
-                                    <ruby key={idx} className="ruby-base inline-flex flex-col items-center leading-none">
-                                        <span className="ruby-text block leading-[1.1]">{word.surface}</span>
-                                        {hasKanji && word.reading && word.reading !== word.surface && (
-                                            <rt className="text-[0.45em] leading-none mb-0.5 opacity-90 select-none block" style={{ rubyPosition: 'over' }}>
-                                                {word.reading}
-                                            </rt>
-                                        )}
-                                    </ruby>
-                                );
-                            })}
+                            {analyzedWords.map((word: any, idx: number) => (
+                                <span key={idx} className="inline-block">
+                                    {word.surface}
+                                </span>
+                            ))}
                         </div>
                     ) : (
-                        line.text
+                        (line.text || '').replace(/[|/]/g, '').replace(/\s*\[[^\]]*\]/g, '')
                     )}
                 </div>
             </div>
         );
     };
+
+    const getLineForTrack = (tid: 's1' | 's2' | 's3', lines: any[]) => {
+        const trackId = trackIds[tid];
+        if (!trackId) return null;
+        return lines.find(l => l.start <= currentTime && l.end >= currentTime);
+    };
+
+    const activeTracks = [
+        { id: 's1' as const, line: getLineForTrack('s1', s1Lines) },
+        { id: 's2' as const, line: getLineForTrack('s2', s2Lines) },
+        { id: 's3' as const, line: getLineForTrack('s3', s3Lines) }
+    ].filter(t => !!t.line);
+
+    if (activeTracks.length === 0) return null;
 
     // Split into Top and Bottom groups
     const bottomGroup = activeTracks
@@ -93,7 +78,7 @@ export const SubtitleOverlay: React.FC = () => {
 
     const topGroup = activeTracks
         .filter(t => settings[t.id].position >= 50)
-        .sort((a, b) => settings[b.id].position - settings[a.id].position); // Top-most first in Flex column
+        .sort((a, b) => settings[b.id].position - settings[a.id].position);
 
     const minBottom = bottomGroup.length > 0 ? Math.min(...bottomGroup.map(t => settings[t.id].position)) : null;
     const maxTop = topGroup.length > 0 ? Math.max(...topGroup.map(t => settings[t.id].position)) : null;
@@ -102,11 +87,11 @@ export const SubtitleOverlay: React.FC = () => {
         <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden" 
              style={{ containerType: 'size' }}>
             
-            {/* Bottom Stack: Flex Col Reverse (lowest pos at bottom) */}
+            {/* Bottom Stack: Flex Col (lowest pos at bottom) */}
             {bottomGroup.length > 0 && (
                 <div 
                     className="absolute inset-x-0 flex flex-col-reverse gap-2 transition-all duration-300"
-                    style={{ bottom: `${minBottom}%` }}
+                    style={{ bottom: `${minBottom || 15}%` }}
                 >
                     {bottomGroup.map(t => renderLine(t.id, t.line))}
                 </div>

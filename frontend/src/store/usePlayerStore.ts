@@ -51,6 +51,10 @@ interface PlayerState {
   setVocabStudioOpen: (open: boolean) => void;
   activeSidebarTab: string;
   setActiveSidebarTab: (tab: string) => void;
+  timelineSub: 'transcript' | 'notes' | 'social';
+  setTimelineSub: (sub: 'transcript' | 'notes' | 'social') => void;
+  practiceSub: 'shadowing' | 'dictation' | 'mastery' | 'ai';
+  setPracticeSub: (sub: 'shadowing' | 'dictation' | 'mastery' | 'ai') => void;
   isEditingCurated: boolean;
   setEditingCurated: (editing: boolean) => void;
   draftCuratedContent: PlayerState['curatedContent'];
@@ -84,8 +88,15 @@ interface PlayerState {
     s3: number | string | null;
     ai: number | null;
   };
+  sourceTrackId: number | null;
+  setSourceTrackId: (id: number | null) => void;
+  videoGlossary: any[];
+  isEditingSegmentation: boolean;
   aiInsights: any[];
   aiStatus: string;
+  analysisSource: 'auto' | 'curated' | 'ai_pack' | 'track';
+  targetLang: string;
+  setTargetLang: (lang: string) => void;
   aiProgress: {
     processed: number;
     total: number;
@@ -117,13 +128,9 @@ interface PlayerState {
   subtitleWorker: Worker | null;
   isSeeking: boolean; 
   
-  curatedContent: {
-    overview: string;
-    grammar: string;
-    vocabulary: string;
-  };
+  curatedContent: { id: string, title: string, content: string }[];
   fetchCuratedContent: () => Promise<void>;
-  updateCuratedContent: (data: Partial<PlayerState['curatedContent']>) => Promise<void>;
+  updateCuratedContent: (data: PlayerState['curatedContent']) => Promise<void>;
   
   isNativeCCOn: boolean; 
   nativeCCLang: string;
@@ -142,12 +149,24 @@ interface PlayerState {
     furigana?: string | null,
     meanings?: string[],
     pos?: string, 
-    lemma?: string 
+    lemma?: string,
+    lemma_override?: string
   }[];
+
+  // New states for simplified workflow
+  autoSegmentationEnabled: boolean;
+  preferredDictionary: 'mazii_offline' | 'jisho' | 'google';
+  rawJsonInput: string;
+  
+  setAutoSegmentationEnabled: (enabled: boolean) => void;
+  setPreferredDictionary: (dict: PlayerState['preferredDictionary']) => void;
+  preferredSystemDictId: string | null;
+  setPreferredSystemDictId: (id: string | null) => void;
+  setRawJsonInput: (input: string) => void;
   showFurigana: boolean;
   lastAnalyzedIndex: number;
-  hasTokens: boolean;
-  isManualAnalysis: boolean;
+  useOfflineDict: boolean;
+  setUseOfflineDict: (use: boolean) => void;
   savedVocab: any[];
   
   settings: {
@@ -196,6 +215,9 @@ interface PlayerState {
   flushTrackingData: () => Promise<void>;
 
   setTrackSettings: (track: 's1' | 's2' | 's3', settings: Partial<TrackSettings>) => void;
+  setAnalysisSource: (source: 'auto' | 'curated' | 'ai_pack' | 'track', trackId?: number | null) => void;
+  fetchVideoGlossary: () => Promise<void>;
+  toggleEditingSegmentation: (val?: boolean) => void;
   setAvailableTracks: (tracks: any[]) => void;
   setTrackIds: (ids: Partial<PlayerState['trackIds']>) => void;
   setAbLoop: (loop: Partial<PlayerState['abLoop']>) => void;
@@ -206,6 +228,10 @@ interface PlayerState {
   appendNote: (note: Note) => void;
   deleteNote: (id: number) => Promise<void>;
   updateNote: (id: number, content: string) => Promise<void>;
+  importAnalysis: (json: any) => Promise<void>;
+  importAIPack: (srtFile: File, jsonFile: File, langCode: string, name: string) => Promise<any>;
+  importDictionary: (json: any) => Promise<void>;
+  importNotes: (notes: Note[]) => Promise<void>;
   fetchLessonData: (id: number) => Promise<void>;
   completeLesson: () => Promise<void>;
   fetchNotes: () => Promise<void>;
@@ -226,6 +252,16 @@ interface PlayerState {
   checkScanStatus: (id?: number) => Promise<void>;
   scanFullLesson: (priority: string) => Promise<void>;
   
+  // System Dictionary Actions
+  globalDictionaries: any[];
+  setGlobalDictionaries: (dicts: any[]) => void;
+  fetchSystemDictionaries: () => Promise<void>;
+  createSystemDictionary: (name: string, src: string, target: string) => Promise<any>;
+  fetchDictionaryItems: (dictId: string) => Promise<any[]>;
+  importToSystemDictionary: (dictId: string, jsonInput: any) => Promise<void>;
+  updateGlossaryItem: (itemId: number, data: any) => Promise<void>;
+  deleteGlossaryItem: (itemId: number, dictId: string) => Promise<void>;
+
   saveSettings: () => Promise<void>;
   saveAsDefaultPreferences: () => Promise<void>;
   skipNextSentence: () => void;
@@ -248,6 +284,10 @@ interface PlayerState {
   setHandsFreeProgress: (progress: number, step: string) => void;
   setTTSTrackSource: (source: 's1' | 's2' | 's3') => void;
   generateHandsFreeMixed: () => void;
+
+  // New Management UI State
+  showDictManager: boolean;
+  setShowDictManager: (show: boolean) => void;
 }
 
 const defaultTrackSettings = (fontSize: number, color: string, opacity: number, position: number): TrackSettings => ({
@@ -265,7 +305,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   subtitleWorker: null,
   isSeeking: false,
 
-  curatedContent: { overview: '', grammar: '', vocabulary: '' },
+  curatedContent: [],
   fetchCuratedContent: async () => {
     const { videoId } = get();
     if (!videoId) return;
@@ -275,11 +315,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     } catch (e) {}
   },
   updateCuratedContent: async (data) => {
-    const { videoId, curatedContent } = get();
+    const { videoId } = get();
     if (!videoId) return;
     try {
-        await axios.patch(`/api/content/curated/${videoId}`, data);
-        set({ curatedContent: { ...curatedContent, ...data } });
+        // 'data' should be the full array of sections
+        await axios.patch(`/api/content/curated/${videoId}`, { sections: data });
+        set({ curatedContent: data as any });
     } catch (e) { throw e; }
   },
 
@@ -305,21 +346,117 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   sessionShadowingCount: 0,
   sessionShadowingSeconds: 0,
   analyzedWords: [],
+  videoGlossary: [],
+  sourceTrackId: null,
+  setSourceTrackId: (id) => set({ sourceTrackId: id }),
+  isEditingSegmentation: false,
+  analysisSource: 'auto',
+  targetLang: 'vi',
+  setTargetLang: (lang) => set({ targetLang: lang }),
   showFurigana: true,
   lastAnalyzedIndex: -1,
   hasTokens: false,
+  
+  globalDictionaries: [],
+  setGlobalDictionaries: (dicts) => set({ globalDictionaries: dicts }),
+
+  fetchSystemDictionaries: async () => {
+    try {
+      const res = await axios.get('/api/study/dictionaries/system');
+      set({ globalDictionaries: res.data });
+    } catch (e) {
+      console.error("Failed to fetch system dictionaries", e);
+    }
+  },
+
+  createSystemDictionary: async (name, src, target) => {
+    try {
+      const res = await axios.post('/api/study/dictionaries/system', { name, src, target });
+      get().fetchSystemDictionaries();
+      return res.data;
+    } catch (e) {
+      console.error("Failed to create system dictionary", e);
+      throw e;
+    }
+  },
+
+  fetchDictionaryItems: async (dictPath) => {
+    try {
+      const res = await axios.get(`/api/study/dictionaries/items?id=${encodeURIComponent(dictPath)}`);
+      return res.data;
+    } catch (e) {
+      console.error("Failed to fetch dictionary items", e);
+      return [];
+    }
+  },
+
+  importToSystemDictionary: async (dictPath, jsonInput) => {
+    let dataToSubmit = [];
+    try {
+      if (typeof jsonInput !== 'string') {
+        dataToSubmit = Array.isArray(jsonInput) ? jsonInput : [jsonInput];
+      } else {
+        const trimmed = jsonInput.trim();
+        if (!trimmed) return;
+        try {
+          const parsed = JSON.parse(trimmed);
+          dataToSubmit = Array.isArray(parsed) ? parsed : [parsed];
+        } catch (e) {
+          const wrapped = JSON.parse(`[${trimmed}]`);
+          dataToSubmit = Array.isArray(wrapped) ? wrapped : [wrapped];
+        }
+      }
+      await axios.post(`/api/study/dictionaries/import`, { id: dictPath, items: dataToSubmit });
+      get().fetchSystemDictionaries();
+    } catch (e) {
+      console.error("Import to system dictionary failed", e);
+      throw e;
+    }
+  },
+
+  updateGlossaryItem: async (_itemId, data) => {
+    try {
+      // data includes dict_id (path), item_id, term, reading, meaning
+      await axios.patch(`/api/study/glossary/item`, data);
+    } catch (e) {
+      console.error("Update glossary item failed", e);
+      throw e;
+    }
+  },
+
+  deleteGlossaryItem: async (itemId, dictId) => {
+    try {
+      await axios.delete(`/api/study/glossary/item`, { data: { item_id: itemId, dict_id: dictId } });
+    } catch (e) {
+      console.error("Delete glossary item failed", e);
+      throw e;
+    }
+  },
+
+  showDictManager: false,
+  setShowDictManager: (show) => set({ showDictManager: show }),
   isManualAnalysis: false,
+  useOfflineDict: true,
   savedVocab: [],
   isVocabStudioOpen: false,
+
+  autoSegmentationEnabled: true,
+  preferredDictionary: 'mazii_offline',
+  preferredSystemDictId: null,
+  setPreferredSystemDictId: (id) => set({ preferredSystemDictId: id }),
+  rawJsonInput: '',
+
   setVocabStudioOpen: (open) => set({ isVocabStudioOpen: open }),
   activeSidebarTab: 'Overview',
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
+  timelineSub: 'transcript',
+  setTimelineSub: (sub) => set({ timelineSub: sub }),
+  practiceSub: 'shadowing',
+  setPracticeSub: (sub) => set({ practiceSub: sub }),
   isEditingCurated: false,
   setEditingCurated: (editing) => set({ isEditingCurated: editing }),
-  draftCuratedContent: { overview: '', grammar: '', vocabulary: '' },
-  setDraftCuratedContent: (data) => set((state) => ({ 
-    draftCuratedContent: { ...state.draftCuratedContent, ...data } 
-  })),
+  draftCuratedContent: [],
+  setDraftCuratedContent: (data) => set({ draftCuratedContent: data as any }),
   lessonId: null,
   lessonTitle: null,
   videoId: null,
@@ -527,6 +664,97 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setHandsFreeProgress: (progress, step) => set({ handsFreeProgress: progress, handsFreeStep: step }),
   setTTSTrackSource: (source) => set({ ttsTrackSource: source }),
   generateHandsFreeMixed: () => set({ handsFreeAudioUrl: null, handsFreeTimeline: null, handsFreeTaskId: null, handsFreeStatus: 'idle' }),
+    importAnalysis: async (json: any) => {
+        const { lessonId, checkScanStatus } = get();
+        if (!lessonId) return;
+        try {
+            await axios.post(`/api/study/lesson/${lessonId}/analysis/import`, json);
+            await checkScanStatus();
+            // Refresh current line analysis if active
+            const { activeLineIndex, subtitles, originalLang } = get();
+            if (activeLineIndex !== -1 && subtitles[activeLineIndex]) {
+                await get().fetchAnalyzedWords(subtitles[activeLineIndex].text, originalLang || 'ja');
+            }
+        } catch (err) {
+            console.error("Analysis import failed:", err);
+            throw err;
+        }
+    },
+
+    importAIPack: async (srtFile: File, jsonFile: File, langCode: string, name: string) => {
+        const { lessonId, fetchAvailableTracks, checkScanStatus } = get();
+        if (!lessonId) return;
+        try {
+            const formData = new FormData();
+            formData.append('srt_file', srtFile);
+            formData.append('json_file', jsonFile);
+            formData.append('language_code', langCode);
+            formData.append('name', name);
+
+            const res = await axios.post(`/api/study/lesson/${lessonId}/import-ai-pack`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            
+            await fetchAvailableTracks();
+            await checkScanStatus();
+            // Refresh current line analysis if active
+            const { activeLineIndex, subtitles, originalLang } = get();
+            if (activeLineIndex !== -1 && subtitles[activeLineIndex]) {
+                await get().fetchAnalyzedWords(subtitles[activeLineIndex].text, originalLang || 'ja');
+            }
+            return res.data;
+        } catch (err) {
+            console.error("AI Pack import failed:", err);
+            throw err;
+        }
+    },
+
+    importDictionary: async (jsonInput: any) => {
+        const { lessonId, fetchAnalyzedWords, originalLang } = get();
+        if (!lessonId) return;
+        
+        let dataToSubmmit: any[] = [];
+        
+        try {
+            // If it's already an array or object from a file
+            if (typeof jsonInput !== 'string') {
+                dataToSubmmit = Array.isArray(jsonInput) ? jsonInput : [jsonInput];
+            } else {
+                // If it's a string from a paste area
+                const trimmed = jsonInput.trim();
+                if (!trimmed) return;
+                
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    dataToSubmmit = Array.isArray(parsed) ? parsed : [parsed];
+                } catch (parseErr) {
+                    // Try to fix missing brackets if it's a list of objects like {..},{..}
+                    try {
+                        const wrapped = JSON.parse(`[${trimmed}]`);
+                        dataToSubmmit = Array.isArray(wrapped) ? wrapped : [wrapped];
+                    } catch (innerErr) {
+                        console.error("Failed to parse dictionary JSON:", trimmed);
+                        throw new Error("Định dạng JSON không hợp lệ. Hãy kiểm tra lại dấu ngoặc.");
+                    }
+                }
+            }
+
+            await axios.post(`/api/study/lesson/${lessonId}/dictionary/import`, {
+                items: dataToSubmmit,
+                lang: originalLang || 'ja',
+                target_lang: get().targetLang || 'vi'
+            });
+            
+            // Refresh analysis for current line to show new definitions
+            const { activeLineIndex, subtitles } = get();
+            if (activeLineIndex !== -1 && subtitles[activeLineIndex]) {
+                await fetchAnalyzedWords(subtitles[activeLineIndex].text, originalLang || 'ja');
+            }
+        } catch (err: any) {
+            console.error("Dictionary import failed:", err);
+            throw err;
+        }
+    },
   setAbLoop: (newLoop) => set((state) => ({ abLoop: { ...state.abLoop, ...newLoop } })),
   setNoteSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, notes: { ...state.settings.notes, ...newSettings } } })),
   setSyncOffset: (offset) => set((state) => ({ settings: { ...state.settings, syncOffset: offset } })),
@@ -534,8 +762,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setLessonData: (data) => set((state) => {
     let newSettings = { ...state.settings };
     if (data.settings) newSettings = { ...newSettings, ...data.settings };
+    
+    // Extract vocab-specific settings if they exist in the settings object
+    const vocabSettings: any = {};
+    if (data.settings?.sourceTrackId !== undefined) vocabSettings.sourceTrackId = data.settings.sourceTrackId;
+    if (data.settings?.autoSegmentationEnabled !== undefined) vocabSettings.autoSegmentationEnabled = data.settings.autoSegmentationEnabled;
+    if (data.settings?.preferredDictionary !== undefined) vocabSettings.preferredDictionary = data.settings.preferredDictionary;
+    if (data.settings?.useOfflineDict !== undefined) vocabSettings.useOfflineDict = data.settings.useOfflineDict;
+    if (data.settings?.analysisSource !== undefined) vocabSettings.analysisSource = data.settings.analysisSource;
+
     return { 
         ...state,
+        ...vocabSettings,
         lessonId: data.lesson_id || data.id, 
         videoId: data.video_id, 
         lessonTitle: data.title,
@@ -595,6 +833,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         }
     } catch (e) {}
   },
+  importNotes: async (notesList) => {
+    const { lessonId, notes } = get();
+    if (!lessonId || !notesList.length) return;
+    try {
+        const res = await axios.post(`/api/study/lesson/${lessonId}/notes/batch`, { notes: notesList });
+        if (res.data.success) {
+            set({ 
+                notes: [...notes, ...res.data.notes].sort((a, b) => a.timestamp - b.timestamp) 
+            });
+        }
+    } catch (err) { throw err; }
+  },
   deleteNote: async (noteId: number) => {
     const { notes } = get();
     try {
@@ -643,7 +893,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleFurigana: () => set(s => ({ showFurigana: !s.showFurigana })),
   fetchAnalyzedWords: async (text, lang) => {
       try {
-          const res = await axios.post('/api/study/vocab/analyze', { text, lang });
+           const { 
+               analysisSource, sourceTrackId, lessonId, activeLineIndex,
+               autoSegmentationEnabled, useOfflineDict, targetLang,
+               preferredSystemDictId 
+           } = get();
+           const res = await axios.post('/api/study/vocab/analyze', { 
+               text, 
+               original_lang: lang,
+               target_lang: targetLang,
+               dict_id: preferredSystemDictId,
+               lesson_id: lessonId,
+              line_index: activeLineIndex,
+              source: analysisSource,
+              track_id: sourceTrackId,
+              auto_segmentation: autoSegmentationEnabled,
+              use_offline: useOfflineDict
+          });
           set({ analyzedWords: res.data });
       } catch (e) {}
   },
@@ -651,8 +917,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       const lid = id || get().lessonId;
       if (!lid) return;
       try {
-          const res = await axios.get(`/api/study/vocab/scan-status/${lid}`);
-          set({ hasTokens: res.data.has_tokens });
+          await axios.get(`/api/study/vocab/scan-status/${lid}`);
+          // We don't need hasTokens anymore, the UI logic was changed
       } catch (e) {}
   },
   scanFullLesson: async (priority) => {
@@ -666,7 +932,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
               is_first_batch: true,
               priority 
           });
-          set({ hasTokens: true });
       } catch (e) {}
   },
   saveSettings: async () => {},
@@ -687,5 +952,45 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   mergeSubtitleLine: async () => {},
   deleteSubtitleLine: async () => {},
   shiftSubtitleTrack: () => {},
-  saveTrackShifts: async () => {}
+  saveTrackShifts: async () => {},
+  setAnalysisSource: (source, trackId = null) => {
+    const { s1Lines, s2Lines, s3Lines } = get();
+    let newSubtitles = s1Lines;
+    if (trackId) {
+        // Find which lines array corresponds to this trackId
+        if (trackId === (get().trackIds.s1)) newSubtitles = s1Lines;
+        else if (trackId === (get().trackIds.s2)) newSubtitles = s2Lines;
+        else if (trackId === (get().trackIds.s3)) newSubtitles = s3Lines;
+    }
+    
+    set({ 
+        analysisSource: source, 
+        sourceTrackId: trackId,
+        subtitles: newSubtitles
+    });
+    
+    // Refresh analysis if active
+    const { activeLineIndex, originalLang } = get();
+    if (activeLineIndex !== -1 && newSubtitles[activeLineIndex]) {
+        get().fetchAnalyzedWords(newSubtitles[activeLineIndex].text, originalLang || 'ja');
+    }
+  },
+  fetchVideoGlossary: async () => {
+        const { lessonId } = get();
+        if (!lessonId) return;
+        try {
+            const response = await axios.get(`/api/study/video/glossary/${lessonId}`);
+            set({ videoGlossary: response.data.glossary || [] });
+        } catch (err) { console.error("Failed to fetch glossary", err); }
+    },
+
+    toggleEditingSegmentation: (val) => {
+        set((state) => ({ 
+            isEditingSegmentation: val !== undefined ? val : !state.isEditingSegmentation 
+        }));
+    },
+    setAutoSegmentationEnabled: (enabled) => set({ autoSegmentationEnabled: enabled }),
+    setPreferredDictionary: (dict) => set({ preferredDictionary: dict }),
+    setUseOfflineDict: (use) => set({ useOfflineDict: use }),
+    setRawJsonInput: (input) => set({ rawJsonInput: input }),
 }));

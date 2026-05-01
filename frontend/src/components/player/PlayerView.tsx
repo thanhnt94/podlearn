@@ -10,10 +10,11 @@ import { PodcastOverlay } from './PodcastOverlay';
 import { SidebarContainer } from './sidebar/SidebarContainer';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { useAppStore } from '../../store/useAppStore';
-import { SettingsDrawer } from '../layout/SettingsDrawer';
+import { SettingsDrawer, type MainTab } from '../layout/SettingsDrawer';
 import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 import { LearningFocusBar } from './LearningFocusBar';
 import { VocabStudio } from './VocabStudio';
+import { DictManagerStudio } from './DictManagerStudio';
 import { ExportModal } from './ExportModal';
 import { useSwipe } from '../../hooks/useSwipe';
 
@@ -26,6 +27,7 @@ interface PlayerViewProps {
 export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false }) => {
   const navigate = useNavigate();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<MainTab>('display');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const isSyncStudioOpen = initialStudioMode;
@@ -41,7 +43,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     isVocabStudioOpen, setVocabStudioOpen,
     requestSeek, currentTime,
     activeSidebarTab, isEditingCurated, setEditingCurated,
-    curatedContent, draftCuratedContent, setDraftCuratedContent, updateCuratedContent
+    curatedContent, draftCuratedContent, setDraftCuratedContent, updateCuratedContent,
+    timelineSub, notes, comments,
+    showDictManager, setShowDictManager
   } = usePlayerStore();
 
   const { user } = useAppStore();
@@ -290,7 +294,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                   >
                       <Scissors size={20} />
                   </button>
-                  <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-slate-400 hover:text-white transition-colors">
+                  <button onClick={() => { setSettingsTab('display'); setIsSettingsOpen(true); }} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <Settings size={20} />
                   </button>
               </div>
@@ -332,13 +336,106 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           <div className="relative p-2.5 border-t border-white/20 bg-[#0f172a] z-50 shrink-0">
               <div className="flex items-center justify-between gap-4">
                   {activeSidebarTab !== 'Overview' && (
-                    <div className="flex flex-col gap-0.5 px-1 min-w-[70px]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-mono text-sky-400 font-black">{progressLine}</span>
-                          <span className="text-[10px] text-slate-600 font-black">/</span>
-                          <span className="text-[10px] text-slate-400 font-black">{totalLines}</span>
-                        </div>
-                        <div className="text-[10px] font-black text-sky-500/40 italic">{progressPercent}% DONE</div>
+                    <div className="flex items-center justify-between gap-4 flex-1">
+                        {/* ─── TAB SPECIFIC FOOTER CONTENT ─── */}
+                        {activeSidebarTab === 'TimeLine' && timelineSub === 'notes' ? (
+                            // NOTES FOOTER: Export / Import
+                            <div className="flex-1 flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Personal Notes</span>
+                                    <span className="text-[9px] text-slate-500 font-bold">{notes.length} items saved</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="file" 
+                                        id="import-notes-input" 
+                                        className="hidden" 
+                                        accept=".json"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            const reader = new FileReader();
+                                            reader.onload = async (event) => {
+                                                try {
+                                                    const json = JSON.parse(event.target?.result as string);
+                                                    if (Array.isArray(json)) {
+                                                        await usePlayerStore.getState().importNotes(json);
+                                                        alert("Đã nhập thành công!");
+                                                    } else {
+                                                        alert("File không hợp lệ!");
+                                                    }
+                                                } catch (err) {
+                                                    alert("Lỗi khi đọc file!");
+                                                }
+                                            };
+                                            reader.readAsText(file);
+                                        }}
+                                    />
+                                    <button 
+                                        onClick={() => document.getElementById('import-notes-input')?.click()}
+                                        className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-white/5 rounded-xl transition-all group"
+                                    >
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest group-hover:text-white">Import</span>
+                                        <RefreshCw size={12} className="text-slate-500" />
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(notes, null, 2));
+                                            const downloadAnchorNode = document.createElement('a');
+                                            downloadAnchorNode.setAttribute("href", dataStr);
+                                            downloadAnchorNode.setAttribute("download", `notes_${lessonId}_${Date.now()}.json`);
+                                            document.body.appendChild(downloadAnchorNode);
+                                            downloadAnchorNode.click();
+                                            downloadAnchorNode.remove();
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl transition-all group"
+                                    >
+                                        <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest group-hover:text-emerald-300">Export Notes</span>
+                                        <Scissors size={12} className="text-emerald-500 rotate-90" />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : activeSidebarTab === 'TimeLine' && timelineSub === 'social' ? (
+                            // COMMUNITY FOOTER: Stats
+                            <div className="flex-1 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-pink-400 font-black uppercase tracking-widest">Community</span>
+                                        <span className="text-[9px] text-slate-500 font-bold">{comments.length} total messages</span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="px-3 py-1 bg-pink-500/10 border border-pink-500/20 rounded-lg">
+                                        <span className="text-[9px] font-black text-pink-400 uppercase tracking-widest">LIVE</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            // DEFAULT / TRANSCRIPT FOOTER: Progress + Switcher
+                            <>
+                                <div className="flex flex-col gap-0.5 px-1 min-w-[70px]">
+                                    <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-mono text-sky-400 font-black">{progressLine}</span>
+                                    <span className="text-[10px] text-slate-600 font-black">/</span>
+                                    <span className="text-[10px] text-slate-400 font-black">{totalLines}</span>
+                                    </div>
+                                    <div className="text-[10px] font-black text-sky-500/40 italic">{progressPercent}% DONE</div>
+                                </div>
+
+                                <div className="flex-1 flex justify-end">
+                                    <button 
+                                        onClick={() => {
+                                            setSettingsTab('library');
+                                            setIsSettingsOpen(true);
+                                        }}
+                                        className="group flex items-center gap-2 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-xl transition-all"
+                                    >
+                                        <span className="text-[9px] font-black text-sky-400 uppercase tracking-widest group-hover:text-sky-300">Switch Subtitles</span>
+                                        <MoveHorizontal size={12} className="text-sky-500" />
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                   )}
                   
@@ -378,7 +475,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
       <HandsFreeEngine />
       <VocabStudio isOpen={isVocabStudioOpen} onClose={() => setVocabStudioOpen(false)} />
-      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SettingsDrawer 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        initialTab={settingsTab}
+      />
+      <DictManagerStudio isOpen={showDictManager} onClose={() => setShowDictManager(false)} />
       <AnimatePresence>
         {isSyncStudioOpen && (
           <SubtitleSyncStudio isOpen={isSyncStudioOpen} onClose={() => navigate(`/player/lesson/${lessonId}`)} />

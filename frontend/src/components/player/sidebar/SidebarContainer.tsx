@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
     LayoutDashboard, 
     History, 
@@ -30,11 +30,14 @@ import { usePlayerStore } from '../../../store/usePlayerStore';
 type MainTab = 'Overview' | 'TimeLine' | 'Practice' | 'Vocab';
 
 export const SidebarContainer: React.FC = () => {
-    const { activeSidebarTab: activeTab, setActiveSidebarTab: setActiveTab } = usePlayerStore();
-    
-    // Sub-tab states
-    const [timelineSub, setTimelineSub] = useState<'transcript' | 'notes' | 'social'>('transcript');
-    const [practiceSub, setPracticeSub] = useState<'shadowing' | 'dictation' | 'mastery' | 'ai'>('shadowing');
+    const { 
+        activeSidebarTab: activeTab, 
+        setActiveSidebarTab: setActiveTab,
+        timelineSub,
+        setTimelineSub,
+        practiceSub,
+        setPracticeSub
+    } = usePlayerStore();
 
     const mainTabs = [
         { id: 'Overview', label: 'Overview', icon: LayoutDashboard },
@@ -160,7 +163,7 @@ const SubTabButton: React.FC<{ active: boolean; onClick: () => void; label: stri
     return (
         <button
             onClick={onClick}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${
                 active ? `${colors[color]} shadow-lg shadow-${color}-500/10` : 'bg-transparent border-white/5 text-slate-500 hover:border-white/10 hover:text-slate-300'
             }`}
         >

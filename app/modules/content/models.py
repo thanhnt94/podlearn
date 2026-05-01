@@ -53,6 +53,9 @@ class Video(db.Model):
     curated_overview = db.Column(db.Text, nullable=True)
     curated_grammar = db.Column(db.Text, nullable=True)
     curated_vocabulary = db.Column(db.Text, nullable=True)
+    
+    # Dynamic sections: [{"id": "...", "title": "...", "content": "..."}, ...]
+    curated_sections = db.Column(db.JSON, nullable=True)
 
     owner = db.relationship('User', backref='uploaded_videos')
     playlists = db.relationship('Playlist', secondary=playlist_items, back_populates='videos')

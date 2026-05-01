@@ -1,854 +1,461 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Book, Plus, Check, Search, Loader2, Activity, Globe, Languages, ChevronDown, Trash2, ChevronLeft, ChevronRight, Scissors, X, RotateCcw, GripVertical, Zap, Layout } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+    Plus, Check, Activity, Globe, Languages, 
+    RotateCcw, Book, ChevronDown,
+    BarChart3, AlertCircle, Clock
+} from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 
-interface AnalyzedVocab {
-    id: string; // STABLE UNIQUE ID for Reorder
-    original: string;
-    lemma: string;
-    reading: string;
-    pos: string;
-    meanings: string[];
-    source?: string;
-    timestamp: number;
-    surface?: string;
-    definition?: string;
-}
-
-interface SavedVocab {
-    item_id: number;
-    term: string;
-    definition: string;
-    reading: string;
-    source: string;
-    frequency?: number;
-}
-
-type DictPriority = 'jamdict' | 'mazii_online' | 'mazii_offline' | 'javidict' | 'suge' | 'edit_segments';
-
-const DICT_OPTIONS: { value: DictPriority; label: string; desc: string }[] = [
-    { value: 'mazii_offline', label: 'MAZII OFFLINE (VN)', desc: 'Vietnamese (285k terms)' },
-    { value: 'javidict', label: 'JAVIDICT (VN)', desc: 'Vietnamese (80k terms)' },
-    { value: 'suge', label: 'SUGE DICT (VN)', desc: 'Vietnamese (212k terms)' },
-    { value: 'jamdict', label: 'JAMDICT (EN)', desc: 'English - Local' },
-    { value: 'edit_segments', label: '🛠️ EDIT SEGMENTATION', desc: 'Control how sentences are split' }
-];
-
-// Helper to generate a session-stable semi-unique ID
-const generateId = (lemma: string, idx: number) => `${lemma}_${idx}_${Math.random().toString(36).substr(2, 9)}`;
 
 export const VocabPanel: React.FC = () => {
     const { 
-        lessonId, s1Lines, activeLineIndex, requestSeek, 
-        setPlaying, setLockedPaused, setSeeking,
-        appendNote, fetchNotes, setVocabStudioOpen
+        lessonId, activeLineIndex, subtitles,
+        appendNote, fetchNotes,
+        sourceTrackId, setSourceTrackId, analysisSource,
+        availableTracks, fetchVideoGlossary,
+        analyzedWords, fetchAnalyzedWords,
+        showFurigana, toggleFurigana,
+        autoSegmentationEnabled, setAutoSegmentationEnabled,
+        useOfflineDict,
+        targetLang, setTargetLang,
+        preferredSystemDictId, setPreferredSystemDictId,
+        globalDictionaries,
+        setAnalysisSource
     } = usePlayerStore();
     
-    // States
-    const [savedVocab, setSavedVocab] = useState<SavedVocab[]>([]);
-    const [dynamicVocab, setDynamicVocab] = useState<AnalyzedVocab[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [newTerm, setNewTerm] = useState('');
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [dictPriority, setDictPriority] = useState<DictPriority>('mazii_offline');
-    const [activeSubTab, setActiveSubTab] = useState<'live' | 'analysis' | 'all'>('live');
-    const [analysisData, setAnalysisData] = useState<any[]>([]);
+    // UI State
+    const [activeTab, setActiveTab] = useState<'track' | 'live' | 'stats'>('track');
     const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
-    const [isScanning, setIsScanning] = useState(false);
-    const currentLineStartRef = useRef<number>(0);
+    const [isSaving, setIsSaving] = useState(false);
 
-    // Drag-and-Drop Optimization
-    const [localVocab, setLocalVocab] = useState<AnalyzedVocab[]>([]);
-    const isReorderingRef = useRef(false);
-    const currentTextRef = useRef<string>('');
-    const hasPausedOnModeEntry = useRef(false);
-    const abortControllerRef = useRef<AbortController | null>(null);
-
-    // Auto-pause only ONCE when entering Segmentation Editor
-    useEffect(() => {
-        if (dictPriority === 'edit_segments') {
-            if (!hasPausedOnModeEntry.current) {
-                setPlaying(false);
-                hasPausedOnModeEntry.current = true;
-            }
-        } else {
-            hasPausedOnModeEntry.current = false;
-            setLockedPaused(false);
-        }
-    }, [dictPriority, setPlaying, setLockedPaused]);
-
-    // Sync with Subtitles
-    useEffect(() => {
-        const line = s1Lines[activeLineIndex];
-        
-        // IMMEDIATE CLEANUP on Nav to prevent "stalling" visuals
-        setDynamicVocab([]);
-        if (!isReorderingRef.current) setLocalVocab([]);
-
-        if (line && line.text) {
-            currentLineStartRef.current = line.start;
-            analyzeSentence(line.text, dictPriority);
-        } else {
-            setDynamicVocab([]);
-            setLocalVocab([]);
-            currentTextRef.current = '';
-            // Don't reset ref if we're just analyzing
-        }
-
-        // Cleanup previous request if it's still running
-        return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-            }
-        };
-    }, [activeLineIndex, s1Lines, dictPriority]);
+    const { 
+        setShowDictManager,
+        fetchSystemDictionaries
+    } = usePlayerStore();
 
     useEffect(() => {
-        fetchSavedVocab();
-        fetchAnalysis();
-    }, [lessonId, dictPriority]);
+        fetchVideoGlossary();
+        fetchSystemDictionaries();
+    }, [lessonId]);
 
-    // DEBOUNCED SAVE for Reordering
-    useEffect(() => {
-        if (!isReorderingRef.current || localVocab.length === 0) return;
 
-        const timer = setTimeout(async () => {
-            console.log("Syncing reordered tokens to server...");
-            const tokens = localVocab.map(v => v.lemma);
-            await saveTokens(tokens);
-            isReorderingRef.current = false;
-        }, 1000);
-
-        return () => clearTimeout(timer);
-    }, [localVocab]);
-
-    const analyzeSentence = async (text: string, priority: string) => {
-        // Cancel any existing request
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-        abortControllerRef.current = new AbortController();
-
-        currentTextRef.current = text;
-        setIsAnalyzing(true);
-
+    const handleApplySettings = async () => {
+        setIsSaving(true);
         try {
-            const response = await axios.post('/api/study/vocab/analyze', { 
-                text, 
-                priority: priority === 'edit_segments' ? 'mazii_offline' : priority,
-                lesson_id: lessonId,
-                line_index: activeLineIndex,
-                timestamp: currentLineStartRef.current
-            }, {
-                signal: abortControllerRef.current.signal
+            // Save settings to database
+            await axios.patch(`/api/study/lesson/${lessonId}/settings`, {
+                sourceTrackId,
+                autoSegmentationEnabled,
+                useOfflineDict,
+                analysisSource
             });
-            
-            if (text !== currentTextRef.current) return;
-            
-            // Assign Stable IDs and TIMESTAMPS to Incoming Data
-            const stableData: AnalyzedVocab[] = response.data.map((item: any, idx: number) => ({
-                ...item,
-                id: generateId(item.lemma, idx),
-                timestamp: currentLineStartRef.current
-            }));
 
-            setDynamicVocab(stableData);
-            
-            // Sync local state for DND if not currently reordering
-            if (!isReorderingRef.current) {
-                setLocalVocab(stableData);
+            // Trigger analysis for current line if active
+            if (activeLineIndex !== -1) {
+                const currentText = subtitles[activeLineIndex]?.text || '';
+                const selectedTrack = availableTracks.find(t => t.id === sourceTrackId);
+                const srcLang = selectedTrack?.language_code || 'ja';
+                await fetchAnalyzedWords(currentText, srcLang);
             }
-        } catch (err: any) {
-            if (err.name === 'CanceledError' || axios.isCancel(err)) {
-                // Ignore cancelation
-            } else {
-                console.error("Analysis failed", err);
-            }
+            // Switch to Live Tab after saving
+            setActiveTab('live');
+        } catch (err) {
+            console.error("Failed to save settings:", err);
         } finally {
-            // Only stop analyzing if this was the latest text
-            if (text === currentTextRef.current) {
-                setIsAnalyzing(false);
-            }
+            setIsSaving(false);
         }
     };
 
-    const fetchSavedVocab = async () => {
-        if (!lessonId) return;
+    const handleSaveToVocab = async (item: any) => {
         try {
-            const response = await axios.get(`/api/study/vocab/list/${lessonId}`, {
-                params: { priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority }
-            });
-            setSavedVocab(response.data.vocab || []);
-        } catch (err) {
-            console.error("Failed to fetch saved vocab");
-        }
-    };
-
-    const handleRemoveTerm = async (term: string) => {
-        if (!lessonId) return;
-        try {
-            await axios.delete('/api/study/vocab/remove', {
-                data: { lesson_id: lessonId, term }
-            });
-            fetchSavedVocab();
-        } catch (err) {
-            console.error("Removal failed");
-        }
-    };
-
-    const handleSaveToVocab = async (item: AnalyzedVocab) => {
-        const noteTimestamp = item.timestamp || 0;
-
-        try {
+            const exampleText = (item.original || subtitles[activeLineIndex]?.text || '')
+                .replace(/[|/]/g, '')
+                .replace(/\s*\[[^\]]*\]/g, '');
+                
+            const term = item.lemma || item.surface || item.term || item.word;
+            
             const response = await axios.post(`/api/study/vocab/add`, {
                 lesson_id: lessonId,
-                term: item.lemma,
+                term: term,
                 reading: item.reading,
-                definition: Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings,
-                example: item.original,
-                timestamp: noteTimestamp
+                definition: Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning),
+                example: exampleText,
+                timestamp: item.timestamp || 0
             });
-            
-            fetchSavedVocab();
             
             if (response.data.note_id) {
                 const newNote = {
                     id: response.data.note_id,
-                    timestamp: noteTimestamp,
-                    content: `**${item.lemma}**${item.reading ? ` [${item.reading}]` : ''}\n${Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}`,
+                    timestamp: item.timestamp || 0,
+                    content: `**${term}**${item.reading ? ` [${item.reading}]` : ''}\n${Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning)}\n\n*${exampleText}*`,
                     created_at: new Date().toISOString()
                 };
-                appendNote(newNote); // Use hook function
-                
-                // Track locally that we added this to show the V icon
-                setJustAdded(prev => new Set(prev).add(item.id));
+                appendNote(newNote);
+                setJustAdded(prev => new Set(prev).add(term));
             }
-            fetchNotes(); // Use hook function
-        } catch (err) {
-            console.error("Save failed", err);
-        }
+            fetchNotes();
+        } catch (err) {}
     };
 
-    const handleNextLine = () => {
-        if (activeLineIndex < s1Lines.length - 1) {
-            const nextIdx = activeLineIndex + 1;
-            const nextLine = s1Lines[nextIdx];
-            if (nextLine) {
-                // MODIFIED: "Buffered Preview" Nav (Play then Pause after 0.2s)
-                if (dictPriority === 'edit_segments') {
-                    setLockedPaused(false); // Unblock
-                    setPlaying(true); // Start playing
-                    requestSeek(nextLine.start + 0.1, nextIdx); // Seek to new time WITH 0.1s OFFSET
-                    
-                    // After 0.5s, auto-pause and re-lock
-                    setTimeout(() => {
-                        setPlaying(false);
-                        setLockedPaused(true);
-                        setSeeking(false); // Release transport lock
-                    }, 500);
-                } else {
-                    requestSeek(nextLine.start);
-                }
-            }
-        }
-    };
-
-    const handlePrevLine = () => {
-        if (activeLineIndex > 0) {
-            const prevIdx = activeLineIndex - 1;
-            const prevLine = s1Lines[prevIdx];
-            if (prevLine) {
-                if (dictPriority === 'edit_segments') {
-                    setLockedPaused(false);
-                    setPlaying(true);
-                    requestSeek(prevLine.start + 0.1, prevIdx);
-                    
-                    setTimeout(() => {
-                        setPlaying(false);
-                        setLockedPaused(true);
-                        setSeeking(false);
-                    }, 500);
-                } else {
-                    requestSeek(prevLine.start);
-                }
-            }
-        }
-    };
-
-    // SEGMENTATION CONTROL ACTIONS
-    const handleAddSegment = async (token: string) => {
-        if (!lessonId || !token.trim()) return;
-        const currentTokens = localVocab.map(v => v.lemma);
-        if (currentTokens.includes(token)) return;
+    // Statistics Calculation - aggregate from all subtitles
+    const vocabStats = useMemo(() => {
+        const counts: Record<string, { term: string, reading: string, count: number }> = {};
         
-        const newTokens = [...currentTokens, token.trim()];
-        await saveTokens(newTokens);
-    };
-
-    const handleRemoveSegment = async (token: string) => {
-        const newTokens = localVocab.map(v => v.lemma).filter(t => t !== token);
-        await saveTokens(newTokens);
-    };
-
-    const handleReorderSegments = (newVocabList: AnalyzedVocab[]) => {
-        isReorderingRef.current = true;
-        setLocalVocab(newVocabList);
-    };
-
-    const fetchAnalysis = async () => {
-        if (!lessonId) return;
-        try {
-            const res = await axios.get(`/api/study/vocab/lesson/${lessonId}/analysis`, {
-                params: { priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority }
-            });
-            setAnalysisData(res.data.analysis || []);
-        } catch (e) { console.error("Failed to fetch analysis", e); }
-    };
-
-    const handleScanFullLesson = async () => {
-        if (!lessonId) return;
-        setIsScanning(true);
-        try {
-            await usePlayerStore.getState().scanFullLesson(dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority);
-            await fetchAnalysis();
-            await fetchSavedVocab();
-        } catch (err) {
-            console.error("Scan failed", err);
-        } finally {
-            setIsScanning(false);
-        }
-    };
-
-    const handleResetSegments = async () => {
-        if (!lessonId) return;
-        try {
-            await axios.delete('/api/study/vocab/tokens/clear', {
-                data: { lesson_id: lessonId, line_index: activeLineIndex }
-            });
-            const line = s1Lines[activeLineIndex];
-            if (line) analyzeSentence(line.text, dictPriority);
-        } catch (err) {
-            console.error("Reset failed");
-        }
-    };
-
-    const handleResetAllSegments = async () => {
-        if (!lessonId) return;
-        if (!confirm("Are you sure you want to reset ALL segments to default for this entire lesson? This cannot be undone.")) return;
+        const delimiters = ['|', '/', ' '];
         
-        try {
-            await axios.delete('/api/study/vocab/tokens/clear-all', { 
-                data: { lesson_id: lessonId }
-            });
-            // Re-fetch current line to reflect changes
-            const line = s1Lines[activeLineIndex];
-            if (line) analyzeSentence(line.text, dictPriority);
-        } catch (e) {
-            console.error("Reset all failed", e);
-        }
-    };
-
-    const saveTokens = async (tokens: string[]) => {
-        if (!lessonId) return;
-        try {
-            await axios.post('/api/study/vocab/tokens/save', {
-                lesson_id: lessonId,
-                line_index: activeLineIndex,
-                tokens
-            });
+        subtitles.forEach(line => {
+            // Find active delimiter like backend does
+            const activeDelimiter = delimiters.find(d => line.text.includes(d));
             
-            const line = s1Lines[activeLineIndex];
-            if (line) {
-                const response = await axios.post('/api/study/vocab/analyze', { 
-                    text: line.text, 
-                    priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority,
-                    lesson_id: lessonId,
-                    line_index: activeLineIndex
-                });
-                
-                const stableData: AnalyzedVocab[] = response.data.map((item: any, idx: number) => ({
-                    ...item,
-                    id: generateId(item.lemma, idx)
-                }));
-                
-                setDynamicVocab(stableData);
-                if (!isReorderingRef.current) {
-                    setLocalVocab(stableData);
-                }
+            let words: string[] = [];
+            if (activeDelimiter) {
+                words = line.text.split(activeDelimiter).map(w => w.trim()).filter(w => w.length > 0);
+            } else {
+                words = [line.text.trim()].filter(w => w.length > 0);
             }
-        } catch (err) {
-            console.error("Token save failed", err);
-        }
-    };
 
-    const filteredSaved = savedVocab.filter(v => 
-        (v.term || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-        (v.definition || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+            words.forEach(w => {
+                const term = w;
+                if (!counts[term]) {
+                    counts[term] = { term, reading: '', count: 1 };
+                } else {
+                    counts[term].count++;
+                }
+            });
+        });
 
-    const getBadge = (source?: string) => {
-        switch(source) {
-            case 'javidict': return { text: 'JD', color: 'bg-emerald-500 text-slate-950' };
-            case 'suge': return { text: 'SG', color: 'bg-amber-500 text-slate-950' };
-            case 'mazii_offline': return { text: 'MZO', color: 'bg-sky-500 text-slate-950' };
-            case 'jamdict': return { text: 'JAM', color: 'bg-slate-700 text-slate-300' };
-            default: return { text: 'OFF', color: 'bg-slate-800 text-slate-500' };
-        }
-    };
+        // Merge with reading/meaning info from analyzedWords if currently present
+        analyzedWords.forEach(aw => {
+            if (counts[aw.surface]) {
+                counts[aw.surface].reading = aw.reading || '';
+            }
+        });
 
-    const currentLine = s1Lines[activeLineIndex];
+        return Object.values(counts)
+            .filter(v => v.term.length > 1 || /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(v.term)) // Filter noise but keep CJK
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 100);
+    }, [subtitles, analyzedWords]);
 
     return (
-        <div className="flex flex-col h-full gap-4 pb-20 overflow-y-auto custom-scrollbar relative">
-            
-            {/* Header / Tab Switcher */}
-            <div className="space-y-3 sticky top-0 z-20 bg-slate-950/90 backdrop-blur-md pt-1 pb-3 shadow-2xl px-1">
-                <div className="flex p-1 bg-slate-900/80 rounded-xl border border-white/5">
+        <div className="flex flex-col h-full bg-slate-950 overflow-hidden">
+            {/* Header / Tabs */}
+            <div className="p-4 border-b border-white/5 bg-slate-900/20">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-sky-500/10 flex items-center justify-center">
+                            <Book size={12} className="text-sky-500" />
+                        </div>
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Word Manager</h3>
+                    </div>
                     <button 
-                        onClick={() => setActiveSubTab('live')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSubTab === 'live' ? 'bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+                        onClick={() => setShowDictManager(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black uppercase tracking-widest text-sky-500 hover:bg-sky-500 hover:text-slate-950 transition-all shadow-lg shadow-sky-500/5"
                     >
-                        <Activity size={14} /> Live
-                    </button>
-                    <button 
-                        onClick={() => setActiveSubTab('analysis')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSubTab === 'analysis' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        <Zap size={14} /> Analysis
-                    </button>
-                    <button 
-                        onClick={() => setActiveSubTab('all')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeSubTab === 'all' ? 'bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/20' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        <Book size={14} /> Saved
+                        <Languages size={12} />
+                        DictManager
                     </button>
                 </div>
-
-                {/* Dictionary Priority Dropdown */}
-                <div className="px-1 relative">
-                    <div className="relative group">
-                        <select 
-                            value={dictPriority}
-                            onChange={(e) => setDictPriority(e.target.value as DictPriority)}
-                            className={`w-full bg-slate-900/50 border rounded-xl px-10 py-3 text-xs font-bold appearance-none cursor-pointer focus:outline-none transition-all hover:bg-slate-900 ${dictPriority === 'edit_segments' ? 'border-amber-500/50 text-amber-500' : 'border-white/10 text-white focus:border-sky-500'}`}
+                
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                    {[
+                        { id: 'track', label: 'Settings', icon: Activity },
+                        { id: 'live', label: 'Analysis', icon: Globe },
+                        { id: 'stats', label: 'Stats', icon: BarChart3 },
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${
+                                activeTab === tab.id 
+                                ? 'bg-white/10 text-white shadow-lg' 
+                                : 'text-slate-500 hover:text-white hover:bg-white/5'
+                            }`}
                         >
-                            {DICT_OPTIONS.map(opt => (
-                                <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
-                                    {opt.label}
-                                </option>
-                            ))}
-                        </select>
-                        {dictPriority === 'edit_segments' ? (
-                            <Scissors size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-500" />
-                        ) : (
-                            <Globe size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-500" />
-                        )}
-                        <ChevronDown size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none group-hover:text-sky-500 transition-colors" />
-                    </div>
+                            <tab.icon size={14} />
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {activeSubTab === 'live' ? (
-                <section className="space-y-4 px-1">
-                    
-                    {/* CONDITIONAL SENTENCE DISPLAY (Only in Edit mode) */}
-                    {dictPriority === 'edit_segments' && (
+            <div className="flex-1 overflow-hidden relative">
+                <AnimatePresence mode="wait">
+                    {activeTab === 'track' && (
                         <motion.div 
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-slate-900/60 rounded-3xl border border-white/5 p-5 space-y-4 shadow-xl mb-2"
+                            key="track"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="p-6 space-y-8 h-full overflow-y-auto no-scrollbar"
                         >
-                            <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                                <button 
-                                    onClick={handlePrevLine}
-                                    disabled={activeLineIndex <= 0}
-                                    className="p-2 text-slate-500 hover:text-sky-400 disabled:opacity-20 transition-colors"
-                                >
-                                    <ChevronLeft size={20} />
-                                </button>
-                                <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
-                                    Sentence {activeLineIndex + 1} / {s1Lines.length}
-                                </span>
-                                <button 
-                                    onClick={handleNextLine}
-                                    disabled={activeLineIndex >= s1Lines.length - 1}
-                                    className="p-2 text-slate-500 hover:text-sky-400 disabled:opacity-20 transition-colors"
-                                >
-                                    <ChevronRight size={20} />
-                                </button>
-                            </div>
-
-                            <button 
-                                onClick={() => setVocabStudioOpen(true)}
-                                className="w-full flex items-center justify-center gap-3 py-4 bg-sky-500/10 border border-sky-500/30 rounded-2xl text-sky-400 text-[10px] font-black uppercase tracking-widest hover:bg-sky-500 hover:text-slate-950 transition-all group"
-                            >
-                                <Layout size={14} className="group-hover:scale-110 transition-transform" />
-                                Launch Full Vocab Studio
-                            </button>
-                            
-                            <div className="py-2">
-                                <p className="text-lg font-bold text-white text-center leading-relaxed">
-                                    {currentLine?.text || "No text available"}
-                                </p>
-                            </div>
-
-                            <div className="flex items-center gap-2 pt-2">
-                                <div className="flex-1 flex items-center px-4 gap-3 bg-slate-950/50 rounded-xl border border-amber-500/30 transition-all">
-                                    <Plus size={14} className="text-amber-500" />
-                                    <input 
-                                        type="text"
-                                        placeholder="Add custom word chunk..."
-                                        value={newTerm}
-                                        onChange={(e) => setNewTerm(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                handleAddSegment(newTerm);
-                                                setNewTerm('');
-                                            }
-                                        }}
-                                        className="w-full bg-transparent py-3 text-[11px] font-bold focus:outline-none placeholder:text-slate-700 text-white"
-                                    />
+                            {/* Subtitle Track Selection */}
+                            <div className="space-y-4">
+                                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    <Globe size={12} className="text-sky-500" />
+                                    Subtitle Track
+                                </label>
+                                <div className="relative group">
+                                    <select 
+                                        value={sourceTrackId || ''}
+                                        onChange={(e) => setSourceTrackId(Number(e.target.value))}
+                                        className="w-full bg-slate-900/60 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black uppercase tracking-wider text-white appearance-none cursor-pointer outline-none focus:border-sky-500/50 transition-all shadow-inner"
+                                    >
+                                        <option value="" disabled>Select a track...</option>
+                                        {availableTracks.map((track: any) => (
+                                            <option key={track.id} value={track.id}>
+                                                [{ (track.language_code || '??').toUpperCase() }] {track.name || 'Untitled Track'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-hover:text-sky-500 transition-colors">
+                                        <ChevronDown size={14} />
+                                    </div>
                                 </div>
-                                {newTerm.trim() && (
+                            </div>
+
+                            {/* Segmentation Toggle */}
+                            <div className="space-y-4">
+                                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    <Activity size={12} className="text-amber-500" />
+                                    Analysis Mode
+                                </label>
+                                <div className="p-6 rounded-[32px] bg-slate-900/40 border border-white/5 flex items-center justify-between">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">
+                                            {autoSegmentationEnabled ? 'Automatic Splitting' : 'Original Subtitle'}
+                                        </span>
+                                        <span className="text-[9px] text-slate-500 font-medium leading-tight max-w-[180px]">
+                                            {autoSegmentationEnabled 
+                                                ? 'AI analyzes and splits sentences into words automatically.' 
+                                                : 'Strictly follow the time-aligned lines from the subtitle file.'}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const newVal = !autoSegmentationEnabled;
+                                            setAutoSegmentationEnabled(newVal);
+                                            // Also update analysis source to match
+                                            setAnalysisSource(newVal ? 'auto' : 'track', sourceTrackId);
+                                        }}
+                                        className={`w-12 h-6 rounded-full relative transition-all flex-shrink-0 ${autoSegmentationEnabled ? 'bg-sky-500' : 'bg-slate-800'}`}
+                                    >
+                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all ${autoSegmentationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Dictionary Language */}
+                            <div className="space-y-4">
+                                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    <Languages size={12} className="text-emerald-500" />
+                                    Dictionary Target
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['vi', 'en', 'cn'].map(lang => (
+                                        <button
+                                            key={lang}
+                                            onClick={() => setTargetLang(lang as any)}
+                                            className={`px-3 py-3 rounded-2xl border text-[10px] font-black uppercase transition-all ${
+                                                targetLang === lang 
+                                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' 
+                                                : 'bg-white/5 border-white/5 text-slate-500'
+                                            }`}
+                                        >
+                                            {lang.toUpperCase()}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Dictionary Selection (Dynamic based on pair) */}
+                            {sourceTrackId && (
+                                <div className="space-y-4">
+                                    <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                        <Book size={12} className="text-rose-500" />
+                                        Dictionary Selection
+                                    </label>
+                                    <div className="relative group">
+                                        <select 
+                                            value={preferredSystemDictId || ''}
+                                            onChange={(e) => setPreferredSystemDictId(e.target.value)}
+                                            className="w-full bg-slate-900/60 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black uppercase tracking-wider text-white appearance-none cursor-pointer outline-none focus:border-rose-500/50 transition-all shadow-inner"
+                                        >
+                                            <option value="">Default (System Auto)</option>
+                                            {globalDictionaries
+                                                .filter(d => {
+                                                    const selectedTrack = availableTracks.find(t => t.id === sourceTrackId);
+                                                    const srcLang = selectedTrack?.language_code || 'ja';
+                                                    return d.src === srcLang && d.target === targetLang;
+                                                })
+                                                .map(dict => (
+                                                    <option key={dict.id} value={dict.id}>
+                                                        {dict.name} ({dict.count} terms)
+                                                    </option>
+                                                ))
+                                            }
+                                        </select>
+                                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-hover:text-rose-500 transition-colors">
+                                            <ChevronDown size={14} />
+                                        </div>
+                                    </div>
+                                    <p className="text-[9px] text-slate-600 font-bold px-2 italic uppercase">
+                                        Showing dictionaries for {availableTracks.find(t => t.id === sourceTrackId)?.language_name || '...'} → {targetLang.toUpperCase()}
+                                    </p>
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleApplySettings}
+                                disabled={isSaving}
+                                className="w-full py-5 rounded-[32px] bg-sky-500 text-slate-950 text-[11px] font-black uppercase tracking-[0.3em] shadow-xl shadow-sky-500/20 active:scale-95 transition-all"
+                            >
+                                {isSaving ? 'Applying...' : 'Apply & Refresh'}
+                            </button>
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'live' && (
+                        <motion.div 
+                            key="live"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="p-6 space-y-6"
+                        >
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-600 flex items-center gap-2">
+                                    <Activity size={14} className="text-sky-500" />
+                                    Current Vocabulary
+                                </h3>
+                                <div className="flex items-center gap-4">
+                                    <button onClick={toggleFurigana} className={`p-2 rounded-lg transition-all ${showFurigana ? 'text-sky-500' : 'text-slate-600'}`}>
+                                        <Languages size={16} />
+                                    </button>
                                     <button 
                                         onClick={() => {
-                                            handleAddSegment(newTerm);
-                                            setNewTerm('');
+                                            const selectedTrack = availableTracks.find(t => t.id === sourceTrackId);
+                                            const srcLang = selectedTrack?.language_code || 'ja';
+                                            fetchAnalyzedWords(subtitles[activeLineIndex]?.text || '', srcLang);
                                         }}
-                                        className="px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg bg-amber-500 text-slate-950 shadow-amber-500/20 active:scale-95"
+                                        className="text-slate-600 hover:text-white"
                                     >
-                                        Tag
+                                        <RotateCcw size={16} />
                                     </button>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4">
+                                {analyzedWords.map((item: any, idx: number) => {
+                                    const isSaved = justAdded.has(item.surface || item.lemma || item.term);
+                                    const isSkip = item.lemma === 'skip' || item.lemma_override === 'skip';
+                                    
+                                    return (
+                                        <motion.div 
+                                            key={idx}
+                                            initial={{ opacity: 0, scale: 0.98 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className={`bg-slate-900/60 border border-white/5 rounded-[32px] p-6 hover:border-sky-500/40 transition-all group relative overflow-hidden ${isSkip ? 'opacity-30 grayscale scale-[0.98]' : ''}`}
+                                        >
+                                            <div className="flex justify-between items-start relative z-10">
+                                                <div className="space-y-3 flex-1 pr-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="text-2xl font-black text-white tracking-tight leading-none">{item.surface || item.lemma}</span>
+                                                        {item.reading && !isSkip && (
+                                                            <span className="text-[11px] text-sky-400 font-black tracking-widest uppercase bg-sky-400/10 px-3 py-1 rounded-full border border-sky-400/20">
+                                                                {item.reading}
+                                                            </span>
+                                                        )}
+                                                        {isSkip && <span className="text-[9px] text-slate-600 font-black uppercase tracking-widest">[Skipped]</span>}
+                                                    </div>
+                                                    {!isSkip && (
+                                                        <div className="prose prose-invert max-w-none text-slate-400 text-sm leading-relaxed font-medium">
+                                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                                                                {Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || '')}
+                                                            </ReactMarkdown>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {!isSkip && (
+                                                    <button 
+                                                        onClick={() => handleSaveToVocab(item)} 
+                                                        className={`p-4 rounded-2xl transition-all duration-300 shadow-xl active:scale-90 ${isSaved ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white'}`}
+                                                    >
+                                                        {isSaved ? <Check size={20} strokeWidth={3} /> : <Plus size={20} strokeWidth={3} />}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {!isSkip && <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                        </motion.div>
+                                    );
+                                })}
+
+                                {analyzedWords.length === 0 && (
+                                    <div className="py-32 text-center border-2 border-dashed border-white/5 rounded-[48px] bg-slate-900/20">
+                                        <AlertCircle size={40} className="mx-auto text-slate-800 mb-6 opacity-20" />
+                                        <p className="text-[12px] font-black text-slate-700 uppercase tracking-[0.3em]">Ready for analysis</p>
+                                        <p className="text-[10px] text-slate-800 mt-3 font-medium">Head to Settings to configure your study source</p>
+                                    </div>
                                 )}
                             </div>
                         </motion.div>
                     )}
 
-                    {/* DYNAMIC MODE: EDIT SEGMENTATION OR WORD ANALYSIS */}
-                    <div className="px-1">
-                        {dictPriority === 'edit_segments' ? (
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between px-1">
-                                    <div className="flex items-center gap-2">
-                                        <Scissors size={14} className="text-amber-500" />
-                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-500/70">Segmentation Editor</h3>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <button 
-                                            onClick={handleResetAllSegments}
-                                            className="flex items-center gap-2 text-[9px] px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-red-950/40 text-slate-500 hover:text-red-400 transition-all border border-slate-800 hover:border-red-900 shadow-lg group"
-                                            title="Reset ALL segments to default for this entire lesson"
-                                        >
-                                            <RotateCcw size={10} className="group-hover:rotate-[-45deg] transition-transform" />
-                                            <span className="font-bold">RE-SYNC ALL</span>
-                                        </button>
-                                        <button 
-                                            onClick={handleResetSegments}
-                                            className="flex items-center gap-1.5 text-[9px] text-slate-600 hover:text-white font-black uppercase tracking-widest transition-colors"
-                                        >
-                                            <RotateCcw size={12} /> Reset to Auto
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <Reorder.Group 
-                                    axis="y" 
-                                    values={localVocab} 
-                                    onReorder={handleReorderSegments}
-                                    className="space-y-2 p-5 bg-amber-500/5 rounded-3xl border border-amber-500/10 min-h-[100px]"
-                                >
-                                    <AnimatePresence mode="popLayout">
-                                        {localVocab.map((item) => (
-                                            <Reorder.Item 
-                                                key={item.id} 
-                                                value={item}
-                                                className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-900 border border-amber-500/20 rounded-xl group cursor-grab active:cursor-grabbing shadow-lg"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <GripVertical size={14} className="text-slate-700 group-hover:text-amber-500 transition-colors" />
-                                                    <span className="text-sm font-bold text-amber-200">{item.original}</span>
-                                                </div>
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleRemoveSegment(item.lemma);
-                                                    }}
-                                                    className="p-1.5 hover:bg-red-500/20 rounded-lg text-slate-700 hover:text-red-500 transition-colors"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </Reorder.Item>
-                                        ))}
-                                    </AnimatePresence>
-                                </Reorder.Group>
-
-                                <p className="px-2 text-[9px] text-slate-600 font-medium italic leading-relaxed">
-                                    * Kéo thả để đổi thứ tự. Bạn có thể nhấn Play để nghe lại audio.
-                                </p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="flex items-center justify-between px-1 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <Languages size={16} className="text-sky-400" />
-                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Live Word Analysis</h3>
-                                    </div>
-                                    {isAnalyzing && (
-                                        <div className="flex items-center gap-1.5 text-[9px] text-sky-400 font-black tracking-widest">
-                                            <Loader2 size={12} className="animate-spin" /> ANALYZING
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="grid gap-3">
-                                    <AnimatePresence mode="popLayout">
-                                        {Array.isArray(dynamicVocab) && dynamicVocab.length > 0 ? (
-                                        dynamicVocab.map((item) => {
-                                            const badge = getBadge(item.source);
-                                            return (
-                                            <motion.div 
-                                                key={item.id}
-                                                initial={{ opacity: 0, scale: 0.95 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                exit={{ opacity: 0, scale: 0.9 }}
-                                                className="rounded-2xl p-4 bg-slate-900/30 border border-white/5 hover:border-sky-500/30 transition-all group relative overflow-hidden"
-                                            >
-                                                <div className={`absolute top-0 right-0 px-2 py-0.5 text-[8px] font-black uppercase rounded-bl-lg shadow-lg ${badge.color}`}>
-                                                    {badge.text}
-                                                </div>
-                                                <div className="flex justify-between items-start">
-                                                    <div className="space-y-1.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <h4 className="text-lg font-bold text-white leading-none">{item.lemma}</h4>
-                                                            <span className="text-[10px] text-slate-500 font-mono bg-white/5 px-2 py-0.5 rounded">[{item.reading}]</span>
-                                                        </div>
-                                                        <div className="prose prose-invert max-w-none text-slate-400 text-[11px] leading-relaxed font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
-                                                            <ReactMarkdown 
-                                                                remarkPlugins={[remarkGfm]}
-                                                                rehypePlugins={[rehypeRaw]}
-                                                            >
-                                                                {Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings}
-                                                            </ReactMarkdown>
-                                                        </div>
-                                                    </div>
-                                                    {(() => {
-                                                        const isJustAdded = justAdded.has(item.id);
-                                                        return (
-                                                            <button 
-                                                                onClick={() => handleSaveToVocab(item)}
-                                                                className={`p-3 rounded-xl transition-all shadow-xl active:scale-90 ${
-                                                                    isJustAdded 
-                                                                    ? 'bg-emerald-500/20 text-emerald-400' 
-                                                                    : 'bg-slate-800/80 hover:bg-sky-500 hover:text-slate-950 text-slate-500'
-                                                                }`}
-                                                            >
-                                                                {isJustAdded ? <Check size={16} strokeWidth={3} /> : <Plus size={16} />}
-                                                            </button>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            </motion.div>
-                                            );
-                                        })
-                                        ) : !isAnalyzing && (
-                                            <div className="text-[10px] text-slate-800 font-black uppercase tracking-[0.2em] text-center py-20 border-2 border-dashed border-white/5 rounded-3xl">
-                                                No results in selected dictionary
-                                            </div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </section>
-            ) : activeSubTab === 'analysis' ? (
-                <section className="space-y-4 px-1">
-                    <button 
-                        onClick={handleScanFullLesson}
-                        disabled={isScanning}
-                        className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all border shadow-2xl ${
-                            isScanning 
-                            ? 'bg-slate-900 border-white/5 text-slate-600 cursor-not-allowed' 
-                            : 'bg-gradient-to-r from-amber-600 to-orange-600 border-white/10 text-white hover:scale-[1.02] active:scale-[0.98] shadow-amber-500/20'
-                        }`}
-                    >
-                        {isScanning ? (
-                            <>
-                                <Loader2 size={16} className="animate-spin" />
-                                Analyzing Full Lesson...
-                            </>
-                        ) : (
-                            <>
-                                <Zap size={16} fill="currentColor" />
-                                Run Full Lesson Analysis
-                            </>
-                        )}
-                    </button>
-
-                    <div className="space-y-2">
-                        {analysisData.length > 0 ? (
-                            <div className="bg-slate-950/40 rounded-3xl border border-white/5 overflow-hidden">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-white/5">
-                                            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-500">Word</th>
-                                            <th className="px-2 py-3 text-[9px] font-black uppercase tracking-widest text-slate-500 text-center">Freq</th>
-                                            <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-slate-500">Definition</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/[0.02]">
-                                        {analysisData.map((v, idx) => (
-                                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
-                                                <td className="px-4 py-3">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-bold text-white">{v.term}</span>
-                                                        <span className="text-[10px] text-slate-600">[{v.reading}]</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-2 py-3 text-center">
-                                                    <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full text-[10px] font-black border border-amber-500/20">
-                                                        x{v.count || 1}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex flex-col gap-1">
-                                                        <p className="text-[11px] text-slate-400 line-clamp-1 group-hover:line-clamp-none transition-all">{v.definition}</p>
-                                                        <div className="flex items-center gap-1">
-                                                            {getBadge(v.source) && (
-                                                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded uppercase ${getBadge(v.source).color}`}>
-                                                                    {getBadge(v.source).text}
-                                                                </span>
-                                                            )}
-                                                            <button 
-                                                                onClick={() => handleSaveToVocab({
-                                                                    lemma: v.term,
-                                                                    reading: v.reading,
-                                                                    meanings: [v.definition],
-                                                                    original: '',
-                                                                    surface: v.term,
-                                                                    id: `analysis-${idx}`,
-                                                                    timestamp: 0,
-                                                                    pos: '',
-                                                                    definition: v.definition,
-                                                                    source: v.source
-                                                                })}
-                                                                className="ml-auto opacity-0 group-hover:opacity-100 p-1 text-sky-500 hover:text-sky-400 transition-all"
-                                                            >
-                                                                <Plus size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <div className="py-24 text-center bg-slate-900/20 rounded-3xl border-2 border-dashed border-white/5">
-                                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">No analysis data yet</p>
-                                <p className="text-[9px] text-slate-800 mt-2">Click the button above to scan the transcript</p>
-                            </div>
-                        )}
-                    </div>
-                </section>
-            ) : (
-                <section className="space-y-4 px-1">
-                    {/* ALL VOCAB TAB */}
-                    <div className="flex flex-col gap-3 px-1 sticky top-[130px] z-10 bg-slate-950/80 backdrop-blur pb-4">
-                        {/* Scan Button */}
-                        <button 
-                            onClick={handleScanFullLesson}
-                            disabled={isScanning}
-                            className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] transition-all border shadow-2xl ${
-                                isScanning 
-                                ? 'bg-slate-900 border-white/5 text-slate-600 cursor-not-allowed' 
-                                : 'bg-gradient-to-r from-sky-600 to-indigo-600 border-white/10 text-white hover:scale-[1.02] active:scale-[0.98] shadow-sky-500/20'
-                            }`}
+                    {activeTab === 'stats' && (
+                        <motion.div 
+                            key="stats"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="p-6 space-y-6"
                         >
-                            {isScanning ? (
-                                <>
-                                    <Loader2 size={16} className="animate-spin" />
-                                    Analyzing Transcript...
-                                </>
-                            ) : (
-                                <>
-                                    <Zap size={16} fill="currentColor" />
-                                    Scan & Analyze Full Lesson
-                                </>
-                            )}
-                        </button>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-600 flex items-center gap-2">
+                                    <BarChart3 size={14} className="text-amber-500" />
+                                    Lesson Statistics
+                                </h3>
+                                <span className="text-[9px] font-bold text-slate-700 uppercase">{vocabStats.length} Unique Terms</span>
+                            </div>
 
-                        <div className="flex-1 flex items-center px-4 gap-3 bg-slate-900/50 rounded-2xl border border-white/5 focus-within:border-sky-500/30 transition-all">
-                            <Search size={16} className="text-slate-600" />
-                            <input 
-                                type="text"
-                                placeholder="Search lesson terms..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-transparent py-3.5 text-xs font-bold focus:outline-none placeholder:text-slate-700 text-white"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        {savedVocab.length > 0 ? (
-                            filteredSaved.length > 0 ? (
-                                filteredSaved.map((v, idx) => {
-                                    const badge = getBadge(v.source);
-                                    return (
-                                    <div key={idx} className="p-4 rounded-2xl bg-slate-900/30 border border-white/5 group hover:border-white/10 transition-all relative overflow-hidden">
-                                        <div className={`absolute top-0 right-0 px-2.5 py-1 text-[8px] font-black uppercase rounded-bl-xl opacity-60 group-hover:opacity-100 transition-opacity ${badge.color}`}>
-                                            {badge.text}
-                                        </div>
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-2">
-                                                <div className="flex items-center gap-3">
-                                                    <h4 className="text-white font-bold text-[15px]">{v.term}</h4>
-                                                    <span className="text-[10px] text-slate-600 font-mono">[{v.reading}]</span>
-                                                    {v.frequency && v.frequency > 1 && (
-                                                        <span className="bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-full text-[9px] font-black border border-sky-500/20">
-                                                            x{v.frequency}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="prose prose-invert max-w-none text-slate-500 text-[11px] leading-relaxed pr-12 font-medium italic font-sans prose-headings:text-white prose-strong:text-sky-400 prose-code:text-emerald-400 prose-pre:bg-slate-900/50 prose-pre:border prose-pre:border-white/5 prose-li:my-1 prose-table:border-collapse prose-th:border prose-th:border-white/10 prose-th:p-2 prose-th:bg-white/5 prose-td:border prose-td:border-white/10 prose-td:p-2">
-                                                    <ReactMarkdown 
-                                                        remarkPlugins={[remarkGfm]}
-                                                        rehypePlugins={[rehypeRaw]}
-                                                    >
-                                                        {v.definition}
-                                                    </ReactMarkdown>
-                                                </div>
+                            <div className="space-y-3">
+                                {vocabStats.map((item, idx) => (
+                                    <div key={idx} className="bg-slate-900/40 border border-white/5 rounded-[28px] p-5 flex items-center justify-between group hover:bg-slate-900/60 transition-all">
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-xs font-black text-slate-500 group-hover:text-amber-500 transition-colors">
+                                                #{idx + 1}
                                             </div>
-                                            <button 
-                                                onClick={() => handleRemoveTerm(v.term)}
-                                                className="p-2.5 text-slate-700 hover:text-red-500 hover:bg-red-400/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                            <div className="flex flex-col">
+                                                <span className="text-base font-black text-white">{item.term}</span>
+                                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{item.reading}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 rounded-full border border-amber-500/20">
+                                                <Clock size={10} className="text-amber-500" />
+                                                <span className="text-[10px] font-black text-amber-500">{item.count}</span>
+                                            </div>
+                                            <span className="text-[8px] font-black text-slate-700 uppercase tracking-tighter">Occurrences</span>
                                         </div>
                                     </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-center py-20 text-slate-700 uppercase tracking-widest font-black text-[9px]">
-                                    No matching terms
-                                </div>
-                            )
-                        ) : (
-                            <div className="py-24 text-center bg-slate-900/20 rounded-3xl border-2 border-dashed border-white/5">
-                                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Library Empty</p>
+                                ))}
+
+                                {vocabStats.length === 0 && (
+                                    <div className="py-32 text-center border-2 border-dashed border-white/5 rounded-[48px] bg-slate-900/20">
+                                        <BarChart3 size={40} className="mx-auto text-slate-800 mb-6 opacity-20" />
+                                        <p className="text-[12px] font-black text-slate-700 uppercase tracking-[0.3em]">No Stats Yet</p>
+                                        <p className="text-[10px] text-slate-800 mt-3 font-medium">Save some vocabulary to see frequency data</p>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
-                </section>
-            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
         </div>
     );
 };

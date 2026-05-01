@@ -226,6 +226,25 @@ class AIInsightItem(db.Model):
 
 # --- From glossary.py ---
 
+class VideoDictionary(db.Model):
+    """
+    Groups glossary items into a named dictionary.
+    Can be tied to a lesson (Video Glossary) or be a Global System Dictionary (lesson_id=None).
+    """
+    __tablename__ = 'video_dictionaries'
+    id = db.Column(db.Integer, primary_key=True)
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id', ondelete='CASCADE'), nullable=True) # Optional for global
+    name = db.Column(db.String(100), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    # New fields for global/language pairing
+    language_code = db.Column(db.String(10), default='ja') # Source lang
+    target_language_code = db.Column(db.String(10), default='vi') # Destination lang
+
+    # Relationships
+    glossary_items = db.relationship('VideoGlossary', backref='dictionary', lazy='dynamic', cascade='all, delete-orphan')
+
 class VideoGlossary(db.Model):
     """
     Shared community glossary for a specific video.
@@ -236,6 +255,7 @@ class VideoGlossary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=True) # Now optional
     lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=True, index=True)
+    dictionary_id = db.Column(db.Integer, db.ForeignKey('video_dictionaries.id', ondelete='CASCADE'), nullable=True)
     
     # The term being defined (usually the lemma/dictionary form)
     term = db.Column(db.String(255), nullable=False, index=True)
@@ -253,13 +273,30 @@ class VideoGlossary(db.Model):
     # Metadata
     last_updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # New fields for flexibility
+    language_code = db.Column(db.String(10), default='ja') # Source lang
+    target_language_code = db.Column(db.String(10), default='vi') # Destination lang
+    extra_data = db.Column(db.JSON, nullable=True) 
 
     # Relationships
     video = db.relationship('Video', backref=db.backref('glossary_items', lazy='dynamic'))
     updater = db.relationship('User', backref='wiki_edits')
     
-    # Unique constraint: One definition per term per lesson (if lesson exists) or video
-    __table_args__ = (db.UniqueConstraint('lesson_id', 'term', name='_lesson_term_uc'),)
+    # Unique constraint: One definition per term per dictionary (if exists) or lesson/video fallback
+    __table_args__ = (
+        db.UniqueConstraint('dictionary_id', 'term', name='_dictionary_term_uc'),
+        db.UniqueConstraint('lesson_id', 'term', name='_lesson_term_uc'), # For legacy/fallback
+    )
+
+    def to_dict(self):
+        return {
+            "term": self.term,
+            "reading": self.reading,
+            "meaning": self.definition,
+            "source": self.source,
+            "extra_data": self.extra_data or {}
+        }
 
     def __repr__(self):
         return f'<VideoGlossary {self.term} in Video {self.video_id}>'
@@ -298,8 +335,11 @@ class SentenceToken(db.Model):
     token = db.Column(db.String(255), nullable=False)        # Surface form (displayed text, e.g. 食べた)
     lemma_override = db.Column(db.String(255), nullable=True) # Dictionary form override (e.g. 食べる)
     pos = db.Column(db.String(50), nullable=True)             # Part of speech (e.g. 助詞) to maintain styling
+    reading = db.Column(db.String(255), nullable=True)        # Pronunciation (e.g. たべた)
+    meaning = db.Column(db.String(500), nullable=True)        # Translation (e.g. ate)
+    extra_data = db.Column(db.JSON, nullable=True)            # Flexible AI data (e.g. {"kanji_viet": "THỰC"})
     order_index = db.Column(db.Integer, nullable=False, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Unique constraint to avoid collisions on the same POSITION
     __table_args__ = (db.UniqueConstraint('lesson_id', 'line_index', 'order_index', name='_lesson_line_order_uc'),)

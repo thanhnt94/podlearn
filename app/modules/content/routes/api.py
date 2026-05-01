@@ -4,6 +4,7 @@ from app.core.extensions import db
 from app.modules.content.models import SubtitleTrack, Video, VideoCollaborator
 from app.modules.study.models import Lesson
 import os
+import json
 
 content_api = Blueprint('content_api', __name__, url_prefix='/api/content')
 
@@ -31,7 +32,7 @@ def get_player_data(lesson_id):
             "title": lesson.video.title,
             "video_id": lesson.video.youtube_id,
             "total_time_spent": lesson.time_spent or 0,
-            "settings": lesson.settings_json,
+            "settings": json.loads(lesson.settings_json or '{}') if isinstance(lesson.settings_json, str) else (lesson.settings_json or {}),
         },
         "subtitles": {
             "track_1_id": lesson.s1_track_id,  # Primary (Target)
@@ -196,6 +197,31 @@ def ai_pronunciation_score():
 # ── Subtitle Management (CRUD) ───────────────────────────────
 # (Merging essential subtitle_api.py routes)
 
+@content_api.route('/subtitles/<int:track_id>/full', methods=['PATCH'])
+@jwt_required()
+def update_subtitle_full(track_id):
+    """Update entire track content from pasted SRT/VTT text."""
+    from app.modules.content.services.subtitle_service import parse_subtitle_text
+    from sqlalchemy.orm.attributes import flag_modified
+    
+    track = SubtitleTrack.query.get_or_404(track_id)
+    data = request.get_json() or {}
+    content = data.get('content', '').strip()
+    
+    if not content:
+        return jsonify({"error": "Content is empty"}), 400
+        
+    # Auto-detect format and parse
+    res = parse_subtitle_text(content)
+    if res.get('error'):
+        return jsonify(res), 400
+        
+    track.content_json = res['lines']
+    flag_modified(track, 'content_json')
+    db.session.commit()
+    
+    return jsonify({"status": "success", "count": len(res['lines'])})
+
 @content_api.route('/subtitles/<int:track_id>/line/<int:line_index>', methods=['PATCH'])
 @jwt_required()
 def update_subtitle_line(track_id, line_index):
@@ -220,11 +246,23 @@ def update_subtitle_line(track_id, line_index):
 @content_api.route('/curated/<string:youtube_id>', methods=['GET'])
 def get_curated_content(youtube_id):
     video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
-    return jsonify({
-        "overview": video.curated_overview or "",
-        "grammar": video.curated_grammar or "",
-        "vocabulary": video.curated_vocabulary or ""
-    })
+    
+    sections = video.curated_sections
+    if not sections:
+        # Check if we have legacy data to migrate
+        if video.curated_overview or video.curated_grammar or video.curated_vocabulary:
+            sections = [
+                {"id": "overview", "title": "Tổng quan", "content": video.curated_overview or ""},
+                {"id": "grammar", "title": "Ngữ pháp", "content": video.curated_grammar or ""},
+                {"id": "vocabulary", "title": "Từ vựng", "content": video.curated_vocabulary or ""}
+            ]
+        else:
+            # Fresh start: only Overview
+            sections = [
+                {"id": "overview", "title": "Tổng quan", "content": ""}
+            ]
+    
+    return jsonify(sections)
 
 @content_api.route('/curated/<string:youtube_id>', methods=['PATCH'])
 @jwt_required()
@@ -240,9 +278,22 @@ def update_curated_content(youtube_id):
         video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
 
     data = request.get_json() or {}
-    if 'overview' in data: video.curated_overview = data['overview']
-    if 'grammar' in data: video.curated_grammar = data['grammar']
-    if 'vocabulary' in data: video.curated_vocabulary = data['vocabulary']
+    
+    # Support both old keys (for backward compatibility during transition) and new 'sections'
+    if 'sections' in data:
+        video.curated_sections = data['sections']
+    else:
+        # Fallback to old fields if they are sent individually
+        if 'overview' in data: video.curated_overview = data['overview']
+        if 'grammar' in data: video.curated_grammar = data['grammar']
+        if 'vocabulary' in data: video.curated_vocabulary = data['vocabulary']
+        
+        # Also sync to sections if we want to force migration on first save
+        video.curated_sections = [
+            {"id": "overview", "title": "Tổng quan", "content": video.curated_overview or ""},
+            {"id": "grammar", "title": "Ngữ pháp", "content": video.curated_grammar or ""},
+            {"id": "vocabulary", "title": "Từ vựng", "content": video.curated_vocabulary or ""}
+        ]
     
     db.session.commit()
     return jsonify({"status": "success"})

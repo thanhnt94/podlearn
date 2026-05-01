@@ -3,16 +3,20 @@ import {
     X, Palette, Save, Check, Clock, StickyNote, 
     Globe, Download, Trash2, RefreshCw, Upload, ExternalLink, 
     Layers, Info, Lightbulb, ShieldCheck, UserPlus, Lock, Unlock,
-    Languages, Edit3, Shield, FileText
+    Languages, Edit3, Shield, FileText, Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
 
-type MainTab = 'display' | 'notes' | 'library' | 'social' | 'project';
+export type MainTab = 'display' | 'notes' | 'library' | 'social' | 'project';
 interface YTTrack { lang_code: string; name: string; is_auto: boolean; }
 
-export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+export const SettingsDrawer: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void;
+    initialTab?: MainTab;
+}> = ({ isOpen, onClose, initialTab }) => {
     const { 
         settings, setTrackSettings, setNoteSettings,
         lessonId, videoId, aiInsights,
@@ -34,6 +38,9 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const [isLoadingSources, setIsLoadingSources] = useState(false);
     const [importingLang, setImportingLang] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [pastedText, setPastedText] = useState('');
+    const [uploadName, setUploadName] = useState('');
+    const [isUploadingText, setIsUploadingText] = useState(false);
 
     // Source state
     const [ytTracks, setYtTracks] = useState<YTTrack[]>([]);
@@ -45,10 +52,20 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         visibility: string;
         collaborators: { user_id: number; username: string; role: string }[];
     } | null>(null);
+
+    useEffect(() => {
+        if (isOpen && initialTab) {
+            setActiveMainTab(initialTab);
+        }
+    }, [isOpen, initialTab]);
     const [isLoadingAdmin, setIsLoadingAdmin] = useState(false);
     const [collabUsername, setCollabUsername] = useState('');
     const [editingTrackId, setEditingTrackId] = useState<number | null>(null);
     const [editTrackName, setEditTrackName] = useState('');
+    const [isEditingContentId, setIsEditingContentId] = useState<number | null>(null);
+    const [editContentText, setEditContentText] = useState('');
+    const [isFetchingContent, setIsFetchingContent] = useState(false);
+    const [isSavingContent, setIsSavingContent] = useState(false);
 
 
     const fetchYoutubeSources = async () => {
@@ -81,6 +98,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         const formData = new FormData();
         formData.append('file', file);
         formData.append('language_code', uploadLang);
+        if (uploadName) formData.append('name', uploadName);
         
         try {
             await axios.post(`/api/study/subtitles/upload/${lessonId}`, formData, {
@@ -90,6 +108,25 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
             });
             await fetchAvailableTracks();
         } catch (err) { alert("Upload failed."); } finally { setIsUploading(false); }
+    };
+
+    const handleTextUpload = async () => {
+        if (!pastedText || !lessonId) return;
+        
+        setIsUploadingText(true);
+        try {
+            await axios.post(`/api/study/subtitles/upload-text/${lessonId}`, {
+                text: pastedText,
+                language_code: uploadLang,
+                name: uploadName
+            });
+            setPastedText('');
+            setUploadName('');
+            await fetchAvailableTracks();
+            alert("Subtitles imported successfully!");
+        } catch (err: any) { 
+            alert(err.response?.data?.message || "Upload failed."); 
+        } finally { setIsUploadingText(false); }
     };
 
 
@@ -160,6 +197,37 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const handleSaveTrackName = async (tid: number) => {
         await updateTrackName(tid, editTrackName);
         setEditingTrackId(null);
+    };
+
+    const handleEditContent = async (tid: number) => {
+        setIsFetchingContent(true);
+        setIsEditingContentId(tid);
+        try {
+            const res = await axios.get(`/api/content/subtitles/${tid}/export?format=srt`);
+            setEditContentText(res.data);
+        } catch (err) {
+            alert("Failed to fetch subtitle content.");
+            setIsEditingContentId(null);
+        } finally {
+            setIsFetchingContent(false);
+        }
+    };
+
+    const handleSaveContent = async () => {
+        if (!isEditingContentId || !editContentText) return;
+        setIsSavingContent(true);
+        try {
+            await axios.patch(`/api/content/subtitles/${isEditingContentId}/full`, {
+                content: editContentText
+            });
+            await fetchAvailableTracks();
+            setIsEditingContentId(null);
+            setEditContentText('');
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Failed to save content.");
+        } finally {
+            setIsSavingContent(false);
+        }
     };
 
 
@@ -606,13 +674,13 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                                                 </div>
                                                                             ) : (
                                                                                 <div className="flex items-center gap-2">
-                                                                                    <span className={`text-xs font-bold truncate ${track.is_original ? 'text-sky-400' : 'text-slate-200'}`}>{track.name}</span>
+                                                                                    <span className={`text-xs font-bold truncate ${track.is_original ? 'text-sky-400' : 'text-slate-200'}`}>[{track.language_code?.toUpperCase()}] {track.name}</span>
                                                                                     {track.is_original && <Shield size={10} className="text-sky-500/50" />}
                                                                                     {isProcessing && <RefreshCw size={10} className="text-sky-500 animate-spin" />}
                                                                                 </div>
                                                                             )}
                                                                             <div className="text-[9px] text-slate-500 font-black uppercase mt-1">
-                                                                                {track.language_code} • {track.line_count} lines • By {track.uploader_name}
+                                                                                By {track.uploader_name || (track.is_original ? 'YouTube' : 'System')} • {track.line_count} lines
                                                                             </div>
                                                                         </div>
 
@@ -631,9 +699,10 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
 
                                                                     <div className="flex items-center justify-between pt-2 border-t border-white/5">
                                                                         <div className="flex gap-2">
-                                                                            <button onClick={() => { setEditingTrackId(track.id); setEditTrackName(track.name); }} className="p-1.5 text-slate-500 hover:text-white"><Edit3 size={14}/></button>
-                                                                            <button onClick={() => translateTrack(track.id, 'vi', `${track.name} (VN)`)} className="p-1.5 text-sky-500 hover:bg-sky-500/10 rounded-lg"><Languages size={14}/></button>
-                                                                            <button onClick={() => exportTrack(track.id, 'srt')} className="p-1.5 text-slate-500 hover:text-white"><FileText size={14}/></button>
+                                                                            <button onClick={() => handleEditContent(track.id)} className="p-1.5 text-amber-500 hover:bg-amber-500/10 rounded-lg" title="Edit SRT Content"><Edit3 size={14}/></button>
+                                                                            <button onClick={() => { setEditingTrackId(track.id); setEditTrackName(track.name); }} className="p-1.5 text-slate-500 hover:text-white" title="Rename Track"><Tag size={14}/></button>
+                                                                            <button onClick={() => translateTrack(track.id, 'vi', `${track.name} (VN)`)} className="p-1.5 text-sky-500 hover:bg-sky-500/10 rounded-lg" title="Translate (AI)"><Languages size={14}/></button>
+                                                                            <button onClick={() => exportTrack(track.id, 'srt')} className="p-1.5 text-slate-500 hover:text-white" title="Export SRT"><Download size={14}/></button>
                                                                         </div>
                                                                         <button onClick={() => handleDeleteTrack(track.id)} className="p-1.5 text-slate-700 hover:text-red-500"><Trash2 size={14}/></button>
                                                                     </div>
@@ -649,35 +718,71 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                    </div>
                                                </motion.div>
                                            )}
-
                                            {librarySubTab === 'upload' && (
                                                <motion.div key="upload" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
                                                    <section className="bg-slate-800/40 rounded-[2.5rem] p-6 border border-white/5 space-y-6">
-                                                        <div className="flex items-center gap-2">
-                                                            <Upload size={14} className="text-sky-500" />
-                                                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manual Inflow</h3>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <div className="col-span-1 space-y-1">
-                                                                <label className="text-[9px] font-bold text-slate-600 uppercase ml-1">Language</label>
-                                                                <select value={uploadLang} onChange={(e) => setUploadLang(e.target.value)} className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none">
-                                                                    <option value="en">English</option>
-                                                                    <option value="vi">Vietnamese</option>
-                                                                    <option value="ja">Japanese</option>
-                                                                    <option value="zh">Chinese</option>
-                                                                </select>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <Upload size={14} className="text-sky-500" />
+                                                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Add Subtitles</h3>
                                                             </div>
-                                                            <div className="col-span-1 flex items-end">
+                                                            <select value={uploadLang} onChange={(e) => setUploadLang(e.target.value)} className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-[10px] font-bold outline-none text-sky-400">
+                                                                <option value="en">English</option>
+                                                                <option value="vi">Vietnamese</option>
+                                                                <option value="ja">Japanese</option>
+                                                                <option value="zh">Chinese</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div className="space-y-4">
+                                                            <div className="space-y-2">
+                                                                <label className="text-[9px] font-bold text-slate-600 uppercase ml-1">Track Name (Optional)</label>
+                                                                <input 
+                                                                    type="text"
+                                                                    value={uploadName}
+                                                                    onChange={(e) => setUploadName(e.target.value)}
+                                                                    placeholder="e.g. Bản dịch 1, Cố vấn chuyên môn..."
+                                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:border-sky-500/50 outline-none"
+                                                                />
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <label className="text-[9px] font-bold text-slate-600 uppercase ml-1">Option 1: Paste SRT/VTT Text</label>
+                                                                <textarea 
+                                                                    value={pastedText}
+                                                                    onChange={(e) => setPastedText(e.target.value)}
+                                                                    placeholder="1&#10;00:00:00,000 --> 00:00:05,000&#10;Hello world..."
+                                                                    className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-xs font-mono text-slate-300 focus:border-sky-500/50 outline-none resize-none custom-scrollbar"
+                                                                />
+                                                                <button 
+                                                                    onClick={handleTextUpload}
+                                                                    disabled={!pastedText || isUploadingText}
+                                                                    className="w-full py-3 bg-sky-500 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-xl font-black text-[10px] uppercase transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                                                                >
+                                                                    {isUploadingText ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                                                                    {isUploadingText ? 'Processing...' : 'Import Pasted Text'}
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="relative py-2">
+                                                                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+                                                                <div className="relative flex justify-center"><span className="bg-slate-900 px-2 text-[8px] font-black text-slate-700 uppercase">OR</span></div>
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <label className="text-[9px] font-bold text-slate-600 uppercase ml-1">Option 2: Upload File</label>
                                                                 <button onClick={() => fileInputRef.current?.click()} disabled={isUploading}
-                                                                        className="w-full py-2 bg-sky-500 text-slate-950 rounded-xl font-bold text-[10px] uppercase transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-sky-500/10">
-                                                                    {isUploading ? '...' : <><Upload size={12}/> File</>}
+                                                                        className="w-full py-3 bg-white/5 hover:bg-white/10 text-white border border-white/5 rounded-xl font-bold text-[10px] uppercase transition-all active:scale-95 flex items-center justify-center gap-2">
+                                                                    {isUploading ? <RefreshCw size={12} className="animate-spin" /> : <Upload size={12}/>}
+                                                                    {isUploading ? 'Uploading...' : 'Choose .srt or .vtt file'}
                                                                 </button>
                                                                 <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".srt,.vtt" />
                                                             </div>
                                                         </div>
-                                                        <div className="p-3 bg-black/30 rounded-2xl border border-white/5 flex items-start gap-3">
-                                                            <Info size={14} className="text-slate-500 shrink-0 mt-0.5" />
-                                                            <p className="text-[9px] leading-relaxed text-slate-500 uppercase font-medium">Supports SRT & VTT. Ensure file encoding is UTF-8 for best results.</p>
+
+                                                        <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10 flex items-start gap-3">
+                                                            <Info size={14} className="text-blue-400 shrink-0 mt-0.5" />
+                                                            <p className="text-[9px] leading-relaxed text-blue-200/60 uppercase font-medium">SRT and VTT formats are supported. Make sure timestamps are in the correct format for the player to sync correctly.</p>
                                                         </div>
                                                    </section>
                                                </motion.div>
@@ -977,6 +1082,78 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                 {saveStatus === 'success' ? 'Synchronized' : 'Update Profile'}
                             </button>
                         </div>
+                        {/* Subtitle Content Editor Overlay */}
+                        <AnimatePresence>
+                            {isEditingContentId && (
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 50 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 50 }}
+                                    className="absolute inset-0 z-[110] bg-slate-900 flex flex-col"
+                                >
+                                    <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500">
+                                                <FileText size={20} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-white">SRT Content Editor</h3>
+                                                <p className="text-[10px] text-slate-500 uppercase font-black">Track ID: {isEditingContentId}</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setIsEditingContentId(null)}
+                                            className="p-2 hover:bg-white/5 rounded-full text-slate-400"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
+                                        <div className="flex-1 relative">
+                                            {isFetchingContent ? (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 rounded-2xl">
+                                                    <RefreshCw size={24} className="text-amber-500 animate-spin mb-3" />
+                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500">Loading SRT...</p>
+                                                </div>
+                                            ) : (
+                                                <textarea 
+                                                    autoFocus
+                                                    value={editContentText}
+                                                    onChange={e => setEditContentText(e.target.value)}
+                                                    className="w-full h-full bg-black/40 border border-white/10 rounded-2xl p-6 text-xs font-mono text-amber-200/80 focus:border-amber-500/50 outline-none resize-none custom-scrollbar"
+                                                    placeholder="Paste SRT content here..."
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div className="flex gap-3">
+                                            <button 
+                                                onClick={() => setIsEditingContentId(null)}
+                                                className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black text-[10px] uppercase transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button 
+                                                onClick={handleSaveContent}
+                                                disabled={isSavingContent || !editContentText}
+                                                className="flex-[2] py-4 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                                            >
+                                                {isSavingContent ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                                                {isSavingContent ? 'Saving...' : 'Update Track Content'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="p-4 bg-amber-500/5 border-t border-white/5 flex items-start gap-3">
+                                        <Info size={14} className="text-amber-500/60 shrink-0 mt-0.5" />
+                                        <p className="text-[8px] leading-relaxed text-amber-200/40 uppercase font-black">
+                                            Warning: This will overwrite ALL existing lines for this track. Ensure your SRT format is correct including index, timestamps, and text blocks.
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </motion.div>
                 </>
             )}
