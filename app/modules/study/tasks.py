@@ -43,3 +43,71 @@ def batch_generate_ai_insights():
         
         db.session.commit()
 
+@shared_task(queue='podlearn_tasks')
+def process_tracking_data(user_id: int, lesson_id: int, listening_seconds: int, shadowing_count: int, shadowing_seconds: int):
+    """
+    Asynchronously process tracking data to avoid API bottlenecks.
+    Updates lesson progress, user stats, activity logs, and streaks.
+    """
+    from app.modules.identity.models import User
+    from app.modules.study.models import Lesson
+    from app.modules.engagement.models import ActivityLog
+    from datetime import datetime, timezone, date, timedelta
+    
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return
+            
+        # 1. Update Lesson Stats
+        if lesson_id:
+            lesson = Lesson.query.get(lesson_id)
+            if lesson and lesson.user_id == user_id:
+                lesson.time_spent = (lesson.time_spent or 0) + listening_seconds
+        
+        # 2. Update User Global Stats
+        user.total_listening_seconds = (user.total_listening_seconds or 0) + listening_seconds
+        user.total_shadowing_count = (user.total_shadowing_count or 0) + shadowing_count
+        
+        # 3. Handle Streak & Last Study Date
+        today = date.today()
+        if user.last_study_date != today:
+            # If studied yesterday, increment streak. If missed more than a day, reset.
+            yesterday = today - timedelta(days=1)
+            if user.last_study_date == yesterday:
+                user.current_streak = (user.current_streak or 0) + 1
+            else:
+                user.current_streak = 1
+            user.last_study_date = today
+            if (user.current_streak or 0) > (user.longest_streak or 0):
+                user.longest_streak = user.current_streak
+
+        # 4. Record Activity Logs
+        if listening_seconds > 0:
+            log = ActivityLog(
+                user_id=user_id,
+                activity_type='LISTEN_PODCAST',
+                duration_seconds=listening_seconds,
+                reference_id=lesson_id
+            )
+            db.session.add(log)
+            
+        if shadowing_count > 0:
+            log = ActivityLog(
+                user_id=user_id,
+                activity_type='SHADOWING_PRACTICE',
+                duration_seconds=shadowing_seconds,
+                metric_value=shadowing_count,
+                reference_id=lesson_id
+            )
+            db.session.add(log)
+            
+        db.session.commit()
+        
+        # 5. Check for Badges (Async trigger)
+        from app.modules.engagement.services.gamification_service import GamificationService
+        GamificationService.check_and_award_badges(user)
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to process tracking data for user {user_id}: {e}")

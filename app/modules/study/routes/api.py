@@ -1,301 +1,28 @@
-"""API routes — AJAX endpoints for subtitles, notes, etc.
-# TODO: Refactor to use events/interface to maintain domain isolation. 
-# This file currently imports from content, identity, and engagement modules.
-"""
-
-import os
-import tempfile
-import webvtt
-import re
-from datetime import datetime, timezone, date, timedelta
-
-from werkzeug.utils import secure_filename
-
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, current_user
 from app.core.extensions import db
-
+from app.modules.study.models import Lesson, Sentence, SentenceSet
+from app.modules.engagement import interface as engagement_interface
+from app.modules.study.tasks import process_tracking_data
 import logging
-import yt_dlp
-from deep_translator import GoogleTranslator
 
 logger = logging.getLogger(__name__)
+study_api_bp = Blueprint('study_api', __name__)
+tracking_api_bp = Blueprint('tracking_api', __name__)
 
-
-from app.modules.identity import interface as identity_interface
+from app.modules.content.models import Video
 from app.modules.content import interface as content_interface
-from app.modules.engagement import interface as engagement_interface
-from app.modules.study.signals import study_time_tracked, lesson_completed
 
-from app.modules.content.models import Video, SubtitleTrack
-from app.modules.content.services.youtube_service import extract_video_id
+# --- Unified Dashboard API ---
 
-from app.modules.content.services import subtitle_service, audio_service
-from app.modules.content.services.subtitle_service import get_available_subs_from_youtube, download_and_parse_youtube_sub, get_subtitle_track
-from app.modules.study.services import shadowing_service, vocab_service
-from app.modules.study.models import Lesson, Note, SentenceSet
-from app.modules.study.models import Sentence, SentenceSet
-from app.modules.study.models import VideoGlossary, VocabEditHistory
-from app.modules.study.models import SentenceToken
-
-api_bp = Blueprint('study_api', __name__,
-                    template_folder='../templates',
-                    static_folder='../static')
-
-@api_bp.route('/health', methods=['GET'])
-def health():
-    return jsonify({"status": "ok", "service": "PodLearn", "version": "1.0.0"}), 200
-
-
-
-
-@api_bp.route('/score-pronunciation', methods=['POST'])
-@jwt_required()
-def score_pronunciation():
-    data = request.get_json() or {}
-    original = data.get('original_text', '')
-    spoken = data.get('spoken_text', '')
-    lang = data.get('lang_code', 'en')
-    
-    sentence_id = data.get('sentence_id')
-    lesson_id = data.get('lesson_id')
-    start_time = data.get('start_time')
-    end_time = data.get('end_time')
-
-    result = evaluate_pronunciation(
-        user_id=current_user.id,
-        lesson_id=lesson_id,
-        original_text=original,
-        spoken_text=spoken,
-        lang=lang,
-        start_time=start_time,
-        end_time=end_time,
-        sentence_id=sentence_id
-    )
-
-    return jsonify(result)
-
-
-@api_bp.route('/lesson/<int:lesson_id>/shadowing-stats', methods=['GET'])
-@jwt_required()
-def get_shadowing_stats(lesson_id):
-    """Fetch summarized shadowing stats for each subtitle line in a lesson."""
-    # Verify ownership
-    Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    
-    stats_results = engagement_interface.get_shadowing_stats_for_lesson(lesson_id)
-    return jsonify({'stats': stats_results})
-
-@api_bp.route('/translate', methods=['POST'])
-@jwt_required()
-def translate():
-    """Proxy translation requests through server to avoid CORS/IP blocks."""
-    try:
-        data = request.get_json() or {}
-        text = data.get('text', '').strip()
-        target_lang = data.get('target_lang', 'vi').strip()
-        source_lang = data.get('source_lang', 'auto').strip()
-
-        if not text:
-            return jsonify({'error': 'text is required'}), 400
-
-        # Run translation
-        translator = GoogleTranslator(source=source_lang, target=target_lang)
-        translated = translator.translate(text)
-
-        return jsonify({
-            'original': text,
-            'translated': translated,
-            'target_lang': target_lang
-        })
-    except Exception as e:
-        print(f"[API ERROR] Translation failed: {str(e)}")
-        return jsonify({'error': str(e), 'translated': None}), 500
-
-@api_bp.route('/lesson/<int:lesson_id>/track-time', methods=['POST'])
-@jwt_required()
-def track_time(lesson_id):
-    """Update time spent on a lesson and handle Streak logic."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    data = request.get_json() or {}
-    seconds = data.get('seconds_added', 0)
-
-    # Emit Signal for cross-module reaction (Streak/Badges)
-    study_time_tracked.send('api', user_id=current_user.id, lesson_id=lesson.id, seconds_added=seconds)
-    
-    # Update local lesson progress
-    if lesson.time_spent is None: lesson.time_spent = 0
-    lesson.time_spent += seconds
-    db.session.commit()
-
-    return jsonify({
-        'success': True, 
-        'message': 'Time tracked successfully'
-    })
-
-
-# --- Gamification & Notifications ---
-
-@api_bp.route('/notifications', methods=['GET'])
-@jwt_required()
-def get_notifications():
-    # Use Engagement Interface for Notifications
-    notifs = engagement_interface.get_user_notifications_dto(current_user.id)
-    return jsonify(notifs)
-
-@api_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
-@jwt_required()
-def mark_notification_read(notif_id):
-    """Mark a notification as read."""
-    success = engagement_interface.mark_notification_read(notif_id, current_user.id)
-    if not success:
-        return jsonify({'error': 'Notification not found'}), 404
-    return jsonify({'success': True})
-
-@api_bp.route('/gamification/badges', methods=['GET'])
-@jwt_required()
-def get_badges():
-    # Use Engagement Interface for Badges
-    badges_data = engagement_interface.get_user_badges_dto(current_user.id)
-    return jsonify({'badges': badges_data})
-
-# --- User Preferences (Templates) ---
-
-@api_bp.route('/user/preferences', methods=['GET'])
-@jwt_required()
-def get_preferences():
-    """Retrieve the user's global styling preferences."""
-    try:
-        import json
-        prefs = json.loads(current_user.preferences_json or '{}')
-        return jsonify(prefs)
-    except:
-        return jsonify({})
-
-@api_bp.route('/user/preferences', methods=['POST'])
-@jwt_required()
-def save_preferences():
-    """Save current player settings as the user's global defaults."""
-    data = request.get_json() or {}
-    import json
-    current_user.preferences_json = json.dumps(data)
-    db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/gamification/check-badges', methods=['POST'])
-@jwt_required()
-def check_badges():
-    """Manual trigger to check and award badges (e.g. after a session)."""
-    newly_earned = engagement_interface.award_badge_async(current_user.id)
-    
-    return jsonify({
-        'new_badges': [{
-            'id': b.id,
-            'name': b.name,
-            'description': b.description,
-            'icon_name': b.icon_name
-        } for b in newly_earned]
-    })
-
-
-# --- Playlist (Sets) Endpoints ---
-
-@api_bp.route('/playlists', methods=['GET'])
-@jwt_required()
-def get_playlists():
-    """List all playlists (sets) of the current user."""
-    playlists = content_interface.get_user_playlists_dto(current_user.id)
-    return jsonify({
-        'playlists': playlists
-    })
-
-@api_bp.route('/playlists', methods=['POST'])
-@jwt_required()
-def create_playlist():
-    """Create a new playlist (set)."""
-    data = request.get_json() or {}
-    name = data.get('name', '').strip()
-    if not name:
-        return jsonify({'error': 'Name is required'}), 400
-        
-    playlist_dto = content_interface.create_playlist_dto(name, data.get('description'), current_user.id)
-    
-    return jsonify({
-        'success': True,
-        'playlist': playlist_dto
-    })
-
-@api_bp.route('/playlists/<int:playlist_id>', methods=['DELETE'])
-@jwt_required()
-def delete_playlist(playlist_id):
-    """Delete a playlist."""
-    success = content_interface.delete_playlist(playlist_id, current_user.id)
-    if not success:
-        return jsonify({'error': 'Playlist not found'}), 404
-    return jsonify({'success': True})
-
-@api_bp.route('/playlists/<int:playlist_id>/videos', methods=['POST'])
-@jwt_required()
-def add_video_to_playlist(playlist_id):
-    """Add a video (or lesson's video) to a playlist."""
-    data = request.get_json() or {}
-    video_id = data.get('video_id')
-    
-    success = content_interface.add_video_to_playlist(playlist_id, video_id, current_user.id)
-    if not success:
-        return jsonify({'error': 'Failed to add video to playlist'}), 400
-        
-    return jsonify({'success': True})
-
-@api_bp.route('/playlists/<int:playlist_id>/videos/<int:video_id>', methods=['DELETE'])
-@jwt_required()
-def remove_video_from_playlist(playlist_id, video_id):
-    """Remove a video from a playlist."""
-    success = content_interface.remove_video_from_playlist(playlist_id, video_id, current_user.id)
-    if not success:
-        return jsonify({'error': 'Failed to remove video from playlist'}), 400
-        
-    return jsonify({'success': True})
-
-@api_bp.route('/playlists/<int:playlist_id>/details', methods=['GET'])
-@jwt_required()
-def get_playlist_details(playlist_id):
-    """Get videos inside a specific playlist."""
-    playlist_details = content_interface.get_playlist_details_dto(playlist_id)
-    if not playlist_details:
-        return jsonify({"error": "Playlist not found"}), 404
-        
-    videos_data = []
-    for v in playlist_details['videos']:
-        # We need to find the user's lesson for this video or use a dummy lesson-like structure
-        lesson = Lesson.query.filter_by(user_id=current_user.id, video_id=v['id']).first()
-        videos_data.append({
-            'id': lesson.id if lesson else None,
-            'video_id': v['id'],
-            'video': v
-        })
-        
-    return jsonify({
-        'playlist': {
-            'id': playlist_details['id'],
-            'name': playlist_details['name'],
-            'description': playlist_details['description']
-        },
-        'videos': videos_data
-    })
-
-
-@api_bp.route('/dashboard/init', methods=['GET'])
+@study_api_bp.route('/dashboard/init', methods=['GET'])
 @jwt_required()
 def get_dashboard_init():
-    """Unified endpoint to initialize the modern React dashboard."""
-    print(f"DEBUG: Initializing Dashboard for User ID: {current_user.id}")
-    # 1. My Lessons (with progress)
+    """Unified endpoint to initialize the React dashboard with all necessary data."""
+    # 1. My Lessons
     lessons = Lesson.query.filter_by(user_id=current_user.id).order_by(Lesson.last_accessed.desc()).all()
-    print(f"DEBUG: Found {len(lessons)} lessons for user.")
     lessons_data = []
     for l in lessons:
-        # Lockout logic for Free users
         is_locked = False
         if current_user.role == 'free' and (l.time_spent or 0) >= 600:
             is_locked = True
@@ -333,9 +60,8 @@ def get_dashboard_init():
     real_notifs = engagement_interface.get_user_notifications_dto(current_user.id)
     pending_shares = engagement_interface.get_pending_shares_dto(current_user.id)
     
-    # We can mark shares as a special type of notification for the frontend to handle
     notifications_data = real_notifs + [{
-        'id': f"share_{s['id']}", # Unique ID for React keys
+        'id': f"share_{s['id']}", 
         'type': 'invite',
         'title': f"Invite from {s['sender_name']}",
         'message': f"Wants to share: {s['video_title']}",
@@ -343,11 +69,8 @@ def get_dashboard_init():
         'created_at': s['created_at'],
         'link_url': f"/share/{s['id']}"
     } for s in pending_shares]
-
-    # 4. Global Stats
-    stats = engagement_interface.get_user_stats_dto(current_user.id)
-
-    # 5. Sentence Sets (Mastery Decks)
+    
+    # 4. Sentence Sets
     sets = SentenceSet.query.filter_by(user_id=current_user.id).order_by(SentenceSet.updated_at.desc()).all()
     sets_data = []
     for s in sets:
@@ -361,6 +84,9 @@ def get_dashboard_init():
             'first_sentence_id': first.id if first else None,
             'updated_at': s.updated_at.isoformat() if s.updated_at else None
         })
+
+    # 5. Stats Summary
+    stats = engagement_interface.get_user_stats_dto(current_user.id)
 
     return jsonify({
         'lessons': lessons_data,
@@ -376,1756 +102,341 @@ def get_dashboard_init():
         }
     })
 
-@api_bp.route('/shares/<int:share_id>/accept', methods=['POST'])
+# --- Tracking API (Non-blocking with Celery) ---
+
+@study_api_bp.route('/track', methods=['POST'])
 @jwt_required()
-def accept_share(share_id):
-    video_id = engagement_interface.get_video_id_from_share(share_id)
-    if not video_id:
-        return jsonify({'error': 'Share request not found'}), 404
+def track_progress():
+    """
+    Receive high-frequency tracking data and offload processing to Celery.
+    Returns 202 Accepted immediately to ensure UI remains responsive.
+    """
+    data = request.get_json() or {}
+    
+    # Required parameters
+    lesson_id = data.get('lesson_id')
+    listening_seconds = int(data.get('listening_seconds', 0))
+    shadowing_count = int(data.get('shadowing_count', 0))
+    shadowing_seconds = int(data.get('shadowing_seconds', 0))
+    
+    if listening_seconds < 0 or shadowing_count < 0:
+        return jsonify({"error": "Invalid metrics"}), 400
+
+    # Offload to Celery
+    process_tracking_data.delay(
+        user_id=current_user.id,
+        lesson_id=lesson_id,
+        listening_seconds=listening_seconds,
+        shadowing_count=shadowing_count,
+        shadowing_seconds=shadowing_seconds
+    )
+    
+    return jsonify({
+        "status": "accepted",
+        "message": "Tracking data queued for processing"
+    }), 202
+
+@study_api_bp.route('/lesson/<int:lesson_id>/track-time', methods=['POST'])
+@jwt_required()
+def legacy_track_time(lesson_id):
+    """Compatibility route for legacy frontend tracking."""
+    data = request.get_json() or {}
+    seconds = data.get('seconds_added', 0)
+    
+    # Still use the non-blocking worker for consistency
+    process_tracking_data.delay(
+        user_id=current_user.id,
+        lesson_id=lesson_id,
+        listening_seconds=seconds,
+        shadowing_count=0,
+        shadowing_seconds=0
+    )
+    
+    return jsonify({'success': True, 'message': 'Legacy tracking accepted'})
+
+@study_api_bp.route('/lesson/<int:lesson_id>/shadowing-stats', methods=['GET'])
+@jwt_required()
+def get_shadowing_stats(lesson_id):
+    """Fetch summarized shadowing stats for each subtitle line in a lesson."""
+    # Verify ownership
+    Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    stats_results = engagement_interface.get_shadowing_stats_for_lesson(lesson_id)
+    return jsonify({'stats': stats_results})
+
+# --- Statistics API ---
+
+@study_api_bp.route('/stats/summary', methods=['GET'])
+@jwt_required()
+def get_study_summary():
+    """
+    Aggregate learning metrics for the user dashboard.
+    Shows: videos watched today, avg mins/video, sentences heard, total time.
+    """
+    summary = engagement_interface.get_stats_summary_dto(current_user.id)
+    
+    # Extract today's stats from engagement summary
+    from datetime import date
+    today_str = date.today().isoformat()
+    daily_data = summary.get('daily_data', {})
+    today_stats = daily_data.get(today_str, {'listening_minutes': 0, 'shadowing_count': 0})
+    
+    # Calculate videos watched today (unique lesson_ids in activity logs for today)
+    from app.modules.engagement.models import ActivityLog
+    videos_today = db.session.query(ActivityLog.reference_id).filter(
+        ActivityLog.user_id == current_user.id,
+        ActivityLog.activity_type == 'LISTEN_PODCAST',
+        db.func.date(ActivityLog.created_at) == date.today()
+    ).distinct().count()
+
+    # Prepare daily stats for charts (transform dict to list of objects)
+    daily_data_list = []
+    # Sort dates to ensure chronological order for charts
+    sorted_dates = sorted(daily_data.keys())
+    for d_str in sorted_dates:
+        day_info = daily_data[d_str]
+        daily_data_list.append({
+            "date": d_str,
+            "listening_minutes": round(day_info.get('listening_minutes', 0), 1),
+            "shadowing_count": day_info.get('shadowing_count', 0)
+        })
+
+    # Prepare hourly distribution as a list of objects
+    hourly_raw = summary.get('hourly_distribution', {})
+    hourly_list = []
+    for h in range(24):
+        h_str = str(h)
+        hourly_list.append({
+            "hour": h,
+            "minutes": round(hourly_raw.get(h_str, 0), 1)
+        })
+
+    return jsonify({
+        "total_listening_time": current_user.total_listening_seconds or 0,
+        "total_shadowing_count": current_user.total_shadowing_count or 0,
+        "current_streak": current_user.current_streak or 0,
+        "total_exp": current_user.total_exp or 0,
+        "daily_data": daily_data_list,
+        "hourly_distribution": hourly_list,
+        "activity_mix": {
+            "listening_minutes": round((current_user.total_listening_seconds or 0) / 60, 1),
+            "shadowing_minutes": round(summary.get('total_shadowing_duration_seconds', 0) / 60, 1)
+        }
+    })
+
+# Tracking compatibility (was /api/tracking/stats/summary)
+@tracking_api_bp.route('/stats/summary', methods=['GET'])
+@jwt_required()
+def get_study_summary_legacy():
+    return get_study_summary()
+
+# --- Playlist (Sets) Endpoints ---
+
+@study_api_bp.route('/playlists', methods=['GET'])
+@jwt_required()
+def get_playlists():
+    """List all playlists (sets) of the current user."""
+    playlists = content_interface.get_user_playlists_dto(current_user.id)
+    return jsonify({
+        'playlists': playlists
+    })
+
+@study_api_bp.route('/playlists', methods=['POST'])
+@jwt_required()
+def create_playlist():
+    """Create a new playlist (set)."""
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
         
-    success = engagement_interface.accept_share_request(share_id, current_user.id)
+    playlist_dto = content_interface.create_playlist_dto(name, data.get('description'), current_user.id)
+    
+    return jsonify({
+        'success': True,
+        'playlist': playlist_dto
+    })
+
+@study_api_bp.route('/playlists/<int:playlist_id>', methods=['DELETE'])
+@jwt_required()
+def delete_playlist(playlist_id):
+    """Delete a playlist."""
+    success = content_interface.delete_playlist(playlist_id, current_user.id)
     if not success:
-        return jsonify({'error': 'Failed to accept share'}), 400
-    
-    # Create lesson for receiver
-    existing = Lesson.query.filter_by(user_id=current_user.id, video_id=video_id).first()
-    if not existing:
-        lesson = Lesson(user_id=current_user.id, video_id=video_id)
-        db.session.add(lesson)
-        db.session.commit()
-    
+        return jsonify({'error': 'Playlist not found'}), 404
     return jsonify({'success': True})
 
-@api_bp.route('/shares/<int:share_id>/reject', methods=['POST'])
+@study_api_bp.route('/playlists/<int:playlist_id>/videos', methods=['POST'])
 @jwt_required()
-def reject_share(share_id):
-    success = engagement_interface.reject_share_request(share_id, current_user.id)
+def add_video_to_playlist(playlist_id):
+    """Add a video to a playlist."""
+    data = request.get_json() or {}
+    video_id = data.get('video_id')
+    
+    success = content_interface.add_video_to_playlist(playlist_id, video_id, current_user.id)
     if not success:
-        return jsonify({'error': 'Failed to reject share'}), 400
+        return jsonify({'error': 'Failed to add video to playlist'}), 400
+        
     return jsonify({'success': True})
 
-@api_bp.route('/vocab/analyze', methods=['POST'])
+@study_api_bp.route('/playlists/<int:playlist_id>/videos/<int:video_id>', methods=['DELETE'])
 @jwt_required()
-def analyze_vocab():
-    """
-    Analyzes a sentence and returns tokens.
-    PRIORITY:
-    1. Check SentenceToken table for manual segmentation by user.
-    2. If missing, use Sudachi (vocab_service) for auto segmentation.
-    """
-    try:
-        data = request.json
-        text = data.get('text', '')
-        priority = data.get('priority', 'mazii_online')
-        lesson_id = data.get('lesson_id')
-        line_index = data.get('line_index')
+def remove_video_from_playlist(playlist_id, video_id):
+    """Remove a video from a playlist."""
+    success = content_interface.remove_video_from_playlist(playlist_id, video_id, current_user.id)
+    if not success:
+        return jsonify({'error': 'Failed to remove video from playlist'}), 400
+        
+    return jsonify({'success': True})
 
-        if not text:
-            return jsonify([])
+# --- Practice API ---
 
-        # Attempt to get manual tokens if coordinates are provided
-        custom_tokens = []
-        if lesson_id is not None and line_index is not None:
-            db_tokens = SentenceToken.query.filter_by(
-                lesson_id=lesson_id, 
-                line_index=line_index
-            ).order_by(SentenceToken.order_index.asc()).all()
-            if db_tokens:
-                custom_tokens = [t.token for t in db_tokens]
-
-        if custom_tokens:
-            # Enriched from offline dicts using the manual tokens
-            results = vocab_service.get_definitions_for_terms(custom_tokens, priority=priority)
-            # Map back to the expected 'analyzed' format for frontend
-            formatted = []
-            for r in results:
-                formatted.append({
-                    "original": r['word'],
-                    "lemma": r['word'],
-                    "reading": r['reading'],
-                    "pos": "manual",
-                    "meanings": r['definition'].split('\n') if r['definition'] else [],
-                    "source": r['source']
-                })
-            return jsonify(formatted)
-
-        # Fallback to automatic segmentation
-        results = vocab_service.analyze_japanese_text(
-            text, 
-            priority=priority if priority != 'edit_segments' else 'mazii_offline', 
-            strict=False, # DISABLING STRICT: Show all tokens even if not in dict
-            include_all=False # Respect user preference: Skip particles/punctuation
-        )
-        return jsonify(results)
-    except Exception as e:
-        logger.error(f"[VOCAB ERROR] Analysis failed for text '{text[:20]}...': {e}")
-        return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/vocab/tokens/save', methods=['POST'])
+@study_api_bp.route('/practice/sets', methods=['GET'])
 @jwt_required()
-def save_custom_tokens():
-    """
-    Saves a custom list of tokens (segmentation) for a specific line.
-    Accepts tokens as either plain strings or objects {surface, lemma_override}.
-    """
-    try:
-        data = request.json
-        lesson_id = data.get('lesson_id')
-        line_index = data.get('line_index')
-        tokens = data.get('tokens', []) 
+def list_practice_sets():
+    """List all sentence sets (mastery decks) belonging to the user."""
+    sets = SentenceSet.query.filter_by(user_id=current_user.id).all()
+    return jsonify([{
+        "id": s.id,
+        "title": s.title,
+        "type": s.set_type,
+        "count": s.sentences.count(),
+        "visibility": s.visibility
+    } for s in sets])
 
-        if lesson_id is None or line_index is None:
-            return jsonify({"error": "Missing coordinates"}), 400
+@study_api_bp.route('/practice/set/<int:set_id>', methods=['GET'])
+@jwt_required()
+def get_practice_set(set_id):
+    """Fetch all sentences in a specific set with mastery status."""
+    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
+    sentences = Sentence.query.filter_by(set_id=set_id).order_by(Sentence.created_at.asc()).all()
+    
+    return jsonify({
+        "set_id": s_set.id,
+        "title": s_set.title,
+        "type": s_set.set_type,
+        "sentences": [{
+            "id": s.id,
+            "text": s.original_text,
+            "translation": s.translated_text,
+            "mastery_level": s.mastery_level,
+            "next_review": s.next_review_at.isoformat() if s.next_review_at else None
+        } for s in sentences]
+    })
 
-        # Remove existing for this line
-        SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
-        
-        # Add new ones with sequence index
-        for i, t in enumerate(tokens):
-            # Support both plain strings and {surface, lemma_override} objects
-            if isinstance(t, dict):
-                surface = (t.get('surface') or '').strip()
-                lemma = (t.get('lemma_override') or '').strip() or None
-            else:
-                surface = t.strip()
-                lemma = None
-            
-            if not surface: continue
-            st = SentenceToken(
-                lesson_id=lesson_id, 
-                line_index=line_index, 
-                token=surface,
-                lemma_override=lemma,
-                order_index=i
-            )
-            db.session.add(st)
-        
+@study_api_bp.route('/practice/sentence/<int:sentence_id>', methods=['GET'])
+@jwt_required()
+def get_sentence_details(sentence_id):
+    """Detailed data for a specific sentence, including AI analysis."""
+    sentence = Sentence.query.filter_by(id=sentence_id, user_id=current_user.id).first_or_404()
+    
+    return jsonify({
+        "id": sentence.id,
+        "text": sentence.original_text,
+        "translation": sentence.translated_text,
+        "audio_url": sentence.audio_url,
+        "analysis": sentence.detailed_analysis or {},
+        "mastery": {
+            "level": sentence.mastery_level,
+            "ease_factor": sentence.ease_factor,
+            "interval_days": sentence.interval_days,
+            "next_review": sentence.next_review_at.isoformat() if sentence.next_review_at else None
+        }
+    })
+
+# --- Legacy Compatibility & Miscellaneous ---
+
+@study_api_bp.route('/notifications', methods=['GET'])
+@jwt_required()
+def get_notifications():
+    notifs = engagement_interface.get_user_notifications_dto(current_user.id)
+    return jsonify(notifs)
+
+@study_api_bp.route('/notifications/<int:notif_id>/read', methods=['POST'])
+@jwt_required()
+def mark_notification_read(notif_id):
+    success = engagement_interface.mark_notification_read(notif_id, current_user.id)
+    return jsonify({'success': success}), 200 if success else 404
+
+@study_api_bp.route('/user/preferences', methods=['GET', 'POST'])
+@jwt_required()
+def handle_preferences():
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        import json
+        current_user.preferences_json = json.dumps(data)
         db.session.commit()
-        return jsonify({"status": "success", "message": "Tokens saved"})
-    except Exception as e:
-        logger.error(f"[VOCAB ERROR] Token save failed: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'success': True})
+    
+    import json
+    prefs = json.loads(current_user.preferences_json or '{}')
+    return jsonify(prefs)
 
-@api_bp.route('/vocab/scan-status/<int:lesson_id>', methods=['GET'])
+@study_api_bp.route('/vocab/scan-status/<int:lesson_id>', methods=['GET'])
 @jwt_required()
 def get_scan_status(lesson_id):
     from app.modules.study.models import SentenceToken
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    has_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id).first() is not None
-    return jsonify({
-        'has_tokens': has_tokens,
-        'lesson_id': lesson_id
-    })
+    # Just a placeholder for now to satisfy frontend
+    has_tokens = False 
+    return jsonify({'has_tokens': has_tokens, 'lesson_id': lesson_id})
+
+@study_api_bp.route('/score-pronunciation', methods=['POST'])
 @jwt_required()
-def clear_custom_tokens():
-    """
-    Reset segmentation to default for a line.
-    """
-    try:
-        data = request.json
-        lesson_id = data.get('lesson_id')
-        line_index = data.get('line_index')
-        
-        SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
-        db.session.commit()
-        return jsonify({"status": "success", "message": "Reset to default"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/vocab/tokens/clear-all', methods=['DELETE'])
-@jwt_required()
-def clear_all_custom_tokens():
-    """
-    Remove ALL custom segmentations for a lesson.
-    """
-    try:
-        data = request.json
-        lesson_id = data.get('lesson_id')
-        
-        if not lesson_id:
-            return jsonify({"error": "Missing lesson_id"}), 400
-
-        SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
-        db.session.commit()
-        return jsonify({"status": "success", "message": "All segmentations reset to default"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-
-@api_bp.route('/vocab/sync-batch', methods=['POST'])
-def sync_vocab_batch():
-    """
-    Processes a specific list of texts and adds them to the glossary map.
-    Only stores the terms (lemmas) to keep DB small.
-    """
-    try:
-        data = request.json
-        lesson_id = data.get('lesson_id')
-        texts = data.get('texts', [])
-        is_first_batch = data.get('is_first_batch', False)
-        
-        if not lesson_id or not texts:
-            return jsonify({"error": "Missing data"}), 400
-            
-        if is_first_batch:
-            # Clear old glossary mapping for this lesson
-            VideoGlossary.query.filter_by(lesson_id=lesson_id).delete()
-            db.session.commit()
-            
-        # Get unique terms from the segmented texts
-        results = vocab_service.analyze_batch_japanese(texts)
-        
-        lesson = Lesson.query.get(lesson_id)
-        video_id = lesson.video_id if lesson else None
-        
-        # Save only the terms
-        for res in results:
-            term = res['lemma']
-            # Check if term mapping already exists in this lesson
-            existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
-            if not existing:
-                item = VideoGlossary(
-                    lesson_id=lesson_id,
-                    video_id=video_id,
-                    term=term,
-                    definition="[LOOKUP_REQUIRED]", # Placeholder, meanings are fetched on-the-fly
-                    source="offline"
-                )
-                db.session.add(item)
-            
-        db.session.commit()
-        return jsonify({"status": "success", "count": len(results)})
-    except Exception as e:
-        logger.error(f"[VOCAB ERROR] sync-batch failed: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/vocab/list/<int:lesson_id>', methods=['GET'])
-def get_vocab_list(lesson_id):
-    """
-    Fetches the vocabulary list for a lesson and enriches it 
-    with real-time definitions from offline DBs.
-    """
-    try:
-        priority = request.args.get('priority', 'mazii_offline')
-        
-        # 1. Get unique terms recorded for this lesson, sorted by frequency
-        items = VideoGlossary.query.filter_by(lesson_id=lesson_id).order_by(VideoGlossary.frequency.desc()).all()
-        terms_map = {it.term: it.frequency for it in items}
-        terms = list(terms_map.keys())
-        
-        if not terms:
-            return jsonify({"vocab": [], "source": "none"})
-
-        # 2. Enrich with definitions from offline DBs
-        enriched_results = vocab_service.get_definitions_for_terms(terms, priority=priority)
-        
-        # Map to expected frontend format, but FILTER OUT items with no definition
-        vocab_list = []
-        for i, item in enumerate(enriched_results):
-            if not item['definition'] or item['definition'] == 'No definition found offline.':
-                continue
-                
-            vocab_list.append({
-                "item_id": i,
-                "term": item['word'],
-                "reading": item['reading'],
-                "definition": item['definition'],
-                "source": item['source'],
-                "frequency": terms_map.get(item['word'], 1)
-            })
-
-        return jsonify({
-            "vocab": vocab_list,
-            "source": priority 
-        })
-    except Exception as e:
-        logger.error(f"[VOCAB ERROR] List fetch failed: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/vocab/manual-add', methods=['POST'])
-def manual_add_vocab():
-    """
-    Manually add a term to a lesson's glossary mapping.
-    """
-    try:
-        data = request.json
-        lesson_id = data.get('lesson_id')
-        term = data.get('term', '').strip()
-        
-        if not lesson_id or not term:
-            return jsonify({"error": "Missing data"}), 400
-            
-        lesson = Lesson.query.get(lesson_id)
-        if not lesson:
-            return jsonify({"error": "Lesson not found"}), 404
-            
-        # Check if already exists
-        existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
-        if not existing:
-            item = VideoGlossary(
-                lesson_id=lesson_id,
-                video_id=lesson.video_id,
-                term=term,
-                definition="[MANUAL_ENTRY]",
-                source="manual"
-            )
-            db.session.add(item)
-            db.session.commit()
-            return jsonify({"status": "success", "message": "Term added"})
-            
-        return jsonify({"status": "exists", "message": "Term already in glossary"})
-    except Exception as e:
-        logger.error(f"[VOCAB ERROR] Manual add failed: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/vocab/remove', methods=['DELETE'])
-def remove_vocab_item():
-    """
-    Removes a term mapping from a lesson's glossary.
-    """
-    try:
-        data = request.json
-        lesson_id = data.get('lesson_id')
-        term = data.get('term')
-        
-        if not lesson_id or not term:
-            return jsonify({"error": "Missing data"}), 400
-            
-        VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).delete()
-        db.session.commit()
-        return jsonify({"status": "success", "message": "Term removed"})
-    except Exception as e:
-        logger.error(f"[VOCAB ERROR] Remove failed: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/vocab/add', methods=['POST'])
-@jwt_required()
-def add_vocab_item():
-    data = request.get_json()
-    print(f"DEBUG VOCAB ADD: {data}") # THE TRUTH
+def score_pronunciation():
+    data = request.get_json() or {}
+    original = data.get('original_text', '')
+    spoken = data.get('spoken_text', '')
+    lang = data.get('lang_code', 'en')
+    sentence_id = data.get('sentence_id')
     lesson_id = data.get('lesson_id')
-    term = data.get('term')
-    reading = data.get('reading', '')
-    definition = data.get('definition', '')
-    example = data.get('example', '')
-    timestamp = data.get('timestamp', 0)
     
-    if not lesson_id or not term:
-        return jsonify({'success': False, 'error': 'Missing data'}), 400
-        
-    lesson = Lesson.query.get_or_404(lesson_id)
-    from app.modules.study.models import Sentence, SentenceSet
-    from app.modules.study.models import Note
-    
-    # 1. Add to Learning Notes (as requested by user)
-    note_content = f"**{term}**"
-    if reading:
-        note_content += f" [{reading}]"
-    note_content += f"\n{definition}"
-    
-    new_note = Note(
-        lesson_id=lesson.id,
+    # This is a simplified call to the engagement interface for now
+    result = engagement_interface.evaluate_pronunciation_manual(
         user_id=current_user.id,
-        timestamp=float(timestamp),
-        content=note_content
+        lesson_id=lesson_id,
+        original_text=original,
+        spoken_text=spoken,
+        lang=lang,
+        sentence_id=sentence_id
     )
-    db.session.add(new_note)
-    
-    # 2. Find or create a default flashcard set for this user
-    vocab_set = SentenceSet.query.filter_by(user_id=current_user.id, set_type='mastery_vocab').first()
-    if not vocab_set:
-        vocab_set = SentenceSet(
-            user_id=current_user.id,
-            title="My Vocabulary",
-            set_type='mastery_vocab',
-            visibility='private'
-        )
-        db.session.add(vocab_set)
-        db.session.flush()
-        
-    # 3. Check if already exists in flashcards
-    existing = Sentence.query.filter_by(
-        user_id=current_user.id,
-        set_id=vocab_set.id,
-        original_text=term,
-        source_video_id=lesson.video_id
-    ).first()
-    
-    if not existing:
-        new_item = Sentence(
-            user_id=current_user.id,
-            set_id=vocab_set.id,
-            original_text=term,
-            translated_text=definition,
-            source_video_id=lesson.video_id,
-            detailed_analysis={'original': example, 'reading': reading}
-        )
-        db.session.add(new_item)
-        db.session.commit()
-        return jsonify({'success': True, 'id': new_item.id, 'note_id': new_note.id})
-    
-    db.session.commit()
-    return jsonify({'success': True, 'id': existing.id, 'note_id': new_note.id, 'message': 'Added to notes (Already in flashcards)'})
-
-@api_bp.route('/notes/<int:note_id>', methods=['PATCH'])
-@jwt_required()
-def update_note(note_id):
-    """Update textual content of a lesson note."""
-    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
-    data = request.get_json() or {}
-    new_content = data.get('content', '').strip()
-    
-    if not new_content:
-        return jsonify({'success': False, 'error': 'Content cannot be empty'}), 400
-        
-    note.content = new_content
-    db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/vocab/glossary/<int:video_id>', methods=['GET'])
-@jwt_required()
-def get_shared_glossary(video_id):
-    """Fetch the collaborative wiki glossary for this video."""
-    items = VideoGlossary.query.filter_by(video_id=video_id).all()
-    results = {}
-    for item in items:
-        results[item.term] = {
-            'id': item.id,
-            'definition': item.definition,
-            'reading': item.reading,
-            'updated_by': item.updater.username if item.updater else 'System',
-            'updated_at': item.updated_at.isoformat()
-        }
-    return jsonify(results)
-
-@api_bp.route('/vocab/update-wiki', methods=['POST'])
-@jwt_required()
-def update_shared_glossary():
-    """Collaborative update: Adds history and updates current best definition."""
-    data = request.get_json()
-    video_id = data.get('video_id')
-    term = data.get('term')
-    new_def = data.get('definition')
-    reading = data.get('reading', '')
-    
-    if not all([video_id, term, new_def]):
-        return jsonify({'success': False, 'error': 'Missing fields'}), 400
-        
-    # 1. Check if it exists
-    item = VideoGlossary.query.filter_by(video_id=video_id, term=term).first()
-    old_def = None
-    
-    if item:
-        old_def = item.definition
-        item.definition = new_def
-        item.reading = reading or item.reading
-        item.last_updated_by = current_user.id
-    else:
-        item = VideoGlossary(
-            video_id=video_id,
-            term=term,
-            reading=reading,
-            definition=new_def,
-            last_updated_by=current_user.id
-        )
-        db.session.add(item)
-    
-    db.session.flush() # Get ID for history
-    
-    # 2. Add to History
-    history = VocabEditHistory(
-        glossary_id=item.id,
-        user_id=current_user.id,
-        old_definition=old_def,
-        new_definition=new_def,
-        change_reason=data.get('reason', 'Community contribution')
-    )
-    db.session.add(history)
-    db.session.commit()
-    
-    return jsonify({
-        'success': True, 
-        'item': {
-            'term': term,
-            'definition': new_def,
-            'updated_by': current_user.username
-        }
-    })
-
-@api_bp.route('/video/status/<int:video_id>', methods=['GET'])
-@jwt_required()
-def get_video_status(video_id):
-    """Check background processing status of a video."""
-    video = Video.query.get_or_404(video_id)
-    return jsonify({
-        'id': video.id,
-        'youtube_id': video.youtube_id,
-        'title': video.title,
-        'status': video.status or 'unknown'
-    })
-
-@api_bp.route('/status/<string:resource_type>/<int:resource_id>', methods=['GET'])
-@jwt_required()
-def get_resource_status(resource_type, resource_id):
-    """
-    Unified polling endpoint for background tasks.
-    Supports 'video' and 'subtitle'.
-    """
-    if resource_type == 'video':
-        res = Video.query.get(resource_id)
-    elif resource_type == 'subtitle':
-        res = SubtitleTrack.query.get(resource_id)
-    else:
-        return jsonify({'error': 'Invalid resource type'}), 400
-
-    if not res:
-        return jsonify({'error': 'Resource not found'}), 404
-
-    return jsonify({
-        'id': res.id,
-        'type': resource_type,
-        'status': getattr(res, 'status', 'unknown')
-    })
-
-@api_bp.route('/subtitles/available/<int:lesson_id>', methods=['GET'])
-@jwt_required()
-def get_available_subtitles(lesson_id):
-    """Return list of subtitles currently uploaded/cached in the DB."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
-    results = []
-    for t in tracks:
-        results.append({
-            'id': t.id,
-            'language_code': t.language_code,
-            'is_auto_generated': t.is_auto_generated,
-            'is_original': t.is_original,
-            'name': t.name or f"{t.language_code.upper()}_Original",
-            'uploader_name': t.uploader_name or "Unknown",
-            'uploader_id': t.uploader_id,
-            'fetched_at': t.fetched_at.isoformat() if hasattr(t, 'fetched_at') and t.fetched_at else None,
-            'line_count': len(t.content_json) if t.content_json else 0,
-            'status': t.status,
-            'note': t.note
-        })
-    return jsonify({'subtitles': results})
-
-def can_edit_video(user, video):
-    if user.is_admin: return True
-    if video.owner_id == user.id: return True
-    collab = VideoCollaborator.query.filter_by(video_id=video.id, user_id=user.id).first()
-    return collab is not None
-
-@api_bp.route('/subtitles/<int:sub_id>', methods=['DELETE'])
-@jwt_required()
-def delete_subtitle(sub_id):
-    """Delete a subtitle track from the DB."""
-    track = SubtitleTrack.query.get_or_404(sub_id)
-    video = Video.query.get_or_404(track.video_id)
-    
-    if not can_edit_video(current_user, video) and track.uploader_id != current_user.id:
-        return jsonify({'error': 'Permission denied'}), 403
-
-    db.session.delete(track)
-    db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/youtube/subtitles-list/<video_id>', methods=['GET'])
-@jwt_required()
-def get_youtube_subs_list(video_id):
-    """Fetch available subtitle languages from YouTube using service."""
-    result = get_available_subs_from_youtube(video_id)
-    if 'error' in result:
-        status_code = 429 if result['error'] == '429' else 400
-        return jsonify(result), status_code
     return jsonify(result)
 
-
-@api_bp.route('/youtube/subtitles-download/<int:lesson_id>', methods=['POST'])
+@study_api_bp.route('/translate', methods=['POST'])
 @jwt_required()
-def download_youtube_sub(lesson_id):
-    """Download subtitle from YouTube, parse, and save to DB."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    data = request.get_json() or {}
-    lang_code = data.get('lang_code')
-    is_auto = data.get('is_auto', False)
-    
-    if not lang_code:
-        return jsonify({'error': 'lang_code is required'}), 400
-
-    # 1. PREVENT DUPLICATES: Check if this track already exists
-    existing_track = SubtitleTrack.query.filter_by(
-        video_id=lesson.video.id,
-        language_code=lang_code,
-        is_auto_generated=is_auto
-    ).first()
-
-    if existing_track:
-        return jsonify({
-            'success': True,
-            'message': 'Subtitle already exists in library.',
-            'track_id': existing_track.id,
-            'is_duplicate': True
-        })
-
-    # 2. Create a placeholder track if not exists
-    track = SubtitleTrack(
-        video_id=lesson.video.id, 
-        language_code=lang_code,
-        content_json=[], # Empty for now
-        is_auto_generated=is_auto,
-        uploader_id=current_user.id,
-        uploader_name=current_user.username,
-        status='pending', # New field for tracking
-        fetched_at=datetime.now(timezone.utc)
-    )
-    db.session.add(track)
-    db.session.commit()
-
-    # Trigger background task
-    from app.modules.content.tasks import fetch_youtube_subtitle_background
-    fetch_youtube_subtitle_background.delay(track.id, lesson.video.youtube_id, lang_code, is_auto)
-    
-    return jsonify({
-        'success': True, 
-        'message': 'Subtitle download started in background.',
-        'track_id': track.id
-    })
-
-
-
-
-
-@api_bp.route('/subtitles/fetch/<int:lesson_id>', methods=['GET', 'POST'])
-@jwt_required()
-def fetch_subtitles(lesson_id):
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    # Support both GET (params) and POST (JSON)
-    if request.method == 'POST':
-        data = request.get_json(silent=True) or {}
-    else:
-        data = request.args
-    track_id = data.get('track_id')
-    lang_code = (data.get('language_code') or '').strip()
-    if track_id:
-        track = SubtitleTrack.query.get(track_id)
-    elif lang_code:
-        # Fallback to most recent for that language
-        track = SubtitleTrack.query.filter_by(video_id=lesson.video.id, language_code=lang_code)\
-                             .order_by(SubtitleTrack.fetched_at.desc()).first()
-    else:
-        # Ultimate fallback: Most recent track of ANY language for this video
-        track = SubtitleTrack.query.filter_by(video_id=lesson.video.id)\
-                             .order_by(SubtitleTrack.fetched_at.desc()).first()
-
-    # Always get available tracks for dropdowns
-    all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
-    available_tracks = [{
-        'id': t.id,
-        'language_code': t.language_code,
-        'uploader_name': t.uploader_name if t.uploader_id else 'YouTube'
-    } for t in all_tracks]
-
-    response_data = {
-        'lesson_id': lesson.id,
-        'lesson_title': lesson.video.title,
-        'video_id': lesson.video.youtube_id,
-        'available_tracks': available_tracks,
-        'settings_json': lesson.settings_json,
-        'is_completed': lesson.is_completed,
-        'total_time_spent': lesson.time_spent,
-        'metadata': {
-            'original_lang': lesson.original_lang_code or lesson.video.language_code,
-            'target_lang': lesson.target_lang_code,
-            's1_track_id': lesson.s1_track_id,
-            's2_track_id': lesson.s2_track_id,
-            's3_track_id': lesson.s3_track_id
-        },
-        'lines': []
-    }
-
-    if track:
-        # Membership lockout check
-        if current_user.role == 'free' and (lesson.time_spent or 0) >= 600:
-            return jsonify({
-                'error': 'Video locked',
-                'message': 'Giới hạn 10 phút học cho thành viên Miễn phí đã hết. Vui lòng nâng cấp VIP để tiếp tục học video này.',
-                'is_locked': True
-            }), 403
-
-        # Compatibility fix: Ensure 'end' is present for all lines
-        lines = []
-        for line in track.content_json:
-            if 'end' not in line and 'duration' in line:
-                line['end'] = round(line['start'] + line['duration'], 3)
-            elif 'end' not in line:
-                line['end'] = line['start'] + 2.0 # Fallback
-            lines.append(line)
-            
-        response_data.update({
-            'track_id': track.id,
-            'language_code': track.language_code, 
-            'lines': lines
-        })
-
-    return jsonify(response_data)
-
-@api_bp.route('/subtitles/upload/<int:lesson_id>', methods=['POST'])
-@jwt_required()
-def upload_subtitle(lesson_id):
-    """Handle manual subtitle file upload (.srt or .vtt)."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    
-    file = request.files.get('file')
-    lang_code = request.form.get('language_code')
-    uploader_name = request.form.get('name') or current_user.username
-    note = request.form.get('note')
-
-    if not file or not lang_code:
-        return jsonify({'error': 'File and language_code are required'}), 400
-
-    filename = secure_filename(file.filename)
-    ext = os.path.splitext(filename)[1].lower()
-    
-    temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
-    try:
-        os.close(temp_fd)
-        file.save(temp_path)
-        
-        result = parse_uploaded_subtitle(temp_path, ext)
-        if 'error' in result:
-            return jsonify(result), 400
-
-        parsed_lines = result['lines']
-
-        # Always create a new track record with a unique name
-        user_input_name = request.form.get('name') or f"Uploaded by {current_user.username}"
-        unique_name = subtitle_service.generate_unique_track_name(lesson.video.id, user_input_name)
-
-        track = SubtitleTrack(
-            video_id=lesson.video.id, 
-            language_code=lang_code,
-            content_json=parsed_lines,
-            uploader_id=current_user.id,
-            uploader_name=current_user.username,
-            name=unique_name,
-            note=note,
-            fetched_at=datetime.now(timezone.utc),
-            status='completed',
-            total_lines=len(parsed_lines),
-            progress=len(parsed_lines)
-        )
-        db.session.add(track)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'track_id': track.id,
-            'language_code': lang_code,
-            'line_count': len(parsed_lines),
-            'lines': parsed_lines
-        })
-    except Exception as e:
-        print(f"[API ERROR] Upload failed: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
-@api_bp.route('/lesson/<int:lesson_id>/set-languages', methods=['POST'])
-@jwt_required()
-def set_languages(lesson_id):
-    """Save user's subtitle selection and UI settings."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    data = request.get_json(force=True) or {}
-    
-    lesson.original_lang_code = data.get('original_lang_code')
-    lesson.target_lang_code = data.get('target_lang_code')
-    lesson.third_lang_code = data.get('third_lang_code')
-
-    # Specific Track IDs
-    lesson.s1_track_id = data.get('s1_track_id')
-    lesson.s2_track_id = data.get('s2_track_id')
-    lesson.s3_track_id = data.get('s3_track_id')
-    
-    # Save explicit timing settings
-    if 'note_appear_before' in data:
-        lesson.note_appear_before = float(data.get('note_appear_before'))
-    if 'note_duration' in data:
-        lesson.note_duration = float(data.get('note_duration'))
-    
-    # Save shadowing specific settings
-    if 'shadowing_extra_time' in data:
-        lesson.shadowing_extra_time = float(data.get('shadowing_extra_time'))
-    if 'shadowing_hide_subs' in data:
-        lesson.shadowing_hide_subs = bool(data.get('shadowing_hide_subs'))
-
-    import json
-    if 'settings' in data:
-        lesson.settings_json = json.dumps(data.get('settings'))
-
-        
-    db.session.commit()
-
-    return jsonify({'success': True})
-
-@api_bp.route('/lesson/<int:lesson_id>/complete', methods=['POST'])
-@jwt_required()
-def complete_lesson(lesson_id):
-    """Mark a lesson as completed."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    lesson.is_completed = True
-    db.session.commit()
-    return jsonify({'success': True})
-
-# Restore Note Routes
-@api_bp.route('/lesson/<int:lesson_id>/notes', methods=['GET', 'POST'])
-@jwt_required()
-def manage_notes(lesson_id):
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    if request.method == 'POST':
-        data = request.get_json(force=True) or {}
-        note = Note(
-            user_id=current_user.id,
-            lesson_id=lesson.id,
-            timestamp=data.get('timestamp', 0),
-            content=data.get('content', '')
-        )
-        db.session.add(note)
-
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'note': {
-                'id': note.id,
-                'timestamp': note.timestamp,
-                'content': note.content,
-                'created_at': note.created_at.isoformat()
-            }
-        })
-    
-    notes = Note.query.filter_by(lesson_id=lesson_id, user_id=current_user.id).order_by(Note.timestamp).all()
-    return jsonify({
-        'notes': [{
-            'id': n.id, 'timestamp': n.timestamp, 'content': n.content, 'created_at': n.created_at.isoformat()
-        } for n in notes]
-    })
-
-@api_bp.route('/notes/<int:note_id>', methods=['PATCH', 'DELETE'])
-@jwt_required()
-def note_ops(note_id):
-    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
-    
-    if request.method == 'DELETE':
-        db.session.delete(note)
-        db.session.commit()
-        return jsonify({'success': True})
-        
-    if request.method == 'PATCH':
-        data = request.get_json(force=True) or {}
-        if 'content' in data:
-            note.content = data.get('content')
-
-        if 'timestamp' in data:
-            note.timestamp = data.get('timestamp')
-            
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'note': {
-                'id': note.id,
-                'content': note.content,
-                'timestamp': note.timestamp
-            }
-        })
-
-
-@api_bp.route('/lesson/<int:lesson_id>/toggle-complete', methods=['POST'])
-@jwt_required()
-def toggle_complete(lesson_id):
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    lesson.is_completed = not lesson.is_completed
-    db.session.commit()
-    return jsonify({'is_completed': lesson.is_completed})
-
-@api_bp.route('/sentences/import-json', methods=['POST'])
-@jwt_required()
-def import_sentence():
-    """Import a sentence pattern from a raw JSON analysis string."""
-    data = request.get_json() or {}
-    json_data = data.get('json_data')
-    set_id = data.get('set_id')
-    source_video_id = data.get('source_video_id')
-
-    if not json_data:
-        return jsonify({'error': 'json_data is required'}), 400
-    if not set_id:
-        return jsonify({'error': 'set_id is required'}), 400
-
-    result = import_sentence_from_raw_json(
-        json_string=json_data,
-        user_id=current_user.id,
-        set_id=set_id,
-        source_video_id=source_video_id
-    )
-
-    if not result.get('success'):
-        return jsonify(result), 400
-
-    return jsonify(result)
-
-@api_bp.route('/video/import', methods=['POST'])
-@jwt_required()
-def import_video():
-    """AJAX-based video import and lesson creation. 
-    ENFORCES SINGLETON: Only one Video record per YouTube ID across the system.
-    """
-    data = request.get_json() or {}
-    url = data.get('youtube_url', '').strip()
-    language_code = data.get('language_code', 'en')
-
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
-
-    # Permission check: Only VIP and Admin can import videos
-    if not current_user.is_at_least_vip:
-        return jsonify({
-            'error': 'Unauthorized', 
-            'message': 'Chỉ thành viên VIP mới có quyền thêm video mới vào hệ thống.'
-        }), 403
-
-    video_id_str = extract_video_id(url)
-    if not video_id_str:
-        return jsonify({'error': 'Invalid YouTube URL'}), 400
-
-    # 1. Global Singleton Check: Find ANY video with this YouTube ID
-    video = Video.query.filter_by(youtube_id=video_id_str).first()
-
-    if not video:
-        # First time this video enters the system: System Owned
-        video = Video(
-            youtube_id=video_id_str, 
-            title="Processing...", 
-            status='pending', 
-            owner_id=None, 
-            visibility='private',
-            language_code=language_code
-        )
-        db.session.add(video)
-        db.session.commit()
-        message = 'Video imported and added to library.'
-    else:
-        message = f'Video "{video.title}" added to your library.'
-
-    # --- Task Dispatch Logic (Trigger if new OR if existing but not completed) ---
-    if video.status != 'completed':
-        from app.modules.content.tasks import process_video_metadata
-        try:
-            print(f"[CELERY_DISPATCH] Triggering processing for ID {video.id} (Status: {video.status})", flush=True)
-            task = process_video_metadata.delay(video.id)
-            print(f"[CELERY_DISPATCH] Task sent! Task ID: {task.id}", flush=True)
-        except Exception as e:
-            print(f"[CELERY_DISPATCH] CRITICAL ERROR: {str(e)}", flush=True)
-
-    # 2. Lesson Creation: One private learning instance per user
-    existing_lesson = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
-    if not existing_lesson:
-        lesson = Lesson(user_id=current_user.id, video_id=video.id)
-        db.session.add(lesson)
-        db.session.commit()
-    else:
-        return jsonify({'success': False, 'error': 'This video is already in your library.'}), 400
-
-    return jsonify({
-        'success': True,
-        'video_id': video.id,
-        'title': video.title,
-        'message': message
-    })
-
-@api_bp.route('/lesson/<int:lesson_id>', methods=['DELETE'])
-@jwt_required()
-def delete_lesson(lesson_id):
-    """Remove a video from the user's private library (deletes the Lesson)."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    
-    # Cascade deletes Notes, etc. via SQLAlchemy relationship 'all, delete-orphan'
-    db.session.delete(lesson)
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'Lesson removed from your library.'})
-
-@api_bp.route('/video/<int:video_id>', methods=['DELETE'])
-@jwt_required()
-def delete_video_global(video_id):
-    """ADMIN ONLY: Completely remove a video and all associated user lessons/data."""
-    if not current_user.is_admin:
-        return jsonify({'error': 'Unauthorized. Admin role required.'}), 403
-        
-    video = Video.query.get_or_404(video_id)
-    
-    # Hard Delete: All Lessons, Subtitles, Comments, etc. will be removed via cascade
-    db.session.delete(video)
-    db.session.commit()
-    return jsonify({'success': True, 'message': f'Global video "{video.title}" and all associated data deleted.'})
-
-@api_bp.route('/video/<int:video_id>/publish', methods=['POST'])
-@jwt_required()
-def request_publish(video_id):
-    """Suggest this video for the public gallery (reviewed by Admin)."""
-    video = Video.query.get_or_404(video_id)
-    if video.visibility == 'private':
-        video.visibility = 'pending_public'
-        db.session.commit()
-    return jsonify({'success': True, 'message': 'Video submitted for admin approval.'})
-
-@api_bp.route('/video/<int:video_id>/join', methods=['POST'])
-@jwt_required()
-def join_public_video(video_id):
-    """User adds a public video to their private library."""
-    video = Video.query.filter_by(id=video_id, visibility='public').first_or_404()
-    
-    # Check if lesson already exists
-    existing = Lesson.query.filter_by(user_id=current_user.id, video_id=video.id).first()
-    if existing:
-        return jsonify({'success': False, 'error': 'Video already in your library.'}), 400
-        
-    lesson = Lesson(user_id=current_user.id, video_id=video.id)
-    db.session.add(lesson)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': f"Video '{video.title}' added to your library."})
-
-@api_bp.route('/sentences/<int:sentence_id>/audio', methods=['POST'])
-@jwt_required()
-def get_sentence_audio(sentence_id):
-    """Bilingual TTS audio generation with server-side caching."""
-    from flask import current_app
-    sentence = Sentence.query.filter_by(id=sentence_id, user_id=current_user.id).first_or_404()
-
-    # Caching check
-    if sentence.audio_url:
-        full_path = os.path.join(current_app.static_folder, sentence.audio_url.lstrip('/static/'))
-        if os.path.exists(full_path):
-            return jsonify({'success': True, 'audio_url': sentence.audio_url, 'cached': True})
-
-    # Generation logic
-    try:
-        # Pass config if present in metadata
-        analysis = sentence.detailed_analysis or {}
-        config = analysis.get('metadata', {})
-        
-        generated_url = generate_bilingual_audio(
-            sentence_id=sentence.id,
-            original_text=sentence.original_text,
-            translated_text=sentence.translated_text,
-            config_json=config
-        )
-
-        # Update DB
-        sentence.audio_url = generated_url
-        db.session.commit()
-
-        return jsonify({'success': True, 'audio_url': generated_url, 'cached': False})
-    except Exception as e:
-        print(f"[API ERROR] TTS Generation failed for sentence {sentence_id}: {str(e)}")
-        return jsonify({'error': str(e), 'success': False}), 500
-
-@api_bp.route('/tts', methods=['POST'])
-@jwt_required()
-def tts_anonymous():
-    """Generic TTS endpoint for arbitrary text snippets (e.g. grammar examples)."""
+def translate():
+    """Proxy translation requests through server to avoid CORS/IP blocks."""
     try:
         data = request.get_json() or {}
         text = data.get('text', '').strip()
-        lang = data.get('lang', 'ja')
+        target_lang = data.get('target_lang', 'vi').strip()
+        source_lang = data.get('source_lang', 'auto').strip()
 
         if not text:
-            return jsonify({'success': False, 'error': 'text is required'}), 400
+            return jsonify({'error': 'text is required'}), 400
 
-        audio_url = generate_text_audio(text, lang=lang)
-        return jsonify({'success': True, 'audio_url': audio_url})
+        from deep_translator import GoogleTranslator
+        translator = GoogleTranslator(source=source_lang, target=target_lang)
+        translated = translator.translate(text)
+
+        return jsonify({
+            'original': text,
+            'translated': translated,
+            'target_lang': target_lang
+        })
     except Exception as e:
-        print(f"[API ERROR] Anonymous TTS failed: {str(e)}")
-        return jsonify({'error': str(e), 'success': False}), 500
+        return jsonify({'error': str(e), 'translated': None}), 500
 
-@api_bp.route('/sentences/<int:sentence_id>/shadowing-stats', methods=['GET'])
+@study_api_bp.route('/vocab/analyze', methods=['POST'])
 @jwt_required()
-def get_sentence_shadowing_stats(sentence_id):
-    """Retrieve learning statistics for a specific sentence pattern."""
-    from sqlalchemy import func
-    from app.modules.engagement.models import ShadowingHistory
-    
-    stats = db.session.query(
-        func.count(ShadowingHistory.id).label('attempt_count'),
-        func.avg(ShadowingHistory.accuracy_score).label('avg_score'),
-        func.max(ShadowingHistory.accuracy_score).label('best_score')
-    ).filter(
-        ShadowingHistory.sentence_id == sentence_id,
-        ShadowingHistory.user_id == current_user.id
-    ).first()
-
-    return jsonify({
-        'attempts': stats.attempt_count or 0,
-        'avg_score': int(stats.avg_score) if stats.avg_score else 0,
-        'best_score': stats.best_score or 0
-    })
-
-@api_bp.route('/sentences/<int:sentence_id>/shadowing-history', methods=['GET'])
-@jwt_required()
-def get_sentence_shadowing_history(sentence_id):
-    """Fetch individual shadowing attempts for a sentence."""
-    history = ShadowingHistory.query.filter_by(
-        sentence_id=sentence_id,
-        user_id=current_user.id
-    ).order_by(ShadowingHistory.created_at.desc()).limit(10).all()
-
-    results = []
-    for h in history:
-        results.append({
-            'spoken_text': h.spoken_text,
-            'score': h.accuracy_score,
-            'created_at': h.created_at.strftime('%Y-%m-%d %H:%M:%S')
-        })
-
-    return jsonify({'history': results})
-
-
-# ── SENTENCE SET CRUD ──────────────────────────────────────────
-
-@api_bp.route('/sets/create', methods=['POST'])
-@jwt_required()
-def create_set():
-    """Create a new thematic sentence collection."""
+def analyze_vocab():
+    """Compatibility route for vocabulary analysis."""
     data = request.get_json() or {}
-    title = data.get('title', '').strip()
-    description = data.get('description', '').strip()
-    set_type = data.get('set_type', 'mastery_sentence').strip()
-
-    if not title:
-        return jsonify({'success': False, 'error': 'Title is required'}), 400
-
-    # Strict validation of set_type
-    valid_types = ['mastery_sentence', 'mastery_grammar', 'mastery_vocab']
-    if set_type not in valid_types:
-        set_type = 'mastery_sentence' # Fallback
-
-    new_set = SentenceSet(
-        user_id=current_user.id,
-        title=title,
-        description=description,
-        set_type=set_type
-    )
-    db.session.add(new_set)
-    db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'set': {
-            'id': new_set.id,
-            'title': new_set.title,
-            'description': new_set.description,
-            'set_type': new_set.set_type
-        }
-    })
-
-@api_bp.route('/sets/<int:set_id>/join', methods=['POST'])
-@jwt_required()
-def join_public_set(set_id):
-    """User clones a public sentence set (deck) into their own library."""
-    original_set = SentenceSet.query.filter_by(id=set_id, visibility='public').first_or_404()
-    
-    # 1. Create a new set for the current user
-    new_set = SentenceSet(
-        user_id=current_user.id,
-        title=f"{original_set.title} (Clone)",
-        description=original_set.description,
-        set_type=original_set.set_type,
-        visibility='private'
-    )
-    db.session.add(new_set)
-    db.session.flush() # Get new_set.id
-    
-    # 2. Clone all sentences
-    original_sentences = original_set.sentences.all()
-    for s in original_sentences:
-        new_sent = Sentence(
-            user_id=current_user.id,
-            set_id=new_set.id,
-            original_text=s.original_text,
-            translated_text=s.translated_text,
-            audio_url=s.audio_url,
-            source_video_id=s.source_video_id,
-            detailed_analysis=s.detailed_analysis,
-            analysis_note=s.analysis_note
-        )
-        db.session.add(new_sent)
-    
-    db.session.commit()
-    return jsonify({
-        'success': True, 
-        'message': f"Bộ bài '{original_set.title}' đã được thêm vào thư viện của bạn.",
-        'new_set_id': new_set.id
-    })
-
-
-# ── SENTENCE MANAGEMENT ────────────────────────────────────────
-
-@api_bp.route('/sentences', methods=['POST'])
-@jwt_required()
-def create_sentence_api():
-    """Create a new sentence record via JSON, supporting specialized tracks."""
-    data = request.json or {}
-    set_id = data.get('set_id')
-    detailed_analysis = data.get('detailed_analysis') or {}
-    if not isinstance(detailed_analysis, dict) and isinstance(detailed_analysis, str):
-        try: detailed_analysis = json.loads(detailed_analysis)
-        except: detailed_analysis = {}
-    elif not isinstance(detailed_analysis, dict):
-        detailed_analysis = {}
-
-    source_video_id = data.get('source_video_id')
-
-    if not set_id:
-        return jsonify({'success': False, 'error': 'Target Set ID is required'}), 400
-
-    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
-
-    # Reuse the import service as it handles all the track-aware logic
-    result = import_sentence_from_raw_json(
-        json_string=detailed_analysis,
-        user_id=current_user.id,
-        set_id=set_id,
-        source_video_id=source_video_id,
-        track_mode=s_set.set_type
-    )
-    return jsonify(result)
-
-@api_bp.route('/sentences/import-json', methods=['POST'])
-@jwt_required()
-def import_json_sentence():
-    """Route to import a sentence from raw JSON analysis, now requires set_id."""
-    data = request.get_json() or {}
-    json_data = data.get('json_data')
-    set_id = data.get('set_id')
-    source_video_id = data.get('source_video_id')
-
-    if not json_data:
-        return jsonify({'success': False, 'error': 'JSON data is required'}), 400
-    if not set_id:
-        return jsonify({'success': False, 'error': 'Target Set ID is required'}), 400
-
-    # Ensure the set belongs to the user
-    s_set = SentenceSet.query.filter_by(id=set_id, user_id=current_user.id).first_or_404()
-
-    result = import_sentence_from_raw_json(
-        json_string=json_data,
-        user_id=current_user.id,
-        set_id=set_id,
-        source_video_id=source_video_id,
-        track_mode=s_set.set_type
-    )
-    return jsonify(result)
-
-@api_bp.route('/sentences/<int:sentence_id>', methods=['DELETE'])
-@jwt_required()
-def delete_sentence_api(sentence_id):
-    """Individual sentence deletion."""
-    sentence = Sentence.query.filter_by(id=sentence_id, user_id=current_user.id).first_or_404()
-    db.session.delete(sentence)
-    db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/sentences/<int:sentence_id>', methods=['PATCH'])
-@jwt_required()
-def update_sentence(sentence_id):
-    """Update sentence text or analysis."""
-    sentence = Sentence.query.filter_by(id=sentence_id, user_id=current_user.id).first_or_404()
-    data = request.get_json() or {}
-
-    if 'original_text' in data:
-        sentence.original_text = data['original_text']
-    if 'translated_text' in data:
-        sentence.translated_text = data['translated_text']
-    if 'detailed_analysis' in data:
-        # Expecting a full dictionary here, ensure it's not an empty string
-        analysis = data['detailed_analysis']
-        if not analysis or analysis == "":
-             analysis = {}
-        sentence.detailed_analysis = analysis
-
-    db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/ai/insights/<string:video_id>/analyze', methods=['GET', 'POST'])
-@jwt_required()
-def generate_ai_insights(video_id):
-    from flask import request
-    from sqlalchemy import func
-    from app.modules.content.models import Video
-    
-    # Dual lookup: try primary key first, then youtube_id (case-insensitive)
-    video = None
-    if video_id.isdigit():
-        video = Video.query.get(int(video_id))
-    if not video:
-        video = Video.query.filter(func.lower(Video.youtube_id) == video_id.lower()).first()
-        
-    print(f"DEBUG: Analyze requested for {video_id}. Found Video: {video.id if video else 'None'}")
-    
-    if not video:
-        return jsonify({"error": f"Video {video_id} not found"}), 404
-    
-    from app.modules.study.models import AIInsightTrack
-    from app.modules.content.services.ai_service import start_background_analysis
-    from flask import current_app
-
-    # Verify transcript existence
-    first_track = video.subtitle_tracks.first()
-    if not first_track:
-        return jsonify({"error": "Video must have at least one subtitle track before generating AI insights."}), 400
-        
-    # Check if a track is already processing
-    existing_processing = AIInsightTrack.query.filter_by(video_id=video.id, status='processing').first()
-    if existing_processing:
-        return jsonify({"message": "Analysis already in progress", "track_id": existing_processing.id}), 202
-
-    # Get transcript lines from the first available track
-    transcript_lines = first_track.content_json
-    
-    # Spawn background thread
-    start_background_analysis(current_app._get_current_object(), video.id, transcript_lines, lang='vi')
-    
-    return jsonify({"message": "AI analysis started in background"}), 202
-
-@api_bp.route('/ai/insights/<string:video_id>')
-@jwt_required()
-def get_ai_insights(video_id):
-    from app.modules.study.models import AIInsightTrack, AIInsightItem
-    from app.modules.content.models import Video
-    from sqlalchemy import func
-    
-    # Dual lookup: try primary key first, then youtube_id (case-insensitive)
-    video = None
-    if video_id.isdigit():
-        video = Video.query.get(int(video_id))
-    if not video:
-        video = Video.query.filter(func.lower(Video.youtube_id) == video_id.lower()).first()
-
-    if not video:
-        print(f"DEBUG: Get insights failed - Video {video_id} not found")
-        return jsonify({"status": "empty", "insights": []})
-
-    # Get the latest track (regardless of status for polling)
-    track = AIInsightTrack.query.filter_by(video_id=video.id).order_by(AIInsightTrack.created_at.desc()).first()
-
-    if not track:
-        return jsonify({
-            "status": "empty",
-            "insights": [], 
-            "message": "No AI insights found for this video."
-        })
-        
-    items = AIInsightItem.query.filter_by(track_id=track.id).all()
-    
-    insight_list = [{
-        "index": it.subtitle_index,
-        "start": it.start_time,
-        "end": it.end_time,
-        "short": it.short_explanation,
-        "grammar": it.grammar_analysis,
-        "nuance": it.nuance_style,
-        "context": it.context_notes,
-        "vocabulary": (it.data_json or {}).get('key_vocabulary', ''),
-        "similar": (it.data_json or {}).get('similar_sentences', ''),
-        "culture": (it.data_json or {}).get('cultural_context', ''),
-        "hack": (it.data_json or {}).get('memory_hack', ''),
-        "mistakes": (it.data_json or {}).get('common_mistakes', '')
-    } for it in items]
-    
-    return jsonify({
-        "track_id": track.id,
-        "status": track.status,
-        "processed_lines": track.processed_lines,
-        "total_lines": track.total_lines,
-        "overall_summary": track.overall_summary,
-        "model": track.model_name,
-        "language": track.language_code,
-        "insights": insight_list
-    })
-
-@api_bp.route('/ai/insights/<string:video_id>/line/<int:line_index>', methods=['POST'])
-@jwt_required()
-def analyze_ai_line(video_id, line_index):
-    from app.modules.content.models import Video
-    from app.modules.study.models import AIInsightTrack
-    from app.modules.content.services.ai_service import analyze_single_line
-    from sqlalchemy import func
-    
-    # Dual lookup
-    video = None
-    if video_id.isdigit():
-        video = Video.query.get(int(video_id))
-    if not video:
-        video = Video.query.filter(func.lower(Video.youtube_id) == video_id.lower()).first()
-    
-    if not video:
-        return jsonify({"error": "Video not found"}), 404
-        
-    # Get text for this index
-    first_track = video.subtitle_tracks.filter_by(language_code='vi').first()
-    if not first_track:
-        first_track = video.subtitle_tracks.first()
-    if not first_track:
-        return jsonify({"error": "No transcript available."}), 400
-
-    # Auto-create track if it doesn't exist
-    track = AIInsightTrack.query.filter_by(video_id=video.id).order_by(AIInsightTrack.created_at.desc()).first()
-    if not track:
-        track = AIInsightTrack(
-            video_id=video.id,
-            language_code='vi',
-            status='completed',
-            total_lines=len(first_track.content_json)
-        )
-        db.session.add(track)
-        db.session.commit()
-        
-    transcript = first_track.content_json
-    if line_index < 0 or line_index >= len(transcript):
-        return jsonify({"error": "Invalid line index."}), 400
-        
-    line_data = transcript[line_index]
-    line_text = line_data.get('text', '')
-    start_time = line_data.get('start', 0)
-    end_time = line_data.get('end', 0)
-    
-    # Call service
-    result = analyze_single_line(track.id, line_index, line_text, start_time=start_time, end_time=end_time, target_lang='vi')
-    
-    if result:
-        return jsonify({
-            "success": True,
-            "insight": {
-                "index": line_index,
-                "short": result.get('short_explanation', ''),
-                "grammar": result.get('grammar_analysis', ''),
-                "vocabulary": result.get('key_vocabulary', ''),
-                "nuance": result.get('nuance_style', ''),
-                "similar": result.get('similar_sentences', ''),
-                "culture": result.get('cultural_context', ''),
-                "hack": result.get('memory_hack', ''),
-                "mistakes": result.get('common_mistakes', '')
-            }
-        })
-        return jsonify({"error": "AI analysis failed."}), 500
-
-@api_bp.route('/video/analyze-sentence', methods=['POST'])
-@jwt_required()
-def analyze_sentence_api():
-    """Analyze a Japanese sentence to split into words with reading/furigana."""
-    data = request.get_json() or {}
-    text = data.get('text', '').strip()
+    text = data.get('text', '')
     lang = data.get('lang', 'ja')
-    lesson_id = data.get('lesson_id')
-    active_line_index = data.get('active_line_index')
-
-    if not text:
-        return jsonify({'words': []})
-
-    if lang == 'ja':
-        from app.modules.study.services.vocab_service import analyze_japanese_text, get_definitions_for_terms
-        from app.modules.study.models import SentenceToken
-
-        # 1. Try to get saved tokens first
-        db_tokens = []
-        if lesson_id is not None:
-            db_tokens = SentenceToken.query.filter_by(
-                lesson_id=lesson_id, 
-                line_index=active_line_index
-            ).order_by(SentenceToken.order_index.asc()).all()
-
-        if db_tokens:
-            from app.modules.study.services.vocab_service import katakana_to_hiragana
-            # Use lemma_override for dictionary lookup when available
-            lookup_terms = [t.lemma_override or t.token for t in db_tokens]
-            results = get_definitions_for_terms(lookup_terms, priority='mazii_offline')
-            formatted = []
-            for i, r in enumerate(results):
-                db_token = db_tokens[i]
-                surface = db_token.token  # Always display the surface form
-                lemma = db_token.lemma_override  # The linked dictionary form
-                
-                is_skip = lemma and lemma.strip().lower() == 'skip'
-                
-                furigana = None
-                if not is_skip and r.get('reading') and r['reading'] != surface:
-                    furigana = katakana_to_hiragana(r['reading'])
-
-                # If user manually typed 'skip', treat it as a meaningless particle so frontend dims it.
-                pos_val = '助詞' if is_skip else (getattr(db_token, 'pos', None) or "manual")
-
-                formatted.append({
-                    "surface": surface,
-                    "original": surface,
-                    "lemma": lemma or surface,
-                    "lemma_override": lemma,
-                    "reading": "" if is_skip else r.get('reading', ''),
-                    "furigana": furigana,
-                    "pos": pos_val,
-                    "meanings": [] if is_skip else (r.get('meanings', []) if isinstance(r.get('meanings'), list) else [r.get('definition', '')]),
-                    "source": 'none' if is_skip else r.get('source', '')
-                })
-            return jsonify({'words': formatted, 'is_manual': True})
-
-        # Fetch custom vocab for priority segmentation
-        from app.modules.study.models import VideoGlossary
-        custom_vocab_records = VideoGlossary.query.filter_by(lesson_id=lesson_id).all() if lesson_id else []
-        custom_vocab_set = {v.term for v in custom_vocab_records} if custom_vocab_records else None
-
-        # 2. Fallback to automatic segmentation
-        words = analyze_japanese_text(text, priority='mazii_offline', include_all=True, custom_vocab=custom_vocab_set)
-        return jsonify({'words': words, 'is_manual': False})
-    else:
-        # Fallback for other languages: simple space-based splitting for now
-        words = [{"surface": w, "reading": None} for w in text.split()]
-        return jsonify({'words': words})
-@api_bp.route('/vocab/generate-all', methods=['POST'])
-@jwt_required()
-def generate_all_vocab():
-    """Scan the entire lesson and save verified tokens for all lines."""
-    data = request.get_json() or {}
-    lesson_id = data.get('lesson_id')
-    priority = data.get('priority', 'mazii_offline')
-
-    if not lesson_id:
-        return jsonify({"error": "Missing lesson_id"}), 400
-
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
     
-    # Get the primary track (usually S1 or S2)
-    track_id = lesson.s1_track_id or lesson.s2_track_id
-    if not track_id:
-        # Fallback: Just pick the first available track for this video
-        from app.modules.content.models import SubtitleTrack
-        first_track = SubtitleTrack.query.filter_by(video_id=lesson.video_id).first()
-        if first_track:
-            track_id = first_track.id
-            # Optionally save this as default for the lesson
-            lesson.s1_track_id = track_id
-            db.session.commit()
-            
-    if not track_id:
-        return jsonify({"error": "No subtitle track found for this video. Please add subtitles first."}), 400
-        
-    from app.modules.content.services.subtitle_service import get_lines_as_dicts
-    from app.modules.study.services.vocab_service import analyze_japanese_text
-    from app.modules.study.models import SentenceToken
-    from app.modules.content.models import SubtitleTrack
-    from app.modules.study.models import VideoGlossary
+    from app.modules.study.services import vocab_service
+    results = vocab_service.analyze_japanese_text(text)
+    return jsonify(results)
 
-    track = SubtitleTrack.query.get(track_id)
-    if not track:
-        return jsonify({"error": "Subtitle track not found."}), 404
-        
-    lines = get_lines_as_dicts(track)
-    
-    custom_vocab_records = VideoGlossary.query.filter_by(lesson_id=lesson_id).all()
-    custom_vocab_set = {v.term for v in custom_vocab_records} if custom_vocab_records else None
-    
-    try:
-        # 1. Clear existing tokens to start fresh
-        SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
-        
-        # 2. Analyze and save for each line
-        new_tokens = []
-        for idx, line in enumerate(lines):
-            text = line.get('text', '').strip()
-            if not text:
-                continue
-                
-            try:
-                words = analyze_japanese_text(text, priority=priority, include_all=True, custom_vocab=custom_vocab_set)
-                for order, w in enumerate(words):
-                    surface = w['surface']
-                    lemma = w.get('lemma', surface)
-                    # Only store lemma_override if it differs from surface
-                    lemma_val = lemma if lemma != surface else None
-                    new_tokens.append(SentenceToken(
-                        lesson_id=lesson_id,
-                        line_index=idx,
-                        token=surface,
-                        lemma_override=lemma_val,
-                        pos=w.get('pos'),
-                        order_index=order
-                    ))
-            except Exception as e:
-                logger.error(f"Failed to analyze line {idx}: {e}")
-                continue
-        
-        if new_tokens:
-            db.session.bulk_save_objects(new_tokens)
-            db.session.commit()
-        
-        return jsonify({"success": True, "count": len(new_tokens)})
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error in generate_all_vocab: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/vocab/tokens/clear-all', methods=['DELETE'])
-@jwt_required()
-def clear_all_tokens():
-    """Remove all manual segmentation for a lesson."""
-    data = request.get_json() or {}
-    lesson_id = data.get('lesson_id')
-    if not lesson_id:
-        return jsonify({"error": "Missing lesson_id"}), 400
-    
-    from app.modules.study.models import SentenceToken
-    SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
-    db.session.commit()
-    return jsonify({"success": True})
-
-@api_bp.route('/vocab/tokens/clear', methods=['DELETE'])
-@jwt_required()
-def clear_line_tokens():
-    """Remove manual segmentation for a specific line in a lesson."""
-    data = request.get_json() or {}
-    lesson_id = data.get('lesson_id')
-    line_index = data.get('line_index')
-    
-    if lesson_id is None or line_index is None:
-        return jsonify({"error": "Missing parameters"}), 400
-    
-    from app.modules.study.models import SentenceToken
-    SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
-    db.session.commit()
-    return jsonify({"success": True})
-
-# --- Video Management (Admin/Collaborator) ---
-
-@api_bp.route('/video/<int:video_id>/admin-data', methods=['GET'])
-@jwt_required()
-def get_video_admin_data(video_id):
-    video = Video.query.get_or_404(video_id)
-    if not can_edit_video(current_user, video):
-        return jsonify({'error': 'Permission denied'}), 403
-    
-    collabs = []
-    for c in video.collaborators:
-        collabs.append({
-            'user_id': c.user_id,
-            'username': c.user.username,
-            'role': c.role,
-            'joined_at': c.created_at.isoformat() if c.created_at else None
-        })
-    
-    return jsonify({
-        'title': video.title,
-        'language_code': video.language_code,
-        'visibility': video.visibility,
-        'owner_id': video.owner_id,
-        'collaborators': collabs
-    })
-
-@api_bp.route('/video/<int:video_id>/metadata', methods=['POST'])
-@jwt_required()
-def update_video_metadata(video_id):
-    video = Video.query.get_or_404(video_id)
-    if not can_edit_video(current_user, video):
-        return jsonify({'error': 'Permission denied'}), 403
-    
-    data = request.json
-    if 'title' in data: video.title = data['title']
-    if 'language_code' in data: video.language_code = data['language_code']
-    if 'visibility' in data: video.visibility = data['visibility']
-    
-    db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/video/<int:video_id>/collaborators/add', methods=['POST'])
-@jwt_required()
-def add_video_collaborator(video_id):
-    video = Video.query.get_or_404(video_id)
-    if not can_edit_video(current_user, video):
-        return jsonify({'error': 'Permission denied'}), 403
-    
-    username = request.json.get('username')
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-    
-    existing = VideoCollaborator.query.filter_by(video_id=video_id, user_id=user.id).first()
-    if existing:
-        return jsonify({'error': 'Already a collaborator'}), 400
-    
-    new_collab = VideoCollaborator(video_id=video_id, user_id=user.id)
-    db.session.add(new_collab)
-    db.session.commit()
-    
-    return jsonify({'success': True})
-
-@api_bp.route('/video/<int:video_id>/collaborators/remove', methods=['POST'])
-@jwt_required()
-def remove_video_collaborator(video_id):
-    video = Video.query.get_or_404(video_id)
-    if not can_edit_video(current_user, video):
-        return jsonify({'error': 'Permission denied'}), 403
-    
-    user_id = request.json.get('user_id')
-    collab = VideoCollaborator.query.filter_by(video_id=video_id, user_id=user_id).first()
-    if not collab:
-        return jsonify({'error': 'Collaborator not found'}), 404
-    
-    db.session.delete(collab)
-    db.session.commit()
-    return jsonify({'success': True})
-
-@api_bp.route('/vocab/lesson/<int:lesson_id>/analysis', methods=['GET'])
-@jwt_required()
-def get_lesson_vocab_analysis(lesson_id):
-    """Get frequency analysis for all words in a lesson."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
-    priority = request.args.get('priority', 'mazii_offline')
-    
-    from app.modules.content.services.subtitle_service import get_lines_as_dicts
-    from app.modules.study.services.vocab_service import analyze_batch_japanese, get_definitions_for_terms
-    from app.modules.content.models import SubtitleTrack
-
-    track_id = lesson.s1_track_id or lesson.s2_track_id
-    if not track_id:
-        return jsonify({"analysis": []})
-
-    track = SubtitleTrack.query.get(track_id)
-    if not track:
-        return jsonify({"analysis": []})
-
-    lines = get_lines_as_dicts(track)
-    texts = [l.get('text', '') for l in lines]
-    
-    # 1. Get frequencies
-    freq_data = analyze_batch_japanese(texts) # Returns list of dicts: {lemma, count, ...}
-    
-    # 2. Enrich with definitions for top 50 words
-    top_50 = sorted(freq_data, key=lambda x: x['count'], reverse=True)[:50]
-    terms = [x['lemma'] for x in top_50]
-    
-    defs = get_definitions_for_terms(terms, priority=priority)
-    def_map = {d['word']: d for d in defs}
-    
-    results = []
-    for item in top_50:
-        lemma = item['lemma']
-        d = def_map.get(lemma, {})
-        results.append({
-            'term': lemma,
-            'count': item['count'],
-            'reading': d.get('reading', ''),
-            'definition': d.get('definition', ''),
-            'source': d.get('source', 'none')
-        })
-        
-    return jsonify({'analysis': results})
-
-
+@study_api_bp.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "service": "PodLearn Study", "version": "2.0.0"}), 200
