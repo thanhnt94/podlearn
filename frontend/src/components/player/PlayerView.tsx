@@ -14,6 +14,7 @@ import { ShadowingPanel } from '../tabs/ShadowingPanel';
 import { NotesPanel } from '../tabs/NotesPanel';
 import { VocabPanel } from '../tabs/VocabPanel';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { useAppStore } from '../../store/useAppStore';
 import { SettingsDrawer } from '../layout/SettingsDrawer';
 import { InsightsPanel } from '../tabs/InsightsPanel';
 import { CommunityPanel } from '../tabs/CommunityPanel';
@@ -274,7 +275,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                       )}
                   </button>
 
-                  <div className="flex bg-slate-900 border border-white/5 rounded-lg p-0.5">
+                  <div className="hidden md:flex bg-slate-900 border border-white/5 rounded-lg p-0.5">
                       {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
                           <button key={rate} onClick={() => setPlaybackRate(rate)}
                                   className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${playbackRate === rate ? 'bg-sky-500 text-slate-950' : 'text-slate-500 hover:text-white'}`}>
@@ -522,7 +523,8 @@ const OverviewPanel = () => {
     const [sub, setSub] = useState<'overview' | 'grammar' | 'vocab'>('overview');
     const [isEditing, setIsEditing] = useState(false);
     const [editedContent, setEditedContent] = useState(curatedContent);
-    const isAdmin = (window as any).__PODLEARN_DATA__?.is_admin;
+    const { user } = useAppStore();
+    const isAdmin = user?.is_admin;
 
     useEffect(() => {
         setEditedContent(curatedContent);

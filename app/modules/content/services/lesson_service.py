@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, date, timedelta
-from app.extensions import db
+from app.core.extensions import db
 
 def update_study_progress_and_streak(user, lesson, seconds_added):
     """
@@ -61,3 +61,4 @@ def get_user_stats(user_id):
         'completed_count': completed_count,
         'total_lessons': total_lessons
     }
+

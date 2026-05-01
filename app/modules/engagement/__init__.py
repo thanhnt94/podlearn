@@ -5,7 +5,15 @@ module_metadata = {
 }
 
 def setup_module(app):
-    from .routes.api import bp as api_bp
-    from .routes.community import bp as community_bp
-    app.register_blueprint(api_bp, url_prefix='/api/engagement')
+    from .routes.community import community_bp
+    from .routes.dashboard import dashboard_bp
+    from .routes.share_routes import share_bp
+    from .routes.api import engagement_api
+    
     app.register_blueprint(community_bp, url_prefix='/api/community')
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(share_bp)
+    app.register_blueprint(engagement_api, url_prefix='/api/engagement')
+    
+    # Register signal listeners
+    from . import events

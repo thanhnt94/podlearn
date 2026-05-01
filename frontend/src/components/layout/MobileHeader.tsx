@@ -1,12 +1,13 @@
 import { Search, Headphones, Plus } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { useNavigate } from 'react-router-dom';
+import { useAppStore } from '../../store/useAppStore';
 
 export const MobileHeader: React.FC = () => {
     const navigate = useNavigate();
-    const userData = (window as any).__PODLEARN_DATA__ || {};
-    const username = userData.username || 'User';
-    const isVip = userData.is_at_least_vip || userData.is_admin;
+    const { user } = useAppStore();
+    const username = (user as any)?.username || 'User';
+    const isVip = (user as any)?.is_vip || (user as any)?.is_admin;
 
     return (
         <header className="md:hidden sticky top-0 z-[100] bg-slate-950/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">

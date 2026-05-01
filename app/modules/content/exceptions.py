@@ -1,4 +1,4 @@
-﻿class ContentError(Exception):
+class ContentError(Exception):
     pass
 
 class VideoNotFoundError(ContentError):

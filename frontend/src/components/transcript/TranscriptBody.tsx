@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { useAppStore } from '../../store/useAppStore';
 import { Edit2, Check, X, Plus, Minus } from 'lucide-react';
 
 export const TranscriptBody: React.FC = () => {
@@ -8,13 +9,14 @@ export const TranscriptBody: React.FC = () => {
         activeLineIndex, requestSeek,
         updateSubtitleLine
     } = usePlayerStore();
+    const { user } = useAppStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     const [editingIndex, setEditingIndex] = useState<number | -1>(-1);
     const [editForm, setEditForm] = useState({ text: '', start: 0 });
 
-    const isVip = (window as any).__PODLEARN_DATA__?.is_at_least_vip || (window as any).__PODLEARN_DATA__?.is_admin;
+    const isVip = user?.is_vip || user?.is_admin;
 
     // Helper to find matching lines from other tracks using temporal overlap
     const getAlternativeLines = (s1Line: any) => {

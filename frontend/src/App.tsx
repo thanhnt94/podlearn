@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import { usePlayerStore } from './store/usePlayerStore';
+import { useAppStore } from './store/useAppStore';
 import { MainLayout } from './components/layout/MainLayout';
 import { PlayerView } from './components/player/PlayerView';
 import { DashboardView } from './components/dashboard/DashboardView';
@@ -9,48 +10,52 @@ import { StatsView } from './components/profile/StatsView';
 import { ImportView } from './components/dashboard/ImportView';
 import { SetListView, SetDetailView } from './components/dashboard/PlaylistViews';
 import { FlashcardReview } from './components/mastery/FlashcardReview';
+import { LoginView } from './components/auth/LoginView';
 
 import { PlayerErrorBoundary } from './components/common/PlayerErrorBoundary';
 import axios from 'axios';
 
-// Global Axios Config for CSRF
+// ── Global Axios Config (JWT & API Base) ─────────────────────
+axios.defaults.baseURL = '/';
+
 axios.interceptors.request.use((config) => {
-  const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token;
-  if (csrfToken && ['post', 'put', 'delete', 'patch'].includes(config.method || '')) {
-    config.headers['X-CSRF-Token'] = csrfToken;
+  const token = localStorage.getItem('access_token');
+  if (token && !config.url?.startsWith('http')) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Wrapper for Sets to handle list vs detail
+// Handle global 401 errors
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      // Force reload to trigger LoginView
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+
 const SetsWrapper: React.FC = () => {
   const [selectedSetId, setSelectedSetId] = React.useState<number | null>(null);
-  
   if (selectedSetId) {
     return <SetDetailView playlistId={selectedSetId} onBack={() => setSelectedSetId(null)} />;
   }
   return <SetListView onSelect={(id) => setSelectedSetId(id)} />;
 };
 
-// Wrapper for Player to handle fetching data from URL params
 const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' }> = ({ mode = 'player' }) => {
   const { id } = useParams<{ id: string }>();
-  const { fetchLessonData, setLessonData, lessonId } = usePlayerStore();
+  const { fetchLessonData, lessonId } = usePlayerStore();
 
   useEffect(() => {
     if (!id) return;
     const numericId = parseInt(id);
-    if (isNaN(numericId)) return;
-
-    const serverData = (window as any).__PODLEARN_DATA__;
-    
-    // CASE 1: Full Page Reload / First Visit to specific lesson
-    if (serverData && serverData.lesson_id === numericId && lessonId !== numericId) {
-      setLessonData(serverData);
-      fetchLessonData(numericId);
-    } 
-    // CASE 2: Client-side Navigation
-    else if (lessonId !== numericId) {
+    if (!isNaN(numericId) && lessonId !== numericId) {
       fetchLessonData(numericId);
     }
   }, [id, lessonId]);
@@ -63,33 +68,28 @@ const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' }> = ({ mode = '
 };
 
 const App: React.FC = () => {
+  const { fetchDashboard, isLoggedIn, isLoading } = useAppStore();
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  if (!isLoggedIn && !isLoading) {
+    return <LoginView />;
+  }
+
   return (
     <BrowserRouter basename="/">
       <MainLayout>
         <Routes>
-          {/* Main Dashboard */}
           <Route path="/" element={<DashboardView />} />
-
-          {/* Library Sets */}
           <Route path="/sets" element={<SetsWrapper />} />
-          
-          {/* Explore / Search */}
           <Route path="/explore" element={<ExploreView />} />
-          
-          {/* Profile / Stats */}
-          <Route path="/profile" element={<StatsView />} />
-          
-          {/* Import New Video */}
+          <Route path="/stats" element={<StatsView />} />
           <Route path="/import" element={<ImportView />} />
-          
-          {/* Review / Mastery */}
           <Route path="/practice/sentence/:setId" element={<FlashcardReview />} />
-          
-          {/* Player View */}
           <Route path="/player/lesson/:id" element={<PlayerRouteWrapper mode="player" />} />
           <Route path="/player/lesson/syncstudio/:id" element={<PlayerRouteWrapper mode="studio" />} />
-          
-          {/* Fallback */}
           <Route path="*" element={<DashboardView />} />
         </Routes>
       </MainLayout>

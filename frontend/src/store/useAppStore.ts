@@ -1,280 +1,204 @@
 import { create } from 'zustand';
 import axios from 'axios';
-import { soundEffects } from '../services/SoundEffectsService';
 
-interface Video {
+interface User {
     id: number;
-    title: string;
-    channel_title?: string;
-    thumbnail_url: string;
-    duration_seconds: number;
-    owner_name: string;
-    visibility: string;
-}
-
-interface Lesson {
-    id: number;
-    video: Video;
-    time_spent: number;
-    is_completed: boolean;
-    last_accessed: string | null;
-}
-
-interface Playlist {
-    id: number;
-    name: string;
-    description: string;
-    video_count: number;
-    created_at: string;
-}
-
-interface Notification {
-    id: number;
-    type: string;
-    title: string;
-    message: string;
-    is_read: boolean;
-    created_at: string;
-    link_url?: string;
-}
-
-interface Badge {
-    id: number;
-    name: string;
-    description: string;
-    icon_name: string;
-    category: string;
-    is_earned: boolean;
-    earned_at?: string;
+    username: string;
+    email: string;
+    full_name?: string;
+    avatar_url?: string;
+    role: 'free' | 'vip' | 'admin';
+    is_admin: boolean;
+    is_vip: boolean;
 }
 
 interface AppState {
-    lessons: Lesson[];
-    communityVideos: Lesson[];
-    playlists: Playlist[];
-    sets: any[];
-    stats: {
-        current_streak: number;
-        longest_streak: number;
-        completed_count: number;
-        total_lessons: number;
-        total_time_seconds: number;
-    };
-    notifications: Notification[];
-    badges: Badge[];
-    newlyEarnedBadge: Badge | null; // For the celebration modal
+    user: User | null;
+    isLoggedIn: boolean;
     isLoading: boolean;
+    lessons: any[];
+    playlists: any[];
+    sets: any[];
+    badges: any[];
+    newlyEarnedBadge: any | null;
+    stats: any;
+    notifications: any[];
+    communityVideos: any[];
     
     // Actions
+    login: (credentials: any) => Promise<boolean>;
+    logout: () => Promise<void>;
     fetchDashboard: () => Promise<void>;
-    respondToInvite: (id: number, action: 'accept' | 'reject') => Promise<void>;
+    checkNewBadges: () => Promise<void>;
+    clearCelebration: () => void;
+    deleteLesson: (id: number) => Promise<void>;
+    deleteVideoGlobal: (id: string | number) => Promise<void>;
+    toggleVideoVisibility: (id: string | number, visible: any) => Promise<void>;
     
     // Playlist Actions
     fetchPlaylists: () => Promise<void>;
-    createPlaylist: (name: string, description?: string) => Promise<boolean>;
+    createPlaylist: (name: string) => Promise<boolean>;
     deletePlaylist: (id: number) => Promise<void>;
-    addVideoToPlaylist: (playlistId: number, videoId: number) => Promise<void>;
-    removeVideoFromPlaylist: (playlistId: number, videoId: number) => Promise<void>;
+    addVideoToPlaylist: (playlistId: number, videoId: string | number) => Promise<void>;
+    removeVideoFromPlaylist: (playlistId: number, videoId: string | number) => Promise<void>;
     
-    // Notification & Gamification Actions
-    fetchNotifications: () => Promise<void>;
+    // Notifications
     markNotificationRead: (id: number) => Promise<void>;
-    fetchBadges: () => Promise<void>;
-    checkNewBadges: () => Promise<void>;
-    clearCelebration: () => void;
-
-    // Lesson/Video Management
-    deleteLesson: (lessonId: number) => Promise<boolean>;
-    deleteVideoGlobal: (videoId: number) => Promise<boolean>;
-    toggleVideoVisibility: (videoId: number, visibility: 'public' | 'private') => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+    user: null,
+    isLoggedIn: false,
+    isLoading: true,
     lessons: [],
-    communityVideos: [],
     playlists: [],
     sets: [],
-    stats: { current_streak: 0, longest_streak: 0, completed_count: 0, total_lessons: 0, total_time_seconds: 0 },
-    notifications: [],
     badges: [],
     newlyEarnedBadge: null,
-    isLoading: true,
+    stats: null,
+    notifications: [],
+    communityVideos: [],
+
+    login: async (credentials) => {
+        try {
+            const res = await axios.post('/api/identity/login', credentials);
+            const { access_token, user } = res.data;
+            localStorage.setItem('access_token', access_token);
+            set({ user, isLoggedIn: true });
+            get().fetchDashboard();
+            return true;
+        } catch (e) {
+            console.error("Login failed", e);
+            return false;
+        }
+    },
+
+    logout: async () => {
+        try {
+            await axios.post('/api/identity/logout').catch(() => {});
+        } finally {
+            localStorage.removeItem('access_token');
+            set({ user: null, isLoggedIn: false, lessons: [], stats: null });
+            window.location.href = '/';
+        }
+    },
 
     fetchDashboard: async () => {
+        if (!localStorage.getItem('access_token')) {
+            set({ isLoggedIn: false, isLoading: false });
+            return;
+        }
+
         set({ isLoading: true });
         try {
-            const res = await axios.get('/api/dashboard/init');
+            const meRes = await axios.get('/api/identity/me');
+            if (meRes.data.logged_in) {
+                set({ user: meRes.data.user, isLoggedIn: true });
+            } else {
+                localStorage.removeItem('access_token');
+                set({ user: null, isLoggedIn: false, isLoading: false });
+                return;
+            }
+
+            const dashRes = await axios.get('/api/study/dashboard/init');
+            const dashData = dashRes.data || {};
             set({
-                lessons: res.data.lessons,
-                communityVideos: res.data.community_videos,
-                stats: res.data.stats,
-                notifications: res.data.notifications,
-                sets: res.data.sets || [],
+                lessons: Array.isArray(dashData.lessons) ? dashData.lessons : [],
+                stats: dashData.stats || {},
+                notifications: Array.isArray(dashData.notifications) ? dashData.notifications : [],
+                communityVideos: Array.isArray(dashData.community_videos) ? dashData.community_videos : [],
+                playlists: Array.isArray(dashData.playlists) ? dashData.playlists : (Array.isArray(dashData.sets) ? dashData.sets : []),
+                sets: Array.isArray(dashData.sets) ? dashData.sets : [],
+                badges: Array.isArray(dashData.badges) ? dashData.badges : [],
                 isLoading: false
             });
-            get().fetchPlaylists();
-            get().fetchNotifications();
-            get().fetchBadges();
-        } catch (err) {
-            console.error("Dashboard fetch failed", err);
+        } catch (e) {
+            console.error("Dashboard fetch failed", e);
             set({ isLoading: false });
         }
     },
 
-    fetchPlaylists: async () => {
-        try {
-            const res = await axios.get('/api/playlists');
-            set({ playlists: res.data.playlists });
-        } catch (err) {
-            console.error("Playlists fetch failed", err);
-        }
-    },
-
-    createPlaylist: async (name: string, description?: string) => {
-        try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post('/api/playlists', { name, description }, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            get().fetchPlaylists();
-            return true;
-        } catch (err) {
-            console.error("Playlist creation failed", err);
-            return false;
-        }
-    },
-
-    deletePlaylist: async (id: number) => {
-        try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.delete(`/api/playlists/${id}`, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            set({ playlists: get().playlists.filter(p => p.id !== id) });
-        } catch (err) {
-            console.error("Playlist deletion failed", err);
-        }
-    },
-
-    addVideoToPlaylist: async (playlistId: number, videoId: number) => {
-        try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/playlists/${playlistId}/videos`, { video_id: videoId }, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            get().fetchPlaylists();
-        } catch (err) {
-            console.error("Add video to playlist failed", err);
-        }
-    },
-
-    removeVideoFromPlaylist: async (playlistId: number, videoId: number) => {
-        try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.delete(`/api/playlists/${playlistId}/videos/${videoId}`, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            get().fetchPlaylists();
-        } catch (err) {
-            console.error("Remove video from playlist failed", err);
-        }
-    },
-
-    respondToInvite: async (id, action) => {
-        try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/share/${id}/respond`, { action }, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            get().fetchDashboard(); // Refresh
-        } catch (err) {
-            console.error("Invite response failed", err);
-        }
-    },
-
-    fetchNotifications: async () => {
-        try {
-            const res = await axios.get('/api/notifications');
-            set({ notifications: res.data });
-        } catch (err) { console.error("Fetch notifications failed", err); }
-    },
-
-    markNotificationRead: async (id) => {
-        try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/notifications/${id}/read`, {}, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            set(state => ({
-                notifications: state.notifications.map(n => n.id === id ? { ...n, is_read: true } : n)
-            }));
-        } catch (err) { console.error("Mark read failed", err); }
-    },
-
-    fetchBadges: async () => {
-        try {
-            const res = await axios.get('/api/gamification/badges');
-            set({ badges: res.data.badges });
-        } catch (err) { console.error("Fetch badges failed", err); }
-    },
-
     checkNewBadges: async () => {
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            const res = await axios.post('/api/gamification/check-badges', {}, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            if (res.data.new_badges && res.data.new_badges.length > 0) {
-                // For now just show the first one if multiple
-                set({ newlyEarnedBadge: res.data.new_badges[0] });
-                soundEffects.play('levelup');
-                get().fetchBadges();
-                get().fetchNotifications();
+            const res = await axios.get('/api/gamification/badges/check');
+            if (res.data.new_badge) {
+                set({ newlyEarnedBadge: res.data.new_badge });
             }
-        } catch (err) { console.error("Check badges failed", err); }
+        } catch (e) {}
     },
 
     clearCelebration: () => set({ newlyEarnedBadge: null }),
 
-    deleteLesson: async (lessonId: number) => {
-        console.log(`[STORE] Attempting to delete lesson: ${lessonId}`);
+    deleteLesson: async (id) => {
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            const res = await axios.delete(`/api/lesson/${lessonId}`, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            console.log(`[STORE] Delete response:`, res.data);
+            await axios.delete(`/api/study/lesson/${id}`);
+            set(state => ({ lessons: state.lessons.filter(l => l.id !== id) }));
+        } catch (e) {}
+    },
+
+    deleteVideoGlobal: async (id) => {
+        try {
+            await axios.delete(`/api/content/video/${id}`);
             get().fetchDashboard();
+        } catch (e) {}
+    },
+
+    toggleVideoVisibility: async (id, visible) => {
+        const isPublic = visible === 'public' || visible === true;
+        try {
+            await axios.patch(`/api/content/video/${id}/visibility`, { is_public: isPublic });
+            get().fetchDashboard();
+        } catch (e) {}
+    },
+
+    fetchPlaylists: async () => {
+        try {
+            const res = await axios.get('/api/study/playlists');
+            // Support both { playlists: [...] } and direct array [...]
+            const data = res.data;
+            const playlists = Array.isArray(data) ? data : (data?.playlists || []);
+            set({ playlists: Array.isArray(playlists) ? playlists : [] });
+        } catch (e) {
+            console.error("Fetch playlists failed", e);
+            set({ playlists: [] });
+        }
+    },
+
+    createPlaylist: async (name) => {
+        try {
+            await axios.post('/api/study/playlists', { name });
+            get().fetchPlaylists();
             return true;
-        } catch (err) {
-            console.error("Lesson deletion failed", err);
+        } catch (e) {
             return false;
         }
     },
 
-    deleteVideoGlobal: async (videoId: number) => {
+    deletePlaylist: async (id) => {
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.delete(`/api/video/${videoId}`, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            get().fetchDashboard();
-            return true;
-        } catch (err) {
-            console.error("Global video deletion failed", err);
-            return false;
-        }
+            await axios.delete(`/api/study/playlists/${id}`);
+            set(state => ({ playlists: state.playlists.filter(p => p.id !== id) }));
+        } catch (e) {}
     },
 
-    toggleVideoVisibility: async (videoId, visibility) => {
+    addVideoToPlaylist: async (playlistId, videoId) => {
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/admin/video/${videoId}/visibility`, { visibility }, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
-            get().fetchDashboard();
-        } catch (err) {
-            console.error("Failed to toggle visibility", err);
-        }
+            await axios.post(`/api/study/playlists/${playlistId}/videos`, { video_id: videoId });
+            get().fetchPlaylists();
+        } catch (e) {}
+    },
+
+    removeVideoFromPlaylist: async (playlistId, videoId) => {
+        try {
+            await axios.delete(`/api/study/playlists/${playlistId}/videos/${videoId}`);
+            get().fetchPlaylists();
+        } catch (e) {}
+    },
+
+    markNotificationRead: async (id) => {
+        try {
+            await axios.post(`/api/study/notifications/${id}/read`);
+            set(state => ({ notifications: state.notifications.filter(n => n.id !== id) }));
+        } catch (e) {}
     }
 }));

@@ -5,5 +5,5 @@ module_metadata = {
 }
 
 def setup_module(app):
-    from .routes.api import bp as api_bp
-    app.register_blueprint(api_bp, url_prefix='/api/identity')
+    from .routes.api import identity_api
+    app.register_blueprint(identity_api)

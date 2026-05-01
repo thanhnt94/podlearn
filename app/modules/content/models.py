@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from app.extensions import db
+from app.core.extensions import db
 
 playlist_items = db.Table('playlist_items',
     db.Column('playlist_id', db.Integer, db.ForeignKey('playlists.id', ondelete='CASCADE'), primary_key=True),
@@ -81,3 +81,4 @@ class SubtitleTrack(db.Model):
 
     video = db.relationship('Video', back_populates='subtitle_tracks')
     uploader = db.relationship('User')
+

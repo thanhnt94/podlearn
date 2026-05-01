@@ -116,15 +116,22 @@ def cleanup():
 atexit.register(cleanup)
 
 if __name__ == '__main__':
+    # 1. Ensure media folders exist
     media_folder = app.config.get('MEDIA_FOLDER')
     if media_folder and not os.path.exists(media_folder):
         os.makedirs(media_folder)
         print(f"Created media directory: {media_folder}")
 
-    # In debug mode, Werkzeug restarts the app. WERKZEUG_RUN_MAIN is 'true' in the child process.
-    # We only start celery in the main worker process to avoid duplicating Celery workers.
+    # 2. Build Frontend (Windows only, and only in main process)
+    if os.name == 'nt' and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        try:
+            import build_vite
+            build_vite.build_frontend()
+        except ImportError:
+            print(" [!] build_vite.py not found. Skipping automatic build.")
+
+    # 3. Start Celery
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
-        # Check if user wants to skip celery
         if not os.environ.get('SKIP_CELERY'):
             start_celery()
 

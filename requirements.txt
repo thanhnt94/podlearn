@@ -27,3 +27,4 @@ marshmallow
 flask-marshmallow
 marshmallow-sqlalchemy
 gunicorn
+flask-jwt-extended

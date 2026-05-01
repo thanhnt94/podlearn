@@ -7,7 +7,7 @@ import google.generativeai as genai
 from app.modules.engagement.models import AppSetting
 from app.modules.study.models import AIInsightTrack, AIInsightItem
 from app.modules.content.models import SubtitleTrack, Video
-from app.extensions import db
+from app.core.extensions import db
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class AIService:
     @staticmethod
     def generate_video_summary(transcript_text, target_lang='vi', model_name='gemini-2.0-flash'):
         """Generates an overall summary of the video content."""
-        from app.utils.feature_flags import get_ai_mode
+        from app.core.utils.feature_flags import get_ai_mode
         if get_ai_mode() == 'mock':
             return f"[MOCK SUMMARY] Tóm tắt nội dung video ({target_lang})."
 
@@ -58,7 +58,7 @@ class AIService:
     @staticmethod
     def analyze_single_line(track_id, subtitle_index, text, start_time=0, end_time=0, target_lang='vi'):
         """Analyze a single sentence on demand."""
-        from app.utils.feature_flags import get_ai_mode
+        from app.core.utils.feature_flags import get_ai_mode
         if get_ai_mode() == 'mock':
             return {'short_explanation': f"[MOCK] {text}", 'grammar_analysis': "Mock analysis data."}
 
@@ -138,3 +138,4 @@ def analyze_single_line(*args, **kwargs): return AIService.analyze_single_line(*
 def start_background_analysis(app, video_id, transcript_lines, lang='vi'):
     # Spawns a background thread if needed
     pass
+

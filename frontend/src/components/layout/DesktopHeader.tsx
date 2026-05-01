@@ -2,9 +2,11 @@ import React from 'react';
 import { Search } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { useLocation } from 'react-router-dom';
+import { useAppStore } from '../../store/useAppStore';
 
 export const DesktopHeader: React.FC = () => {
     const location = useLocation();
+    const user = useAppStore(state => state.user);
     const isPlayerRoute = location.pathname.includes('/player/');
     
     if (isPlayerRoute) return null;
@@ -23,7 +25,7 @@ export const DesktopHeader: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-6 ml-8">
-                {(window as any).__PODLEARN_DATA__?.is_admin && (
+                {user?.is_admin && (
                     <a 
                         href="/admin" 
                         className="flex items-center gap-2 px-4 py-2 bg-sky-500/10 border border-sky-500/20 rounded-2xl hover:bg-sky-500/20 transition-all group/admin"
@@ -39,16 +41,16 @@ export const DesktopHeader: React.FC = () => {
                 
                 <button className="flex items-center gap-3 group">
                     <div className="text-right hidden lg:block">
-                        <p className="text-xs font-bold text-white">{(window as any).__PODLEARN_DATA__?.username || 'User'}</p>
+                        <p className="text-xs font-bold text-white">{user?.username || 'User'}</p>
                         {(() => {
-                            const role = (window as any).__PODLEARN_DATA__?.role || 'free';
+                            const role = user?.role || 'free';
                             if (role === 'admin') return <p className="text-[10px] text-sky-400 font-black uppercase tracking-wider">Admin</p>;
                             if (role === 'vip') return <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">VIP User</p>;
                             return <p className="text-[10px] text-slate-500 font-medium">Free User</p>;
                         })()}
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 flex items-center justify-center font-black text-sky-400 group-hover:border-sky-500/50 transition-all shadow-lg shadow-black/20">
-                        {(window as any).__PODLEARN_DATA__?.username?.[0].toUpperCase() || 'U'}
+                        {user?.username?.[0].toUpperCase() || 'U'}
                     </div>
                 </button>
             </div>

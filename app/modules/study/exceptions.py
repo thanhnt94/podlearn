@@ -1,2 +1,2 @@
-﻿class StudyError(Exception):
+class StudyError(Exception):
     pass

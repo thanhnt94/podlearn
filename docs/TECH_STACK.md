@@ -1,37 +1,56 @@
-# PodLearn - Hệ thống Công nghệ
+# PodLearn - Hệ thống Công nghệ (Tech Stack)
 
-PodLearn được xây dựng trên một nền tảng công nghệ mạnh mẽ, tối ưu cho hiệu năng và trải nghiệm người dùng cao cấp. Dự án sử dụng mô hình Modular Monolith với Backend Python và Frontend React hiện đại.
+PodLearn được xây dựng trên một nền tảng công nghệ hiện đại, tối ưu cho hiệu năng cao và trải nghiệm người dùng cao cấp. Dự án tuân thủ mô hình **Modular Monolith (Hexagonal Architecture)** với sự tách biệt hoàn toàn giữa Backend (Headless API) và Frontend (Pure React SPA).
 
-## 🖥️ Backend (Python)
-- **Framework Chính**: [Flask 3.1](https://flask.palletsprojects.com/) - Cung cấp nền tảng WSGI linh hoạt và modular.
-- **ORM & Database**: [SQLAlchemy 2.0](https://www.sqlalchemy.org/) & [Flask-SQLAlchemy](https://flask-sqlalchemy.palletsprojects.com/). 
-    - Database mặc định: **SQLite** cho phát triển.
-    - Hỗ trợ **PostgreSQL/MySQL** cho môi trường Production.
-- **Migration**: [Flask-Migrate](https://flask-migrate.readthedocs.io/) (dựa trên Alembic).
-- **Xác thực (Auth)**:
-    - [Flask-Login](https://flask-login.readthedocs.io/) cho phiên người dùng.
-    - Tích hợp **CentralAuth SSO** qua các API nội bộ bảo mật (`X-Client-Secret`).
-- **Xử lý ngôn ngữ (NLP)**:
-    - **Tiếng Nhật**: `SudachiPy`, `SudachiDict`, `pykakasi`, `jamdict`.
-    - **Dịch thuật**: `deep-translator` (Google API proxy).
-    - **AI Engine**: Gemini 2.0 Flash (cho phân tích sâu và giải thích ngữ pháp).
-- **Xử lý truyền thông**:
-    - `yt-dlp`: Tải metadata và phụ đề YouTube.
-    - `Edge-TTS`: Chuyển đổi văn bản thành giọng nói chất lượng cao (Sử dụng cho Hands-free & Shadowing).
-    - `pydub`: Cắt, ghép và trộn âm thanh chuyên nghiệp (Dùng cho Podcast Generator).
+---
 
-## 🎨 Frontend (React SPA)
-- **Runtime**: [Node.js](https://nodejs.org/) & [Vite 8](https://vitejs.dev/) làm công cụ build siêu nhanh.
-- **Thư viện Chính**: [React 19](https://react.dev/) với kiến trúc Function Components và Hooks.
-- **Ngôn ngữ**: [TypeScript](https://www.typescriptlang.org/) đảm bảo an toàn kiểu dữ liệu.
-- **Giao diện (UI/UX)**:
-    - **TailwindCSS**: Hệ thống thiết kế tiện ích linh hoạt.
-    - **Framer Motion**: Tạo các hiệu ứng chuyển cảnh mượt mà và tương tác premium.
-    - **Lucide React**: Thư viện biểu tượng vector hiện đại.
-- **Quản lý trạng thái**: [Zustand](https://github.com/pmndrs/zustand) - Thay thế nhẹ nhàng và hiệu quả cho Redux.
-- **Kết nối API**: [Axios](https://axios-http.com/) tích hợp interceptors cho xác thực.
+## 🖥️ Backend (Python Core)
 
-## ⚙️ Tích hợp & Hệ sinh thái
-- **CentralAuth SSO**: Đồng bộ hóa danh tính trên toàn bộ hệ sinh thái phần mềm (MindStack, IPTV, v.v.).
-- **SRS (Spaced Repetition)**: Thuật toán ôn tập ngắt quãng tùy chỉnh cho Sentence & Vocab Mastery.
-- **Storage**: Hỗ trợ Storage nội bộ (Local) hoặc AWS S3 cho các tệp media và shadowing clips.
+### 1. Web Framework & API
+- **Flask 3.1**: Cung cấp nền tảng WSGI linh hoạt, được cấu trúc theo dạng Blueprints/Modules để dễ dàng bảo trì.
+- **Pure Headless API**: Loại bỏ hoàn toàn server-side rendering (Jinja2) cho ứng dụng chính, giao tiếp hoàn toàn qua JSON.
+
+### 2. Security & Identity
+- **Stateless Authentication**: Sử dụng **JWT (JSON Web Token)** thông qua `flask-jwt-extended`.
+- **RBAC (Role-Based Access Control)**: Phân quyền chặt chẽ (Admin, VIP, Free) tại cả lớp API và UI.
+- **CentralAuth SSO**: Tích hợp đồng bộ danh tính toàn cầu qua OAuth2/JWT Bridge.
+
+### 3. Database & Task Queue
+- **ORM**: [SQLAlchemy 2.0](https://www.sqlalchemy.org/) với các mô hình dữ liệu (Models) được tối ưu hóa.
+- **Migration**: [Flask-Migrate](https://flask-migrate.readthedocs.io/) quản lý phiên bản database.
+- **Asynchronous Processing**: **Celery 5.4** xử lý các tác vụ nặng (Deep Analysis, Video Import, Sync).
+- **Broker/Result Backend**: **Redis** (mặc định) hoặc **SQLite** (fallback) cho môi trường dev.
+
+### 4. AI & NLP Engine
+- **LLM**: **Google Gemini 1.5 Flash/Pro** - Sử dụng cho hệ thống "AI Insights" phân tích ngữ pháp và văn hóa.
+- **Japanese NLP**: `SudachiPy`, `SudachiDict`, `pykakasi`, `jamdict`.
+- **TTS (Text-to-Speech)**: `Edge-TTS` (giọng đọc tự nhiên của Microsoft) và `gTTS`.
+
+---
+
+## 🎨 Frontend (React SPA Studio)
+
+### 1. Framework & Language
+- **React 19**: Sử dụng các tính năng mới nhất (Concurrent Rendering, Suspense).
+- **Vite 8**: Công cụ build và bundling siêu nhanh, thay thế hoàn toàn Webpack.
+- **TypeScript (Strict)**: Đảm bảo tính ổn định và tự ghi tài liệu cho mã nguồn.
+
+### 2. UI/UX Architecture
+- **TailwindCSS 4.0**: Hệ thống thiết kế utility-first giúp xây dựng giao diện nhanh và nhất quán.
+- **Framer Motion**: Thư viện Animation mạnh mẽ cho các tương tác mượt mà (Smooth transitions, drag-and-drop).
+- **Lucide React**: Hệ thống Icon vector hiện đại và đồng bộ.
+
+### 3. State & Communication
+- **Zustand**: Quản lý Global State (User, Player, Dashboard) một cách gọn nhẹ và hiệu suất cao.
+- **Axios**: Kết nối API với hệ thống Interceptors tự động đính kèm JWT Token vào Header `Authorization`.
+- **Recharts**: Thư viện biểu đồ phục vụ cho việc trực quan hóa dữ liệu học tập (Heatmap, Progress Chart).
+
+---
+
+## ⚙️ Cơ sở Hạ tầng & Mở rộng
+- **Modular Monolith**: Các module (Admin, Content, Identity, Study, Engagement) độc lập về domain nhưng chia sẻ chung core logic.
+- **Deployment**: Tương thích hoàn toàn với Docker/Vercel/Railway.
+- **Storage Strategy**: Kiến trúc trừu tượng cho phép chuyển đổi linh hoạt giữa Local Storage và AWS S3.
+
+---
+*Tài liệu được cập nhật cho phiên bản PodLearn Headless v22.*

@@ -55,7 +55,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         if (!videoId) return;
         setIsLoadingSources(true);
         try {
-            const res = await axios.get(`/api/youtube/subtitles-list/${videoId}`);
+            const res = await axios.get(`/api/study/youtube/subtitles-list/${videoId}`);
             setYtTracks(res.data.subtitles || []);
         } catch (err) { console.error(err); } finally { setIsLoadingSources(false); }
     };
@@ -64,10 +64,9 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         if (!lessonId) return;
         setImportingLang(lang);
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/youtube/subtitles-download/${lessonId}`, {
+            await axios.post(`/api/study/youtube/subtitles-download/${lessonId}`, {
                 lang_code: lang, is_auto: isAuto
-            }, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            });
             
             // Refresh to see the 'pending' track
             await fetchAvailableTracks();
@@ -84,10 +83,8 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         formData.append('language_code', uploadLang);
         
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/subtitles/upload/${lessonId}`, formData, {
+            await axios.post(`/api/study/subtitles/upload/${lessonId}`, formData, {
                 headers: { 
-                    'X-CSRF-Token': data.csrf_token,
                     'Content-Type': 'multipart/form-data'
                 }
             });
@@ -100,10 +97,9 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         if (!lessonId) return;
         setIsSaving(true);
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/lesson/${lessonId}/set-languages`, {
+            await axios.post(`/api/study/lesson/${lessonId}/set-languages`, {
                 s1_track_id: trackIds.s1, s2_track_id: trackIds.s2, s3_track_id: trackIds.s3, settings: settings
-            }, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            });
             setSaveStatus('success');
             setTimeout(() => setSaveStatus('idle'), 3000);
         } catch (err) { console.error(err); } finally { setIsSaving(false); }
@@ -122,7 +118,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         if (!videoId) return;
         setIsLoadingAdmin(true);
         try {
-            const res = await axios.get(`/api/video/${videoId}/admin-data`);
+            const res = await axios.get(`/api/study/video/${videoId}/admin-data`);
             setAdminData(res.data);
             await fetchAvailableTracks();
         } catch (err) { console.error(err); } finally { setIsLoadingAdmin(false); }
@@ -131,8 +127,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const handleUpdateMetadata = async (updates: any) => {
         if (!videoId) return;
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/video/${videoId}/metadata`, updates, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            await axios.post(`/api/study/video/${videoId}/metadata`, updates);
             setAdminData(prev => prev ? { ...prev, ...updates } : null);
         } catch (err) { alert("Update failed."); }
     };
@@ -140,7 +135,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const handleResetToGlobalDefault = async () => {
         if (!confirm("Revert this video's styles to your global default?")) return;
         try {
-            const res = await axios.get('/api/user/preferences');
+            const res = await axios.get('/api/study/user/preferences');
             usePlayerStore.getState().setLessonData({ global_preferences: res.data, settings_json: "{}" });
         } catch (err) { console.error(err); }
     };
@@ -148,8 +143,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const handleAddCollaborator = async () => {
         if (!videoId || !collabUsername) return;
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/video/${videoId}/collaborators/add`, { username: collabUsername }, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            await axios.post(`/api/study/video/${videoId}/collaborators/add`, { username: collabUsername });
             setCollabUsername('');
             await fetchAdminData();
         } catch (err) { alert("User not found or already added."); }
@@ -158,8 +152,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
     const handleRemoveCollaborator = async (uid: number) => {
         if (!videoId || !confirm("Remove collaborator?")) return;
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.post(`/api/video/${videoId}/collaborators/remove`, { user_id: uid }, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            await axios.post(`/api/study/video/${videoId}/collaborators/remove`, { user_id: uid });
             await fetchAdminData();
         } catch (err) { console.error(err); }
     };
@@ -178,8 +171,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
         setAvailableTracks(availableTracks.filter((t: any) => t.id !== tid));
 
         try {
-            const data = (window as any).__PODLEARN_DATA__;
-            await axios.delete(`/api/subtitles/${tid}`, { headers: { 'X-CSRF-Token': data.csrf_token } });
+            await axios.delete(`/api/subtitles/${tid}`);
             // Optionally refresh to sync with server, but don't clear the list
             await fetchAvailableTracks();
         } catch (err) { 
@@ -959,8 +951,7 @@ export const SettingsDrawer: React.FC<{ isOpen: boolean; onClose: () => void }> 
                                                    <button 
                                                         onClick={async () => {
                                                             if (confirm("!!! PERMANENT GLOBAL DELETE !!!\n\nAre you sure?")) {
-                                                                const data = (window as any).__PODLEARN_DATA__;
-                                                                await axios.delete(`/api/video/${videoId}`, { headers: { 'X-CSRF-Token': data.csrf_token } });
+                                                                await axios.delete(`/api/video/${videoId}`);
                                                                 onClose();
                                                                 window.location.href = '/';
                                                             }

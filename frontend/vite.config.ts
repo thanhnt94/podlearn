@@ -5,13 +5,21 @@ import path from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 5173,
+    strictPort: true,
+    host: 'localhost'
+  },
   base: '/static/dist/',
   build: {
-    outDir: path.resolve(__dirname, '../app/static/dist'),
+    outDir: path.resolve(__dirname, '../app/core/static/dist'),
     emptyOutDir: true,
     manifest: true,
     rollupOptions: {
-      input: path.resolve(__dirname, 'index.html'),
+      input: {
+        index: path.resolve(__dirname, 'index.html'),
+        admin: path.resolve(__dirname, 'admin.html'),
+      },
       output: {
         entryFileNames: `assets/[name]-v22.js`,
         chunkFileNames: `assets/[name]-v22.js`,

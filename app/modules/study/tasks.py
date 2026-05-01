@@ -1,5 +1,5 @@
 from celery import shared_task
-from app.extensions import db
+from app.core.extensions import db
 from .models import AIInsightTrack, Sentence
 import logging
 
@@ -42,3 +42,4 @@ def batch_generate_ai_insights():
             track.status = 'failed'
         
         db.session.commit()
+

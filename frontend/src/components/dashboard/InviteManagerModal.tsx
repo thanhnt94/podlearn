@@ -15,10 +15,7 @@ export const InviteManagerModal: React.FC<InviteManagerModalProps> = ({ isOpen, 
 
     const handleAction = async (id: number, action: 'accept' | 'reject') => {
         try {
-            const data = (window as any).__PODLEARN_DATA__ || {};
-            await axios.post(`/api/shares/${id}/${action}`, {}, {
-                headers: { 'X-CSRF-Token': data.csrf_token }
-            });
+            await axios.post(`/api/shares/${id}/${action}`, {});
             await fetchDashboard();
             if (invites.length <= 1) onClose();
         } catch (err) {
@@ -57,7 +54,7 @@ export const InviteManagerModal: React.FC<InviteManagerModalProps> = ({ isOpen, 
                             </div>
 
                             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                                {invites.map(invite => (
+                                {(invites || []).map(invite => (
                                     <div key={invite.id} className="bg-slate-950/50 border border-white/5 p-5 rounded-3xl space-y-4">
                                         <div className="flex items-start gap-4">
                                             <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center shrink-0">

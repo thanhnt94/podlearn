@@ -13,7 +13,7 @@ const iconMap: Record<string, any> = {
 };
 
 export const BadgeGrid: React.FC = () => {
-    const { badges } = useAppStore();
+    const { badges = [] } = useAppStore();
 
     if (badges.length === 0) return null;
 

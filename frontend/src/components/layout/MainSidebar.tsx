@@ -6,24 +6,29 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppStore } from '../../store/useAppStore';
 
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { user, logout } = useAppStore();
     const isPlayerRoute = location.pathname.includes('/player/');
     const [isHovered, setIsHovered] = useState(false);
     
-    const userData = (window as any).__PODLEARN_DATA__ || {};
-    const isVip = userData.is_at_least_vip || userData.is_admin;
-
+    const isVip = user?.is_vip || user?.is_admin;
     const isExpanded = isPlayerRoute ? isHovered : true;
 
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', path: '/', icon: <Home size={22} /> },
         { id: 'sets', label: 'Library Sets', path: '/sets', icon: <Layers size={22} /> },
         { id: 'explore', label: 'Explore', path: '/explore', icon: <Compass size={22} /> },
-        { id: 'profile', label: 'My Stats', path: '/profile', icon: <User size={22} /> },
+        { id: 'stats', label: 'My Stats', path: '/stats', icon: <Flame size={22} /> },
     ];
+
+    const handleLogout = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        await logout();
+    };
 
     return (
         <motion.aside 
@@ -132,7 +137,7 @@ export const MainSidebar: React.FC = () => {
             <div className={`p-4 border-t border-white/5 space-y-4 ${!isExpanded ? 'flex flex-col items-center' : ''}`}>
                  <div className={`bg-white/5 rounded-2xl transition-all ${isExpanded ? 'p-4 flex items-center gap-4' : 'p-2'}`}>
                      <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center font-black text-slate-950 shrink-0">
-                         {(window as any).__PODLEARN_DATA__?.username?.[0].toUpperCase() || 'U'}
+                         {user?.username?.[0].toUpperCase() || 'U'}
                      </div>
                      <AnimatePresence>
                         {isExpanded && (
@@ -142,7 +147,7 @@ export const MainSidebar: React.FC = () => {
                                 exit={{ opacity: 0, width: 0 }}
                                 className="flex-1 overflow-hidden"
                             >
-                                <p className="text-sm font-black text-white truncate">{(window as any).__PODLEARN_DATA__?.username || 'User'}</p>
+                                <p className="text-sm font-black text-white truncate">{user?.username || 'User'}</p>
                                 <div className="flex items-center gap-1 text-sky-500">
                                     <Flame size={12} fill="currentColor" />
                                     <span className="text-[10px] font-black uppercase">Active Streak</span>
@@ -152,12 +157,19 @@ export const MainSidebar: React.FC = () => {
                      </AnimatePresence>
                  </div>
                  
-                 <a href="/auth/logout" className={`flex items-center gap-3 text-slate-500 hover:text-red-400 transition-colors text-xs font-bold uppercase tracking-widest ${
+                 <Link to="/stats" className={`flex items-center gap-3 text-slate-500 hover:text-sky-400 transition-colors text-xs font-bold uppercase tracking-widest ${
+                     isExpanded ? 'px-4 py-2' : 'justify-center p-2'
+                 }`}>
+                     <User size={16} />
+                     {isExpanded && <span className="whitespace-nowrap">Account Settings</span>}
+                 </Link>
+
+                 <button onClick={handleLogout} className={`w-full flex items-center gap-3 text-slate-500 hover:text-red-400 transition-colors text-xs font-bold uppercase tracking-widest ${
                      isExpanded ? 'px-4 py-2' : 'justify-center p-2'
                  }`}>
                      <LogOut size={16} />
                      {isExpanded && <span className="whitespace-nowrap">Sign Out</span>}
-                 </a>
+                 </button>
             </div>
         </motion.aside>
     );

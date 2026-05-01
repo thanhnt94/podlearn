@@ -1,4 +1,4 @@
-﻿class IdentityError(Exception):
+class IdentityError(Exception):
     pass
 
 class UserNotFoundError(IdentityError):

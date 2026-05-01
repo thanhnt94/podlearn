@@ -1,8 +1,8 @@
 from flask import current_app, session
-from app.extensions import db
+from app.core.extensions import db
 from app.modules.identity.models import User
 from app.modules.engagement.models import AppSetting
-from app.utils.sso_helper import EcosystemAuth
+from app.core.utils.sso_helper import EcosystemAuth
 
 class SSOService:
     """
@@ -93,3 +93,4 @@ class SSOService:
             db.session.add(user)
             db.session.commit()
             return user
+

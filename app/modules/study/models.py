@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from app.extensions import db
+from app.core.extensions import db
 
 
 # --- From vocabulary.py ---
@@ -395,3 +395,4 @@ class Note(db.Model):
 
     def __repr__(self) -> str:
         return f'<Note @{self.timestamp}s lesson={self.lesson_id}>'
+

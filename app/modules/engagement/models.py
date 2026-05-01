@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from app.extensions import db
+from app.core.extensions import db
 
 
 # --- From activity_log.py ---
@@ -221,3 +221,4 @@ class AppSetting(db.Model):
             setting.description = description
         db.session.commit()
         return setting
+

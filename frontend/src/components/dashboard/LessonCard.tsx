@@ -12,9 +12,10 @@ interface LessonCardProps {
 
 export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDeleteGlobal, onToggleVisibility }) => {
     const { video, time_spent, is_completed, last_accessed } = lesson;
-    const { playlists, addVideoToPlaylist } = useAppStore();
+    const { user, playlists, addVideoToPlaylist } = useAppStore();
     const [showPlaylistSelector, setShowPlaylistSelector] = React.useState(false);
 
+    const isAdmin = user?.is_admin;
     const progressPercent = Math.min(100, Math.round((time_spent / (video.duration_seconds || 1)) * 100));
 
     const formatDuration = (seconds: number) => {
@@ -129,7 +130,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                                              <p className="text-[10px] italic text-slate-600 p-2">No sets created yet.</p>
                                          )}
                                      </div>
-                                </div>
+                                 </div>
                             )}
                         </div>
                     </div>
@@ -144,7 +145,6 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                                         e.stopPropagation();
                                         const btn = e.currentTarget;
                                         if (btn.getAttribute('data-confirm') === 'true') {
-                                            console.log("CONFIRMED Delete for lesson:", lesson.id);
                                             onDelete(lesson.id);
                                         } else {
                                             btn.setAttribute('data-confirm', 'true');
@@ -166,7 +166,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                             </div>
                         )}
                         
-                        {onDeleteGlobal && (window as any).__PODLEARN_DATA__?.is_admin && (
+                        {onDeleteGlobal && isAdmin && (
                             <button 
                                 type="button"
                                 onClick={(e) => {
@@ -183,7 +183,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                             </button>
                         )}
 
-                        {onToggleVisibility && (window as any).__PODLEARN_DATA__?.is_admin && (
+                        {onToggleVisibility && isAdmin && (
                             <button 
                                 type="button"
                                 onClick={(e) => {

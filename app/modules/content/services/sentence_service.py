@@ -1,5 +1,5 @@
 import json
-from app.extensions import db
+from app.core.extensions import db
 from app.modules.study.models import Sentence
 
 def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=None, track_mode='mastery_sentence'):
@@ -96,3 +96,4 @@ def _import_single_item(data, user_id, set_id, source_video_id, track_mode):
         'message': 'Sentence pattern imported successfully!',
         'sentence_id': new_sentence.id
     }
+

@@ -1,5 +1,5 @@
 from celery import shared_task
-from app.extensions import db
+from app.core.extensions import db
 from .models import SubtitleTrack
 import logging
 
@@ -93,3 +93,4 @@ def process_video_metadata(video_id_int: int):
         video.status = 'failed'
         db.session.commit()
         return {"error": str(e)}
+

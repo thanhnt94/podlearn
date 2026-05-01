@@ -1,38 +1,66 @@
-# Cấu trúc Dự án PodLearn
+# Cấu trúc Dự án PodLearn (Modular Monolith)
 
-PodLearn được tổ chức theo kiến trúc Modular Monolith, tách biệt rõ ràng giữa Backend (Flask) và Frontend (React) nhưng vẫn duy trì sự nhất quán trong cùng một repository.
+PodLearn được tổ chức theo kiến trúc **Modular Monolith (Hexagonal Style)**. Hệ thống chia nhỏ các chức năng thành từng Module độc lập, giúp dễ dàng mở rộng và bảo trì.
 
-## 📂 Sơ đồ Thư mục
+---
+
+## 📂 Sơ đồ Thư mục Hiện tại
 
 ```text
 PodLearn/
-├── app/                        # Backend: Mã nguồn chính (Python/Flask)
-│   ├── models/                 # SQLAlchemy Models (20+ thực thể Database)
-│   ├── routes/                 # Flask Blueprints (15+ Controllers & API)
-│   ├── services/               # Logic nghiệp vụ (AI, Audio, Subtitles, SRS)
-│   ├── static/                 # Tài sản tĩnh cho SSR (Landing, Auth)
-│   ├── templates/              # Jinja2 Templates (Landing, Auth, SPA Container)
-│   ├── utils/                  # Hàm tiện ích (Jinja Filters, Time)
-│   ├── __init__.py             # App Factory, Blueprint Registration & SSO
-│   ├── config.py               # Cấu hình môi trường (Dev/Prod/Test)
-│   └── extensions.py           # Khởi tạo Flask Extensions (DB, Migrate, CSRF)
-├── admin-studio/               # Frontend Quản trị: React SPA (Vite/TS)
-├── docs/                       # Tài liệu kỹ thuật chi tiết
-├── frontend/                   # Frontend chính: React SPA (Vite/TS)
-│   ├── src/                    # Mã nguồn React (Components, Store, Hooks)
-│   ├── public/                 # Tài sản công cộng cho Frontend
-│   └── vite.config.ts          # Cấu hình build Vite
-├── migrations/                 # Lịch sử Migration Database (Alembic)
-├── Storage/                    # Lưu trữ Media (Shadowing clips, Hands-free audio)
-├── run_podlearn.py             # Entry point khởi chạy Backend (Port 5020)
-├── requirements.txt            # Dependencies Python
+├── app/                        # Backend: Mã nguồn Flask (Python)
+│   ├── core/                   # Cấu hình lõi (Security, Extensions, Config)
+│   ├── modules/                # Các Module chức năng (Domain-Driven)
+│   │   ├── admin/              # Module Quản trị (Routes, API)
+│   │   ├── content/            # Quản lý Video, Lessons, Media
+│   │   ├── identity/           # Quản lý Người dùng, Auth, SSO, JWT
+│   │   ├── study/              # Shadowing, SRS, Playlists, Mastery
+│   │   └── engagement/         # Gamification, Badges, Stats
+│   ├── static/dist/            # Chứa các file Frontend đã build (Vite Output)
+│   └── __init__.py             # App Factory & Module Registration
+├── frontend/                   # Frontend SPA (React 19 + Vite)
+│   ├── src/
+│   │   ├── admin/              # Mã nguồn Admin Studio Studio (React)
+│   │   ├── components/         # Các Component dùng chung & User UI
+│   │   ├── store/              # Quản lý trạng thái (Zustand)
+│   │   ├── hooks/              # Custom Hooks cho API & Logic
+│   │   └── main.tsx            # Entry point cho ứng dụng người dùng
+│   ├── admin.html              # Entry point cho Admin Studio
+│   ├── index.html              # Entry point cho Main App
+│   └── vite.config.ts          # Cấu hình Build & Output Path
+├── docs/                       # Tài liệu kỹ thuật chuyên sâu
+├── migrations/                 # Lịch sử phiên bản Database
+├── Storage/                    # Dữ liệu cục bộ (SQLite, Media, Uploads)
+├── run_podlearn.py             # Script khởi chạy Flask Server (Port 5020)
+├── run_celery.py               # Script khởi chạy Worker (Background Tasks)
 └── README.md                   # Hướng dẫn tổng quan
 ```
 
-## 🏗️ Các Thành phần Chính
+---
 
-- **App Factory (`app/__init__.py`)**: Khởi tạo Flask App, đăng ký Blueprints và thiết lập các API SSO với CentralAuth.
-- **Modern SPA Entry Point**: Flask đóng vai trò là container, phục vụ trang React hiện đại tại route gốc `/` cho những người dùng đã đăng nhập.
-- **Frontend SPA**: Nằm hoàn toàn trong thư mục `frontend/`, giao tiếp với Backend thông qua JSON API (Blueprint `api`).
-- **Media Services**: Xử lý tải video từ YouTube, trích xuất âm thanh và tạo tệp Shadowing thông qua các Service chuyên biệt trong `app/services/`.
-- **Ecosystem Sync**: Các route đặc biệt dành cho việc đồng bộ người dùng với hệ sinh thái chung của người dùng.
+## 🏗️ Các Thành phần Kiến trúc
+
+### 1. Modular Architecture (`app/modules/`)
+Mỗi thư mục trong `modules` là một đơn vị độc lập chứa:
+- `models.py`: Định nghĩa database schema.
+- `routes/`: Chứa các API endpoints (Blueprints).
+- `services.py`: Logic nghiệp vụ riêng của module.
+- `interface.py`: (Tùy chọn) Cung cấp các hàm cho các module khác gọi đến.
+
+### 2. Headless SPA Entry Points
+Dự án có hai điểm truy cập chính được build từ React:
+- **Main App (`/`)**: Giao diện học tập dành cho người dùng.
+- **Admin Studio (`/admin/`)**: Giao diện quản trị hệ thống.
+Tất cả đều được Flask phục vụ từ thư mục `app/core/static/dist` sau khi chạy lệnh `npm run build`.
+
+### 3. Stateless Security Layer
+Hệ thống không sử dụng Session của Flask mà dựa hoàn toàn vào **JWT (JSON Web Tokens)**. 
+- Token được lưu trữ tại `localStorage` ở Frontend.
+- Axios Interceptors tự động đính kèm Token vào Header của mọi yêu cầu API.
+- Backend xác thực qua decorator `@jwt_required()`.
+
+### 4. Background Processing
+Các tác vụ tốn thời gian như phân tích video bằng AI, đồng bộ hóa phụ đề, hoặc tạo file âm thanh TTS được đẩy vào **Celery Worker** để đảm bảo API luôn phản hồi nhanh nhất.
+
+---
+*Cập nhật: 2026-05-01 - Đội ngũ Kỹ thuật PodLearn.*

@@ -1,3 +1,4 @@
+import { useAppStore } from '../../store/useAppStore';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -10,13 +11,14 @@ import axios from 'axios';
 
 export const ImportView: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAppStore();
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [selectedLanguage, setSelectedLanguage] = useState('ja');
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
     
-    const userData = (window as any).__PODLEARN_DATA__ || {};
-    const isVip = userData.is_at_least_vip || userData.is_admin;
+    // Check VIP/Admin status from Store
+    const isVip = user?.is_vip || user?.is_admin;
 
     const handleImport = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -26,14 +28,10 @@ export const ImportView: React.FC = () => {
         setStatus({ type: 'idle', message: '' });
 
         try {
-            const data = (window as any).__PODLEARN_DATA__ || {};
-            const res = await axios.post('/api/video/import', 
-                { 
-                    youtube_url: youtubeUrl,
-                    language_code: selectedLanguage 
-                },
-                { headers: { 'X-CSRF-Token': data.csrf_token } }
-            );
+            const res = await axios.post('/api/study/video/import', { 
+                youtube_url: youtubeUrl,
+                language_code: selectedLanguage 
+            });
 
             if (res.data.success) {
                 setStatus({ 

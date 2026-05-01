@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
-from app.extensions import db, redis_client
+from app.core.extensions import db, redis_client
 from ..models import Sentence
 
 def calculate_next_review(current_level, current_interval, current_ease, quality):
@@ -66,3 +66,4 @@ def invalidate_due_cache(user_id):
     if redis_client:
         cache_key = f"srs:due_sentences:{user_id}"
         redis_client.delete(cache_key)
+

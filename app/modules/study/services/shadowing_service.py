@@ -1,9 +1,9 @@
 import re
 import difflib
 import pykakasi
-from app.extensions import db
-from app.modules.study.models import Lesson
-from app.modules.engagement.models import ShadowingHistory
+from app.core.extensions import db
+from app.modules.study.models import Lesson, Sentence
+from app.modules.study.signals import shadowing_completed
 
 # Initialize pykakasi
 kks = pykakasi.kakasi()
@@ -40,10 +40,8 @@ def get_japanese_segments(text):
 
 def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang, start_time=None, end_time=None, sentence_id=None):
     """
-    Logic for scoring pronunciation and saving to ShadowingHistory.
-    Supports both video-based lessons and individual sentence patterns.
+    Logic for scoring pronunciation and emitting shadowing-completed signal.
     """
-    from app.modules.study.models import Sentence
     raw_score = 0
     hira_score = 0
     
@@ -59,12 +57,10 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
         if len(orig_clean) == 0:
             final_score = 100
         else:
-            # SYSTEM 1: Raw Match
             raw_matcher = difflib.SequenceMatcher(None, orig_clean, spoken_clean)
             raw_matches = sum(block.size for block in raw_matcher.get_matching_blocks())
             raw_score = raw_matches / len(orig_clean)
 
-            # SYSTEM 2: Hiragana Match
             orig_hira = "".join([item['hira'] for item in kks.convert(orig_clean)])
             spoken_hira = "".join([item['hira'] for item in kks.convert(spoken_clean)])
 
@@ -74,7 +70,6 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
             
             final_score = min(100, int(max(raw_score, hira_score) * 100))
     else:
-        # Simple word-based match fallback for other languages
         orig_words = re.findall(r'\w+', original_text.lower())
         spoken_words = re.findall(r'\w+', spoken_text.lower())
         if not orig_words:
@@ -83,51 +78,42 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
             match_count = sum(1 for w in spoken_words if w in orig_words)
             final_score = min(100, int((match_count / len(orig_words)) * 100))
 
-    # SAVE HISTORY
+    # EMIT SIGNAL FOR HISTORY
     try:
-        history = None
+        video_id = None
+        s_id = None
+        l_id = None
+        
         if sentence_id:
             sentence = Sentence.query.get(int(sentence_id))
             if sentence:
-                history = ShadowingHistory(
-                    user_id=user_id,
-                    video_id=sentence.source_video_id, # Could be None
-                    lesson_id=None, # No direct lesson for standalone sentence practice
-                    sentence_id=sentence.id,
-                    start_time=0.0,
-                    end_time=0.0,
-                    original_text=original_text,
-                    spoken_text=spoken_text,
-                    accuracy_score=final_score
-                )
-        elif lesson_id and start_time is not None:
+                s_id = sentence.id
+                video_id = getattr(sentence, 'source_video_id', None)
+        elif lesson_id:
             lesson = Lesson.query.get(int(lesson_id))
             if lesson and lesson.user_id == user_id:
-                history = ShadowingHistory(
-                    user_id=user_id,
-                    video_id=lesson.video_id,
-                    lesson_id=lesson.id,
-                    start_time=float(start_time),
-                    end_time=float(end_time) if end_time else float(start_time) + 2.0,
-                    original_text=original_text,
-                    spoken_text=spoken_text,
-                    accuracy_score=final_score
-                )
+                l_id = lesson.id
+                video_id = lesson.video_id
         
-        if history:
-            db.session.add(history)
-            db.session.commit()
-            print(f"[ShadowingHistory] Saved: {final_score}% for user {user_id}")
+        shadowing_completed.send('shadowing_service',
+            user_id=user_id,
+            video_id=video_id,
+            lesson_id=l_id,
+            sentence_id=s_id,
+            start_time=float(start_time) if start_time is not None else 0.0,
+            end_time=float(end_time) if end_time is not None else (float(start_time) + 2.0 if start_time else 0.0),
+            original_text=original_text,
+            spoken_text=spoken_text,
+            accuracy_score=final_score
+        )
             
     except Exception as e:
         import traceback
-        print(f"[ShadowingHistory ERROR] Failed to save to database!")
+        print(f"[Shadowing Signal ERROR] Failed to emit!")
         traceback.print_exc()
-        db.session.rollback()
 
     # ── GENERATE DIFF HTML ────────────────────────────────
     diff_html = ""
-    # Decide which strings to diff for visual feedback
     if lang == 'ja':
         s1 = "".join([item['hira'] for item in kks.convert(orig_clean)])
         s2 = "".join([item['hira'] for item in kks.convert(spoken_clean)])
@@ -140,15 +126,12 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
         if tag == 'equal':
             diff_html += f'<span class="text-emerald-400">{s2[j1:j2]}</span>'
         elif tag == 'replace':
-            # Highlight what was spoken instead of original
             diff_html += f'<span class="text-rose-500 underline decoration-rose-500/30">{s2[j1:j2]}</span>'
         elif tag == 'insert':
             diff_html += f'<span class="text-rose-400 opacity-70 italic">{s2[j1:j2]}</span>'
         elif tag == 'delete':
-            # Show original characters that were skipped
             diff_html += f'<span class="text-rose-600/50 line-through decoration-rose-600/30">{s1[i1:i2]}</span>'
 
-    # Prepare response data
     result = {
         "score": final_score,
         "original_text": original_text,

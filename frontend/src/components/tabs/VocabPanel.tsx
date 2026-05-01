@@ -138,7 +138,6 @@ export const VocabPanel: React.FC = () => {
         setIsAnalyzing(true);
 
         try {
-            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             const response = await axios.post('/api/vocab/analyze', { 
                 text, 
                 priority: priority === 'edit_segments' ? 'mazii_offline' : priority,
@@ -146,8 +145,7 @@ export const VocabPanel: React.FC = () => {
                 line_index: activeLineIndex,
                 timestamp: currentLineStartRef.current
             }, {
-                signal: abortControllerRef.current.signal,
-                headers: { 'X-CSRF-Token': csrfToken }
+                signal: abortControllerRef.current.signal
             });
             
             if (text !== currentTextRef.current) return;
@@ -194,10 +192,8 @@ export const VocabPanel: React.FC = () => {
     const handleRemoveTerm = async (term: string) => {
         if (!lessonId) return;
         try {
-            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             await axios.delete('/api/vocab/remove', {
-                data: { lesson_id: lessonId, term },
-                headers: { 'X-CSRF-Token': csrfToken }
+                data: { lesson_id: lessonId, term }
             });
             fetchSavedVocab();
         } catch (err) {
@@ -209,7 +205,6 @@ export const VocabPanel: React.FC = () => {
         const noteTimestamp = item.timestamp || 0;
 
         try {
-            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             const response = await axios.post(`/api/vocab/add`, {
                 lesson_id: lessonId,
                 term: item.lemma,
@@ -217,7 +212,7 @@ export const VocabPanel: React.FC = () => {
                 definition: Array.isArray(item.meanings) ? item.meanings.join(', ') : item.meanings,
                 example: item.original,
                 timestamp: noteTimestamp
-            }, { headers: { 'X-CSRF-Token': csrfToken } });
+            });
             
             fetchSavedVocab();
             
@@ -332,10 +327,8 @@ export const VocabPanel: React.FC = () => {
     const handleResetSegments = async () => {
         if (!lessonId) return;
         try {
-            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             await axios.delete('/api/vocab/tokens/clear', {
-                data: { lesson_id: lessonId, line_index: activeLineIndex },
-                headers: { 'X-CSRF-Token': csrfToken }
+                data: { lesson_id: lessonId, line_index: activeLineIndex }
             });
             const line = s1Lines[activeLineIndex];
             if (line) analyzeSentence(line.text, dictPriority);
@@ -349,10 +342,8 @@ export const VocabPanel: React.FC = () => {
         if (!confirm("Are you sure you want to reset ALL segments to default for this entire lesson? This cannot be undone.")) return;
         
         try {
-            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             await axios.delete('/api/vocab/tokens/clear-all', { 
-                data: { lesson_id: lessonId },
-                headers: { 'X-CSRF-Token': csrfToken }
+                data: { lesson_id: lessonId }
             });
             // Re-fetch current line to reflect changes
             const line = s1Lines[activeLineIndex];
@@ -365,12 +356,11 @@ export const VocabPanel: React.FC = () => {
     const saveTokens = async (tokens: string[]) => {
         if (!lessonId) return;
         try {
-            const csrfToken = (window as any).__PODLEARN_DATA__?.csrf_token || '';
             await axios.post('/api/vocab/tokens/save', {
                 lesson_id: lessonId,
                 line_index: activeLineIndex,
                 tokens
-            }, { headers: { 'X-CSRF-Token': csrfToken } });
+            });
             
             const line = s1Lines[activeLineIndex];
             if (line) {
@@ -379,7 +369,7 @@ export const VocabPanel: React.FC = () => {
                     priority: dictPriority === 'edit_segments' ? 'mazii_offline' : dictPriority,
                     lesson_id: lessonId,
                     line_index: activeLineIndex
-                }, { headers: { 'X-CSRF-Token': csrfToken } });
+                });
                 
                 const stableData: AnalyzedVocab[] = response.data.map((item: any, idx: number) => ({
                     ...item,

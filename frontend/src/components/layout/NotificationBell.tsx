@@ -5,10 +5,10 @@ import { useAppStore } from '../../store/useAppStore';
 
 export const NotificationBell: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const { notifications, markNotificationRead } = useAppStore();
+    const { notifications = [], markNotificationRead } = useAppStore();
     const bellRef = useRef<HTMLDivElement>(null);
 
-    const unreadCount = notifications.filter(n => !n.is_read).length;
+    const unreadCount = (notifications || []).filter(n => !n.is_read).length;
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

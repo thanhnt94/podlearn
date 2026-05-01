@@ -1,12 +1,14 @@
 from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
-from app.extensions import db
-from ..models import Comment
+from flask_jwt_extended import jwt_required, current_user
+from app.core.extensions import db
+from app.modules.engagement.models import Comment
 from app.modules.identity.models import User
 
-bp = Blueprint('engagement_community', __name__)
+community_bp = Blueprint('community', __name__,
+                        template_folder='../templates',
+                        static_folder='../static')
 
-@bp.route('/comments/<int:video_id>', methods=['GET'])
+@community_bp.route('/comments/<int:video_id>', methods=['GET'])
 def get_comments(video_id):
     """Fetch comments for a video, ordered by timestamp then creation."""
     comments = Comment.query.filter_by(video_id=video_id).order_by(Comment.video_timestamp.asc(), Comment.created_at.desc()).all()
@@ -21,15 +23,14 @@ def get_comments(video_id):
             'user': {
                 'id': c.user.id,
                 'username': c.user.username,
-                'role': c.user.role,
                 'avatar_url': c.user.avatar_url or f"https://api.dicebear.com/7.x/bottts/svg?seed={c.user.username}"
             }
         })
     
     return jsonify(result)
 
-@bp.route('/comments/<int:video_id>', methods=['POST'])
-@login_required
+@community_bp.route('/comments/<int:video_id>', methods=['POST'])
+@jwt_required()
 def post_comment(video_id):
     """Post a new comment for a video."""
     data = request.get_json() or {}
@@ -58,8 +59,9 @@ def post_comment(video_id):
             'user': {
                 'id': current_user.id,
                 'username': current_user.username,
-                'role': current_user.role,
                 'avatar_url': current_user.avatar_url or f"https://api.dicebear.com/7.x/bottts/svg?seed={current_user.username}"
             }
         }
     })
+
+

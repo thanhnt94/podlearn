@@ -49,12 +49,9 @@ export const NotesPanel: React.FC = () => {
     if (!content.trim() || !lessonId) return;
     setIsSubmitting(true);
     try {
-      const data = (window as any).__PODLEARN_DATA__;
       const res = await axios.post(`/api/lesson/${lessonId}/notes`, {
         timestamp: currentTime,
         content: content
-      }, {
-        headers: { 'X-CSRF-Token': data.csrf_token }
       });
       
       addNote(res.data.note);
@@ -72,11 +69,8 @@ export const NotesPanel: React.FC = () => {
     if (!editContent.trim()) return;
     setIsSubmitting(true);
     try {
-      const data = (window as any).__PODLEARN_DATA__;
       await axios.patch(`/api/notes/${id}`, {
         content: editContent
-      }, {
-        headers: { 'X-CSRF-Token': data.csrf_token }
       });
       
       updateNote(id, editContent);
@@ -92,10 +86,7 @@ export const NotesPanel: React.FC = () => {
     e.stopPropagation();
     if (!confirm("Are you sure?")) return;
     try {
-      const data = (window as any).__PODLEARN_DATA__;
-      await axios.delete(`/api/notes/${id}`, {
-        headers: { 'X-CSRF-Token': data.csrf_token }
-      });
+      await axios.delete(`/api/notes/${id}`);
       deleteNote(id);
     } catch (err) {
       console.error("Failed to delete note", err);

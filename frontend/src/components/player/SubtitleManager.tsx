@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { useAppStore } from '../../store/useAppStore';
 import { Languages, Edit3, Shield, Globe, Check, X, FileJson, FileText, Loader2 } from 'lucide-react';
 
 export const SubtitleManager: React.FC = () => {
@@ -12,6 +13,7 @@ export const SubtitleManager: React.FC = () => {
         trackIds,
         setTrackIds
     } = usePlayerStore();
+    const { user } = useAppStore();
 
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editName, setEditName] = useState('');
@@ -120,7 +122,7 @@ export const SubtitleManager: React.FC = () => {
                                             </div>
                                             <button 
                                                 onClick={() => { setEditingId(track.id); setEditName(track.name); }}
-                                                disabled={track.is_original && (window as any).__PODLEARN_DATA__?.user_role !== 'admin'}
+                                                disabled={track.is_original && user?.role !== 'admin'}
                                                 className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded disabled:opacity-20"
                                                 title={track.is_original ? "Chỉ Admin mới có thể đổi tên bản gốc" : "Rename"}
                                             >

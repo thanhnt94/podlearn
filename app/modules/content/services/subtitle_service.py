@@ -10,7 +10,7 @@ import time
 import webvtt
 import yt_dlp
 
-from app.extensions import db
+from app.core.extensions import db
 from app.modules.content.models import SubtitleTrack
 from deep_translator import GoogleTranslator
 
@@ -376,7 +376,7 @@ def generate_unique_track_name(video_id: int, base_name: str) -> str:
 
 def translate_track_content(track_id: int, target_lang: str = 'vi', source_lang: str = 'auto'):
     """Translate all lines in a track line-by-line in background."""
-    from app.extensions import db
+    from app.core.extensions import db
     from app.modules.content.models import SubtitleTrack
     import threading
     
@@ -513,3 +513,4 @@ def export_track_to_string(track: SubtitleTrack, format: str = 'srt') -> str:
             output.append(f"{i+1}\n{start} --> {end}\n{line['text']}\n")
             
     return "\n".join(output)
+

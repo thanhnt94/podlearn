@@ -137,7 +137,7 @@ export const SetDetailView: React.FC<{ playlistId: number, onBack: () => void }>
     const fetchDetails = async () => {
         setIsLoading(true);
         try {
-            const res = await axios.get(`/api/playlists/${playlistId}/details`);
+            const res = await axios.get(`/api/study/playlists/${playlistId}/details`);
             setData(res.data);
         } catch (err) {
             console.error("Failed to fetch playlist details", err);
@@ -150,7 +150,7 @@ export const SetDetailView: React.FC<{ playlistId: number, onBack: () => void }>
         fetchDetails();
     }, [playlistId]);
 
-    const handleRemove = async (videoId: number) => {
+    const handleRemove = async (videoId: string | number) => {
         await removeVideoFromPlaylist(playlistId, videoId);
         fetchDetails(); // Refresh
     };

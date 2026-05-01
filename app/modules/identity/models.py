@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
-from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.extensions import db
+from app.core.extensions import db
 
-class User(UserMixin, db.Model):
+class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -20,7 +19,7 @@ class User(UserMixin, db.Model):
     # Global User Preferences (JSON)
     preferences_json = db.Column(db.Text, default='{}')
 
-    # Gamification & Thống kê (Giữ tạm ở đây để tránh lỗi DB, logic sẽ do Gamification xử lý)
+    # Gamification & Thống kê
     current_streak = db.Column(db.Integer, default=0)
     longest_streak = db.Column(db.Integer, default=0)
     last_study_date = db.Column(db.Date)
@@ -29,8 +28,6 @@ class User(UserMixin, db.Model):
     streak_freezes = db.Column(db.Integer, default=0)
     total_listening_seconds = db.Column(db.Integer, default=0)
     total_shadowing_count = db.Column(db.Integer, default=0)
-
-    # Note: Relationships defined by other modules using backref/back_populates with string reference.
 
     @property
     def is_admin(self):
@@ -43,6 +40,10 @@ class User(UserMixin, db.Model):
     @property
     def is_at_least_vip(self):
         return self.is_vip
+
+    # Add required properties for JWT integration if necessary (though JWT usually just needs identity)
+    # is_active, get_id, etc. are for Flask-Login, so we can remove them if they were used.
+    # User model doesn't explicitly define them here, they came from UserMixin.
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)

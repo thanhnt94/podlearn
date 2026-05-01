@@ -5,7 +5,5 @@ module_metadata = {
 }
 
 def setup_module(app):
-    from .routes.api import bp as api_bp
-    from .routes.subtitles import bp as subtitle_bp
-    app.register_blueprint(api_bp, url_prefix='/api/content')
-    app.register_blueprint(subtitle_bp, url_prefix='/api/subtitles')
+    from .routes.api import content_api
+    app.register_blueprint(content_api)

@@ -14,7 +14,6 @@ declare global {
   interface Window {
     onYouTubeIframeAPIReady: () => void;
     YT: any;
-    __PODLEARN_DATA__: any;
   }
 }
 

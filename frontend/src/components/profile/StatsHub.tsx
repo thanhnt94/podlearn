@@ -37,12 +37,12 @@ export const StatsHub: React.FC = () => {
         return <div className="flex-1 flex items-center justify-center font-black text-red-500">Error loading statistics: {error}</div>;
     }
 
-    const totalHours = Math.floor(data.total_listening_time / 3600);
-    const totalMins = Math.floor((data.total_listening_time % 3600) / 60);
+    const totalHours = Math.floor((data?.total_listening_time || 0) / 3600);
+    const totalMins = Math.floor(((data?.total_listening_time || 0) % 3600) / 60);
 
     const pieData = [
-        { name: 'Listening (Input)', value: data.activity_mix.listening_minutes, color: '#38bdf8' },
-        { name: 'Shadowing (Output)', value: data.activity_mix.shadowing_minutes, color: '#a855f7' }
+        { name: 'Listening (Input)', value: data?.activity_mix?.listening_minutes || 0, color: '#38bdf8' },
+        { name: 'Shadowing (Output)', value: data?.activity_mix?.shadowing_minutes || 0, color: '#a855f7' }
     ].filter(d => d.value > 0);
     if (pieData.length === 0) pieData.push({ name: 'No Data Yet', value: 1, color: '#334155' });
 
