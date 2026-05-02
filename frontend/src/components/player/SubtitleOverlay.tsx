@@ -2,8 +2,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 
 export const SubtitleOverlay: React.FC = () => {
     const { 
-        s1Lines, s2Lines, s3Lines, currentTime, settings, trackIds,
-        analyzedWords, originalLang
+        s1Lines, s2Lines, s3Lines, currentTime, settings, trackIds
     } = usePlayerStore();
 
     const convertHexToRgba = (hex: string, opacity: number) => {
@@ -16,8 +15,41 @@ export const SubtitleOverlay: React.FC = () => {
     const renderLine = (sid: 's1' | 's2' | 's3', line: any) => {
         const s = settings[sid];
         const alignDefault = s.textAlign || 'center';
-        const isAnalyzed = sid === 's1' && originalLang === 'ja' && analyzedWords.length > 0;
         
+        // 1. Clean up the text: remove metadata [lemma] and replace separators | with space
+        let cleanText = (line.text || '')
+            .replace(/\[[^\]]*\]/g, '') // Remove [lemma] or [skip]
+            .replace(/\|/g, ' ')        // Replace | with a single space for visual separation
+            .trim();
+
+        // 2. Function to parse Furigana: Kanji{furigana} -> <ruby>Kanji<rt>furigana</rt></ruby>
+        const processFurigana = (txt: string) => {
+            const regex = /([^\x00-\x7F]+)\{([^\}]+)\}/g; // Matches Kanji/non-ascii followed by {furigana}
+            const elements = [];
+            let lastIndex = 0;
+            let match;
+
+            while ((match = regex.exec(txt)) !== null) {
+                // Add text before the match
+                if (match.index > lastIndex) {
+                    elements.push(txt.substring(lastIndex, match.index));
+                }
+                // Add the ruby element
+                elements.push(
+                    <ruby key={match.index}>
+                        {match[1]}
+                        <rt style={{ fontSize: '0.5em', opacity: 0.8 }}>{match[2]}</rt>
+                    </ruby>
+                );
+                lastIndex = regex.lastIndex;
+            }
+            // Add remaining text
+            if (lastIndex < txt.length) {
+                elements.push(txt.substring(lastIndex));
+            }
+            return elements.length > 0 ? elements : txt;
+        };
+
         return (
             <div 
                 key={sid}
@@ -32,7 +64,7 @@ export const SubtitleOverlay: React.FC = () => {
                         fontSize: `clamp(10px, ${s.fontSize}cqw, 100px)`,
                         color: s.color,
                         backgroundColor: convertHexToRgba(s.bgColor, s.bgOpacity),
-                        lineHeight: 1.4,
+                        lineHeight: 1.8, // Increased for Furigana
                         textShadow: '0 2px 4px rgba(0,0,0,0.5)',
                         textAlign: 'center',
                         width: 'max-content',
@@ -40,15 +72,7 @@ export const SubtitleOverlay: React.FC = () => {
                         wordBreak: 'break-word'
                     }}
                 >
-                    {isAnalyzed ? (
-                        analyzedWords.map((word: any, idx: number) => (
-                            <span key={idx} className="inline-block mx-[0.1em]">
-                                {word.surface}
-                            </span>
-                        ))
-                    ) : (
-                        (line.text || '').replace(/\s*\[[^\]]*\]\s*/g, '').replace(/\s*[|/]\s*/g, '').trim()
-                    )}
+                    {processFurigana(cleanText)}
                 </div>
             </div>
         );
