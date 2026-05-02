@@ -163,8 +163,8 @@ export const TranscriptBody: React.FC = () => {
                                     ) : (
                                         <>
                                             <div className="flex justify-between items-start">
-                                                <p className={`text-base leading-relaxed transition-colors flex-1 ${isActive ? 'text-white font-semibold' : 'text-slate-200'}`}>
-                                                    {cleanSubtitleText(line.text)}
+                                                <p className={`text-base leading-relaxed transition-colors flex-1 ${isActive ? 'text-white font-semibold' : 'text-slate-200'}`} style={{ lineHeight: '1.8' }}>
+                                                    {renderTextWithFurigana(line.text)}
                                                 </p>
                                                 {isVip && !isEditing && (
                                                     <button 
@@ -181,13 +181,13 @@ export const TranscriptBody: React.FC = () => {
                                             {(alts.s2 || alts.s3) && (
                                                 <div className="pt-2 border-t border-white/5 space-y-1">
                                                     {alts.s2 && (
-                                                        <p className={`text-sm leading-relaxed transition-colors ${isActive ? 'text-emerald-400' : 'text-emerald-500/60'}`}>
-                                                            {cleanSubtitleText(alts.s2.text)}
+                                                        <p className={`text-sm leading-relaxed transition-colors ${isActive ? 'text-emerald-400' : 'text-emerald-500/60'}`} style={{ lineHeight: '1.8' }}>
+                                                            {renderTextWithFurigana(alts.s2.text)}
                                                         </p>
                                                     )}
                                                     {alts.s3 && (
-                                                        <p className={`text-xs leading-relaxed transition-colors font-medium ${isActive ? 'text-amber-400' : 'text-amber-500/60'}`}>
-                                                            {cleanSubtitleText(alts.s3.text)}
+                                                        <p className={`text-xs leading-relaxed transition-colors font-medium ${isActive ? 'text-amber-400' : 'text-amber-500/60'}`} style={{ lineHeight: '1.8' }}>
+                                                            {renderTextWithFurigana(alts.s3.text)}
                                                         </p>
                                                     )}
                                                 </div>
@@ -215,8 +215,32 @@ function formatTime(seconds: number) {
     return `${min}:${sec < 10 ? '0' + sec : sec}.${ms}`;
 }
 
-function cleanSubtitleText(text: string) {
+function renderTextWithFurigana(text: string) {
     if (!text) return "";
-    // Remove [skip] and | tags along with surrounding whitespace
-    return text.replace(/\s*\[[^\]]*\]\s*/g, '').replace(/\s*[|/]\s*/g, '').trim();
+    
+    // 1. Clean up the text: remove metadata [lemma] and separators |
+    let cleanText = text.replace(/\[[^\]]*\]/g, '').replace(/\|/g, ' ').trim();
+
+    // 2. Parse Furigana: Kanji{furigana} -> <ruby>Kanji<rt>furigana</rt></ruby>
+    const regex = /([^\x00-\x7F]+)\{([^\}]+)\}/g;
+    const elements = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(cleanText)) !== null) {
+        if (match.index > lastIndex) {
+            elements.push(cleanText.substring(lastIndex, match.index));
+        }
+        elements.push(
+            <ruby key={match.index}>
+                {match[1]}
+                <rt style={{ fontSize: '0.6em', opacity: 0.8, color: '#38bdf8' }}>{match[2]}</rt>
+            </ruby>
+        );
+        lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < cleanText.length) {
+        elements.push(cleanText.substring(lastIndex));
+    }
+    return elements.length > 0 ? elements : cleanText;
 }
