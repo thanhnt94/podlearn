@@ -74,11 +74,14 @@ def create_app(config_name: str | None = None) -> Flask:
     from .modules.engagement import setup_module as setup_engagement
     from .modules.admin import setup_module as setup_admin
     
-    setup_identity(app)
     setup_content(app)
     setup_study(app)
     setup_engagement(app)
     setup_admin(app)
+    
+    # setup_identity should be LAST because its SSO initialization triggers DB queries 
+    # that require all other models (like Video) to be already mapped.
+    setup_identity(app)
 
     # ── SPA Bridge (Catch-all) ─────────────────────────────────
     @app.route('/', defaults={'path': ''})

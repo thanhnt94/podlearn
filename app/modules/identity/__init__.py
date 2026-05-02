@@ -5,6 +5,6 @@ module_metadata = {
 }
 
 def setup_module(app):
-    from .routes.api import identity_api, sso_bridge
+    from .routes.api import identity_api, setup_sso
     app.register_blueprint(identity_api)
-    app.register_blueprint(sso_bridge)
+    setup_sso(app)

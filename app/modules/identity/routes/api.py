@@ -107,6 +107,7 @@ def on_sso_user_provision(user_payload, tokens):
 
 def on_sso_login_success(user, tokens):
     """Callback for ecosystem_sso to handle frontend redirect."""
+    from flask import request
     from flask_jwt_extended import create_access_token, create_refresh_token
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
@@ -114,12 +115,16 @@ def on_sso_login_success(user, tokens):
     frontend_url = current_app.config.get('FRONTEND_URL', request.host_url.rstrip('/'))
     return redirect(f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}")
 
-# Create and register the modular SSO blueprint
-sso_bridge, sso_auth = SSOService.get_modular_bp(on_sso_user_provision, on_sso_login_success)
+def setup_sso(app):
+    """Initialize SSO bridge within app context."""
+    sso_bridge, sso_auth = SSOService.get_modular_bp(app, on_sso_user_provision, on_sso_login_success)
+    app.register_blueprint(sso_bridge)
+    return sso_bridge
 
 @identity_api.route('/sso/login')
 def sso_login():
     """Legacy route for backward compatibility."""
+    from flask import url_for
     return redirect(url_for('ecosystem_sso.login'))
 
 @identity_api.route('/profile', methods=['PATCH'])

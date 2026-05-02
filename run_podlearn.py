@@ -128,16 +128,18 @@ if __name__ == '__main__':
             os.makedirs(d, exist_ok=True)
             print(f"Created directory: {d}")
 
-    # 2. Automatic Database Migration (Alembic)
-    print("Checking for database migrations...")
-    try:
-        from flask_migrate import upgrade as flask_db_upgrade
-        with app.app_context():
-            flask_db_upgrade()
-        print(" Database is up to date.")
-    except Exception as e:
-        print(f" [!] Migration failed: {e}")
-        print(" [!] You may need to run 'flask db migrate' locally first.")
+    # 2. Automatic Database Migration (Alembic) - DISABLED temporarily to fix startup issues
+    # if os.path.exists(os.path.join(base_dir, 'migrations')):
+    #     print("Checking for database migrations...")
+    #     try:
+    #         from flask_migrate import upgrade as flask_db_upgrade
+    #         with app.app_context():
+    #             flask_db_upgrade()
+    #         print(" Database is up to date.")
+    #     except Exception as e:
+    #         print(f" [!] Migration notice: {e}")
+    # else:
+    #     print(" No migrations folder found, skipping auto-upgrade.")
 
     # 3. Build Frontend (Windows only, and only in main process)
     if os.name == 'nt' and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
