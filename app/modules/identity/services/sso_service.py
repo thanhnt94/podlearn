@@ -6,41 +6,31 @@ from app.core.utils.sso_helper import EcosystemAuth
 
 class SSOService:
     """
-    Modernized SSOService for PodLearn using the Power Pairing helper.
+    Modernized SSOService for PodLearn using the modular Ecosystem SSO.
     """
 
     @staticmethod
-    def get_client():
-        # Central Auth Settings (usually in .env or settings table)
+    def get_modular_bp(provision_callback, success_callback):
+        # Path to the shared module
+        import sys
+        import os
+        shared_path = os.path.abspath(os.path.join(current_app.root_path, '..', '..', 'shared_files'))
+        if shared_path not in sys.path:
+            sys.path.append(shared_path)
+        
+        from ecosystem_sso import create_sso_blueprint
+        
         server_url = AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://127.0.0.1:5000')
         client_id = AppSetting.get('CENTRAL_AUTH_CLIENT_ID', 'podlearn-v1')
         client_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', 'podlearn_secret_123')
         
-        return EcosystemAuth(
-            server_url=server_url, 
-            client_id=client_id, 
-            client_secret=client_secret
+        return create_sso_blueprint(
+            server_url=server_url,
+            client_id=client_id,
+            client_secret=client_secret,
+            on_user_provision=provision_callback,
+            login_success_redirect_fn=success_callback
         )
-
-    @staticmethod
-    def handle_callback(code, callback_url=None):
-        """Standardized callback handling using EcosystemAuth helper."""
-        sso = SSOService.get_client()
-        result = sso.handle_callback(code, callback_url=callback_url)
-
-        if not result['success']:
-            current_app.logger.error(f"SSO Callback failed: {result.get('error')}")
-            return None
-
-        user_payload = result['user']
-        tokens = result['tokens']
-
-        # Store tokens for downstream usage (like Global Logout notification)
-        session['sso_access_token'] = tokens['access_token']
-        if 'refresh_token' in tokens:
-            session['sso_refresh_token'] = tokens['refresh_token']
-
-        return SSOService.provision_user(user_payload)
 
     @staticmethod
     def provision_user(user_payload):

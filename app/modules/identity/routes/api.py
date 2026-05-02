@@ -101,50 +101,26 @@ def get_me():
 
 # ── SSO (Central Auth) ────────────────────────────────────────
 
-@sso_bridge.route('/auth-center/callback')
-def sso_callback_bridge():
-    """Handle callback from Central Auth (Bridge Route to match SSO config)."""
-    code = request.args.get('code')
-    if not code:
-        # If accessing from Launchpad without a code, trigger the login flow automatically
-        return redirect(url_for('identity_api.sso_login'))
-        
-    # Match the exact Redirect URI from the SSO server config
-    callback_url = url_for('sso_bridge.sso_callback_bridge', _external=True)
-    if 'mindstack.click' in callback_url:
-        callback_url = callback_url.replace('http://', 'https://')
-        
-    user = SSOService.handle_callback(code, callback_url=callback_url)
-    frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
-    
-    if user:
-        access_token = create_access_token(identity=str(user.id))
-        refresh_token = create_refresh_token(identity=str(user.id))
-        return redirect(f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}")
-    
-    return redirect(f"{frontend_url}/login?error=sso_failed")
+def on_sso_user_provision(user_payload, tokens):
+    """Callback for ecosystem_sso to handle JIT provisioning."""
+    return SSOService.provision_user(user_payload)
 
-@sso_bridge.route('/auth-center/webhook/backchannel-log', methods=['POST'])
-def sso_backchannel_logout():
-    """Handle Global Logout notifications from Central Auth."""
-    # Logic to clear local session/tokens for the specific user
-    # For now, we'll just return success to satisfy the SSO server
-    return jsonify({"success": True}), 200
+def on_sso_login_success(user, tokens):
+    """Callback for ecosystem_sso to handle frontend redirect."""
+    from flask_jwt_extended import create_access_token, create_refresh_token
+    access_token = create_access_token(identity=str(user.id))
+    refresh_token = create_refresh_token(identity=str(user.id))
+    
+    frontend_url = current_app.config.get('FRONTEND_URL', request.host_url.rstrip('/'))
+    return redirect(f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}")
+
+# Create and register the modular SSO blueprint
+sso_bridge, sso_auth = SSOService.get_modular_bp(on_sso_user_provision, on_sso_login_success)
 
 @identity_api.route('/sso/login')
 def sso_login():
-    """Redirect to Central Auth login page."""
-    sso = SSOService.get_client()
-    # Match the exact Redirect URI from the SSO server config
-    callback_url = url_for('sso_bridge.sso_callback_bridge', _external=True)
-    if 'mindstack.click' in callback_url:
-        callback_url = callback_url.replace('http://', 'https://')
-    return redirect(sso.get_login_url(callback_url))
-
-@identity_api.route('/sso/callback')
-def sso_callback():
-    """Legacy callback route (redirects to bridge)."""
-    return redirect(url_for('sso_bridge.sso_callback_bridge', **request.args))
+    """Legacy route for backward compatibility."""
+    return redirect(url_for('ecosystem_sso.login'))
 
 @identity_api.route('/profile', methods=['PATCH'])
 @jwt_required()
