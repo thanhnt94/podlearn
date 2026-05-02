@@ -47,7 +47,7 @@ export const SubtitleOverlay: React.FC = () => {
                             </span>
                         ))
                     ) : (
-                        (line.text || '').replace(/[|/]/g, '').replace(/\s*\[[^\]]*\]/g, '')
+                        (line.text || '').replace(/\s*\[[^\]]*\]\s*/g, '').replace(/\s*[|/]\s*/g, '').trim()
                     )}
                 </div>
             </div>

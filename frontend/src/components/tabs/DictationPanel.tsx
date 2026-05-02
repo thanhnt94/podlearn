@@ -41,8 +41,10 @@ export const DictationPanel: React.FC = () => {
     };
 
     const normalizeText = (text: string) => {
+        // First clean the subtitle markers
+        let cleaned = text.replace(/\s*\[[^\]]*\]\s*/g, '').replace(/\s*[|/]\s*/g, '').trim();
         // Remove punctuation
-        let normalized = text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()？?！!。、]/g, "");
+        let normalized = cleaned.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()？?！!。、]/g, "");
         // Remove extra spaces
         normalized = normalized.replace(/\s{2,}/g, " ").trim().toLowerCase();
         
@@ -153,7 +155,9 @@ export const DictationPanel: React.FC = () => {
                                 className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl"
                             >
                                 <p className="text-[10px] uppercase font-black text-emerald-500 mb-1">Answer</p>
-                                <p className="text-white font-medium">{activeLine.text}</p>
+                                <p className="text-white font-medium">
+                                    {activeLine.text.replace(/\s*\[[^\]]*\]\s*/g, '').replace(/\s*[|/]\s*/g, '').trim()}
+                                </p>
                                 <p className="text-slate-400 text-sm italic mt-1">{activeLine.trans}</p>
                             </motion.div>
                         )}

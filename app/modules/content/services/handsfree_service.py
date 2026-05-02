@@ -494,7 +494,9 @@ def get_direct_audio_url(video_id: str) -> dict | None:
     info = fetch_info_cached(video_id, extra_opts={
         'extract_flat': False,
         'check_formats': False,
-        'ignore_no_formats_error': True
+        'ignore_no_formats_error': True,
+        'youtube_include_dash_manifest': True,
+        'youtube_include_hls_manifest': True,
     })
     
     if not info:
@@ -505,7 +507,7 @@ def get_direct_audio_url(video_id: str) -> dict | None:
     # Note: vcodec is often 'none' for DASH audio streams
     audio_formats = [
         f for f in formats 
-        if f.get('acodec') != 'none' and (f.get('vcodec') == 'none' or f.get('vcodec') is None)
+        if f.get('acodec') != 'none' and (f.get('vcodec') == 'none' or not f.get('vcodec'))
     ]
     
     if not audio_formats:

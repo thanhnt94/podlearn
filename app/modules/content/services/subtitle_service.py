@@ -61,10 +61,10 @@ def _get_ytdlp_opts(extra_opts=None):
         'ignore_no_formats_error': True,
         'noplaylist': True,
         'check_formats': False,
-        'listsubtitles': True,
-        'writesubtitles': True,
-        'writeautomaticsub': True,
-        'prefer_ffmpeg': False, # Subtitle listing doesn't need ffmpeg
+        'listsubtitles': False,
+        'writesubtitles': False,
+        'writeautomaticsub': False,
+        'prefer_ffmpeg': False, 
         'youtube_include_dash_manifest': False,
         'youtube_include_hls_manifest': False,
     }
@@ -131,7 +131,7 @@ def get_available_subs_from_youtube(video_id: str):
     """Fetch available subtitle languages from YouTube using yt-dlp."""
     try:
         sys.stderr.write(f"\n[YT-DEBUG] get_available_subs_from_youtube called for {video_id}\n")
-        info = fetch_info_cached(video_id)
+        info = fetch_info_cached(video_id, extra_opts={'listsubtitles': True})
         
         def extract_from_info(info_dict):
             subs = info_dict.get('subtitles', {}) or {}
@@ -185,7 +185,7 @@ def download_and_parse_youtube_sub(video_id: str, lang_code: str, is_auto: bool 
     
     try:
         # 1. Get info (hardened/cached)
-        info = fetch_info_cached(video_id)
+        info = fetch_info_cached(video_id, extra_opts={'listsubtitles': True})
         if not info:
             return {"error": "MetadataFail", "message": "Failed to retrieve video metadata for track download"}
 

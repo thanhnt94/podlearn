@@ -225,7 +225,7 @@ export const ShadowingPanel: React.FC = () => {
                 </div>
                 
                 <h3 className="text-xl md:text-2xl font-bold leading-tight mb-2">
-                    {activeLine?.text || "Chọn một dòng phụ đề hoặc bấm Play để bắt đầu"}
+                    {activeLine ? cleanSubtitleText(activeLine.text) : "Chọn một dòng phụ đề hoặc bấm Play để bắt đầu"}
                 </h3>
                 <p className="text-slate-500 italic text-sm mb-4">{activeLine?.trans}</p>
 
@@ -374,3 +374,7 @@ export const ShadowingPanel: React.FC = () => {
         </div>
     );
 };
+function cleanSubtitleText(text: string) {
+    if (!text) return "";
+    return text.replace(/\s*\[[^\]]*\]\s*/g, '').replace(/\s*[|/]\s*/g, '').trim();
+}

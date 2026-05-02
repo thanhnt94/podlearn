@@ -164,7 +164,7 @@ export const TranscriptBody: React.FC = () => {
                                         <>
                                             <div className="flex justify-between items-start">
                                                 <p className={`text-base leading-relaxed transition-colors flex-1 ${isActive ? 'text-white font-semibold' : 'text-slate-200'}`}>
-                                                    {line.text}
+                                                    {cleanSubtitleText(line.text)}
                                                 </p>
                                                 {isVip && !isEditing && (
                                                     <button 
@@ -182,12 +182,12 @@ export const TranscriptBody: React.FC = () => {
                                                 <div className="pt-2 border-t border-white/5 space-y-1">
                                                     {alts.s2 && (
                                                         <p className={`text-sm leading-relaxed transition-colors ${isActive ? 'text-emerald-400' : 'text-emerald-500/60'}`}>
-                                                            {alts.s2.text}
+                                                            {cleanSubtitleText(alts.s2.text)}
                                                         </p>
                                                     )}
                                                     {alts.s3 && (
                                                         <p className={`text-xs leading-relaxed transition-colors font-medium ${isActive ? 'text-amber-400' : 'text-amber-500/60'}`}>
-                                                            {alts.s3.text}
+                                                            {cleanSubtitleText(alts.s3.text)}
                                                         </p>
                                                     )}
                                                 </div>
@@ -213,4 +213,10 @@ function formatTime(seconds: number) {
     const sec = Math.floor(seconds % 60);
     const ms = Math.floor((seconds % 1) * 10);
     return `${min}:${sec < 10 ? '0' + sec : sec}.${ms}`;
+}
+
+function cleanSubtitleText(text: string) {
+    if (!text) return "";
+    // Remove [skip] and | tags along with surrounding whitespace
+    return text.replace(/\s*\[[^\]]*\]\s*/g, '').replace(/\s*[|/]\s*/g, '').trim();
 }
