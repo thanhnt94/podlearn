@@ -1,6 +1,7 @@
 import React from 'react';
-import { Sparkles, ArrowRight, Play, Shield, Zap, Headphones, BookOpen } from 'lucide-react';
+import { ArrowRight, Play, Shield, Zap, Headphones, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AppLogo } from './AppLogo';
 
 export const LandingView: React.FC = () => {
     return (
@@ -14,12 +15,7 @@ export const LandingView: React.FC = () => {
 
             {/* Navbar */}
             <nav className="relative z-50 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-xl shadow-sky-500/20">
-                        <Sparkles className="text-white" size={20} fill="currentColor" />
-                    </div>
-                    <h1 className="text-xl font-black tracking-tighter uppercase italic">PodLearn <span className="text-sky-500 not-italic">Studio</span></h1>
-                </div>
+                <AppLogo iconSize={44} textSize="text-2xl" />
                 
                 <div className="flex items-center gap-8">
                     <button 
@@ -130,7 +126,7 @@ export const LandingView: React.FC = () => {
             {/* Footer */}
             <footer className="relative z-10 border-t border-white/5 py-12 text-center">
                 <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.5em]">
-                    &copy; 2026 PodLearn Headless &bull; AURA ENGINE V2.5
+                    &copy; 2026 PodLearn Headless &bull; CORE ENGINE V2.5
                 </p>
             </footer>
         </div>

@@ -245,7 +245,7 @@ export const VideoSection: React.FC = () => {
       
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title: title || 'PodLearn Lesson',
-        artist: 'PodLearn AuraFlow',
+        artist: 'PodLearn Engine',
         album: 'Language Learning',
         artwork: [
           { src: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`, sizes: '1280x720', type: 'image/jpeg' }
@@ -451,7 +451,7 @@ export const VideoSection: React.FC = () => {
       {!videoId && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-4">
           <div className="w-10 h-10 border-4 border-sky-500/20 border-t-sky-500 rounded-full animate-spin" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Connecting to AuraCloud...</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Connecting to PodCloud...</span>
         </div>
       )}
     </div>

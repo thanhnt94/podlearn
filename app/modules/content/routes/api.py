@@ -114,10 +114,22 @@ def export_subtitle_track(track_id):
     mime = 'text/vtt' if fmt == 'vtt' else 'application/x-subrip'
     filename = f"{track.name or f'track_{track_id}'}.{fmt}"
     
+    from urllib.parse import quote
+    import unicodedata
+
+    # Create an ASCII-safe filename for the fallback 'filename=' parameter
+    # This removes accents and special characters
+    def slugify(text):
+        normalized = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+        return normalized if normalized else "subtitle"
+
+    safe_filename = slugify(filename)
+    encoded_filename = quote(filename)
+    
     return Response(
         content,
         mimetype=mime,
-        headers={"Content-Disposition": f"attachment; filename=\"{filename}\""}
+        headers={"Content-Disposition": f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{encoded_filename}"}
     )
 
 @content_api.route('/subtitles/<int:track_id>', methods=['PATCH'])
@@ -129,6 +141,8 @@ def update_subtitle_name(track_id):
     
     if 'name' in data:
         track.name = data['name']
+    if 'language_code' in data:
+        track.language_code = data['language_code']
     
     db.session.commit()
     return jsonify({"success": True})

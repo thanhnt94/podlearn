@@ -85,7 +85,7 @@ interface PlayerState {
   fetchAvailableTracks: () => Promise<void>;
   translateTrack: (trackId: number, targetLang: string, name: string) => Promise<void>;
   exportTrack: (trackId: number, format: 'srt' | 'vtt') => Promise<void>;
-  updateTrackName: (trackId: number, name: string) => Promise<void>;
+  updateTrackMetadata: (trackId: number, data: { name?: string, language_code?: string }) => Promise<void>;
   trackIds: {
     s1: number | string | null;
     s2: number | string | null;
@@ -628,6 +628,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const updatedIds = { ...state.trackIds, ...newIds };
     set({ trackIds: updatedIds });
 
+    // Persist choice to backend
+    const { lessonId } = state;
+    if (lessonId) {
+        axios.patch(`/api/study/lesson/${lessonId}/settings`, {
+            s1_track_id: updatedIds.s1,
+            s2_track_id: updatedIds.s2,
+            s3_track_id: updatedIds.s3
+        }).catch(err => console.error("Failed to persist track selection:", err));
+    }
+
     // Process subtitle data inline (no Worker needed for simple array mapping)
     const processLines = (rawJson: any[]) => rawJson.map((line: any, index: number) => ({
         ...line,
@@ -680,9 +690,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   exportTrack: async (trackId, format) => {
       window.open(`/api/content/subtitles/${trackId}/export?format=${format}`);
   },
-  updateTrackName: async (trackId, name) => {
+  updateTrackMetadata: async (trackId, data) => {
       try {
-          await axios.patch(`/api/content/subtitles/${trackId}`, { name });
+          await axios.patch(`/api/content/subtitles/${trackId}`, data);
           get().fetchAvailableTracks();
       } catch (e) {}
   },

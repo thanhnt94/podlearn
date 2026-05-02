@@ -310,7 +310,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
 
 
-                  <button onClick={() => { setSettingsTab('display'); setIsSettingsOpen(true); }} className="p-2 text-slate-400 hover:text-white transition-colors">
+                  <button onClick={() => { setSettingsTab('hub'); setIsSettingsOpen(true); }} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <Settings size={20} />
                   </button>
               </div>

@@ -9,7 +9,7 @@ export const SubtitleManager: React.FC = () => {
         fetchAvailableTracks, 
         translateTrack, 
         exportTrack, 
-        updateTrackName,
+        updateTrackMetadata,
         trackIds,
         setTrackIds
     } = usePlayerStore();
@@ -27,7 +27,7 @@ export const SubtitleManager: React.FC = () => {
     };
 
     const handleSaveName = async (trackId: number) => {
-        await updateTrackName(trackId, editName);
+        await updateTrackMetadata(trackId, { name: editName });
         setEditingId(null);
     };
 
@@ -112,7 +112,10 @@ export const SubtitleManager: React.FC = () => {
                                                 {['s1', 's2', 's3'].map(slot => (
                                                     <button
                                                         key={slot}
-                                                        onClick={() => setTrackIds({ [slot]: track.id })}
+                                                        onClick={() => {
+                                                            const currentId = trackIds[slot as keyof typeof trackIds];
+                                                            setTrackIds({ [slot]: currentId === track.id ? null : track.id });
+                                                        }}
                                                         className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase transition-all ${
                                                             trackIds[slot as keyof typeof trackIds] === track.id
                                                             ? 'bg-sky-500 text-slate-950'

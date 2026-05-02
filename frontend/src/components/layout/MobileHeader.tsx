@@ -1,4 +1,5 @@
-import { Search, Headphones, Plus } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
+import { AppLogo } from './AppLogo';
 import { NotificationBell } from './NotificationBell';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
@@ -11,12 +12,7 @@ export const MobileHeader: React.FC = () => {
 
     return (
         <header className="md:hidden sticky top-0 z-[100] bg-slate-950/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-sky-500 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/20">
-                    <Headphones size={20} className="text-slate-950" fill="currentColor" />
-                </div>
-                <span className="text-lg font-black tracking-tighter text-white">PodLearn</span>
-            </div>
+            <AppLogo iconSize={36} textSize="text-base" />
             
             <div className="flex items-center gap-4 text-slate-400">
                 <button 

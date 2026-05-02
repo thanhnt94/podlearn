@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Sparkles, Lock, User, ArrowRight, Globe } from 'lucide-react';
+import { Lock, User, ArrowRight, Globe } from 'lucide-react';
+import { AppLogo } from '../layout/AppLogo';
 
 export const LoginView: React.FC = () => {
     const [username, setUsername] = useState('');
@@ -32,14 +33,9 @@ export const LoginView: React.FC = () => {
 
             <div className="w-full max-w-md relative">
                 {/* Logo Area */}
-                <div className="flex flex-col items-center mb-10 space-y-4">
-                    <div className="w-16 h-16 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-sky-500/20 rotate-3 group hover:rotate-0 transition-transform">
-                        <Sparkles className="text-white" size={32} fill="currentColor" />
-                    </div>
-                    <div className="text-center">
-                        <h1 className="text-3xl font-black text-white tracking-tighter uppercase italic">PodLearn <span className="text-sky-500 not-italic">Studio</span></h1>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-1">Headless Content Engine</p>
-                    </div>
+                <div className="flex flex-col items-center mb-10">
+                    <AppLogo iconSize={64} textSize="text-3xl" className="flex-col !gap-6" />
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-4">Headless Content Engine</p>
                 </div>
 
                 {/* Login Form Card */}
