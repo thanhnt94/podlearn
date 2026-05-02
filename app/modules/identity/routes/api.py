@@ -106,9 +106,15 @@ def sso_callback_bridge():
     """Handle callback from Central Auth (Bridge Route to match SSO config)."""
     code = request.args.get('code')
     if not code:
-        return jsonify({"status": "error", "message": "Missing authorization code"}), 400
+        # If accessing from Launchpad without a code, trigger the login flow automatically
+        return redirect(url_for('identity_api.sso_login'))
         
-    user = SSOService.handle_callback(code)
+    # Match the exact Redirect URI from the SSO server config
+    callback_url = url_for('sso_bridge.sso_callback_bridge', _external=True)
+    if 'mindstack.click' in callback_url:
+        callback_url = callback_url.replace('http://', 'https://')
+        
+    user = SSOService.handle_callback(code, callback_url=callback_url)
     frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
     
     if user:

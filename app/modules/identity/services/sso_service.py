@@ -23,10 +23,10 @@ class SSOService:
         )
 
     @staticmethod
-    def handle_callback(code):
+    def handle_callback(code, callback_url=None):
         """Standardized callback handling using EcosystemAuth helper."""
         sso = SSOService.get_client()
-        result = sso.handle_callback(code)
+        result = sso.handle_callback(code, callback_url=callback_url)
 
         if not result['success']:
             current_app.logger.error(f"SSO Callback failed: {result.get('error')}")

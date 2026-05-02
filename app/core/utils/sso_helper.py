@@ -19,9 +19,9 @@ class EcosystemAuth:
         """Generates the redirect URL to Central Auth."""
         import urllib.parse
         encoded_callback = urllib.parse.quote(callback_url, safe='')
-        return f"{self.server_url}/auth/login?client_id={self.client_id}&redirect_uri={encoded_callback}"
+        return f"{self.server_url}/auth/login?client_id={self.client_id}&redirect_uri={encoded_callback}&return_to={encoded_callback}"
 
-    def handle_callback(self, code):
+    def handle_callback(self, code, callback_url=None):
         """Exchanges authorization code for tokens and fetches user info."""
         # 1. Exchange Code for Tokens
         token_url = f"{self.server_url}/api/auth/token"
@@ -30,6 +30,8 @@ class EcosystemAuth:
             "client_id": self.client_id,
             "client_secret": self.client_secret
         }
+        if callback_url:
+            payload["redirect_uri"] = callback_url
         
         try:
             r = requests.post(token_url, json=payload, timeout=5)
