@@ -486,58 +486,81 @@ def start_generation_task(video_id: str, subtitles: list,
 
 
 def get_direct_audio_url(video_id: str) -> dict | None:
-    """Extract a direct audio stream URL from YouTube metadata."""
-    from .subtitle_service import fetch_info_cached
+    """Extract a direct audio stream URL from YouTube metadata.
     
-    print(f">>> [HF-FALLBACK] Attempting direct stream extraction for {video_id}... <<<")
-    # Force full extraction but skip format verification to avoid errors
-    info = fetch_info_cached(video_id, extra_opts={
+    IMPORTANT: This function bypasses the subtitle info cache entirely because
+    that cache is optimized for subtitles and often lacks 'formats' data.
+    We do our own standalone yt-dlp extraction with DASH/HLS manifests enabled.
+    """
+    import yt_dlp
+    from .subtitle_service import _get_ytdlp_opts
+    
+    print(f">>> [BG-AUDIO] Attempting direct stream extraction for {video_id}... <<<")
+    
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    
+    # Build options specifically for audio format discovery
+    # Override defaults that block format discovery
+    ydl_opts = _get_ytdlp_opts({
+        'skip_download': True,
         'extract_flat': False,
         'check_formats': False,
         'ignore_no_formats_error': True,
         'youtube_include_dash_manifest': True,
         'youtube_include_hls_manifest': True,
+        'listsubtitles': False,
+        'writesubtitles': False,
+        'writeautomaticsub': False,
     })
     
-    if not info:
-        return None
-        
-    formats = info.get('formats', [])
-    if not formats:
-        # One last ditch effort: maybe it was cached as flat without formats
-        print(f">>> [HF-FALLBACK] No formats in cache. Retrying fresh... <<<")
-        ydl_opts = _get_ytdlp_opts({
-            'extract_flat': False,
-            'youtube_include_dash_manifest': True,
-            'youtube_include_hls_manifest': True,
-        })
+    try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-            formats = info.get('formats', []) if info else []
-
-    # Filter for audio-only formats
-    audio_formats = [
-        f for f in formats 
-        if f.get('acodec') != 'none' and (not f.get('vcodec') or f.get('vcodec') == 'none')
-    ]
-    
-    if not audio_formats:
-        all_exts = set(f.get('ext') for f in formats)
-        print(f">>> [HF-FALLBACK] FAILED: No audio formats found. Available exts: {all_exts} <<<")
-        return None
+            info = ydl.extract_info(url, download=False)
         
-    # Pick the best audio format (usually the last one in the list is higher bitrate)
-    best_audio = audio_formats[-1]
-    direct_url = best_audio.get('url')
-    
-    if not direct_url:
-        return None
+        if not info:
+            print(f">>> [BG-AUDIO] FAILED: Could not extract video info <<<")
+            return None
         
-    print(f">>> [HF-FALLBACK] SUCCESS: Direct stream found ({best_audio.get('ext')}) <<<")
-    return {
-        "audio_url": direct_url,
-        "total_duration": float(info.get('duration') or 0)
-    }
+        formats = info.get('formats', [])
+        print(f">>> [BG-AUDIO] Found {len(formats)} total formats <<<")
+        
+        # Filter for audio-only formats (DASH audio has vcodec='none')
+        audio_formats = [
+            f for f in formats 
+            if f.get('acodec') and f.get('acodec') != 'none' 
+            and (not f.get('vcodec') or f.get('vcodec') == 'none')
+        ]
+        
+        if not audio_formats:
+            # Fallback: try any format that has audio, even if it also has video
+            audio_formats = [
+                f for f in formats
+                if f.get('acodec') and f.get('acodec') != 'none' and f.get('url')
+            ]
+            if audio_formats:
+                print(f">>> [BG-AUDIO] No audio-only formats, using mixed format as fallback <<<")
+        
+        if not audio_formats:
+            all_codecs = [(f.get('ext'), f.get('acodec'), f.get('vcodec')) for f in formats[:5]]
+            print(f">>> [BG-AUDIO] FAILED: No audio formats found. Sample: {all_codecs} <<<")
+            return None
+        
+        # Pick the best quality audio (last one is typically highest bitrate)
+        best_audio = audio_formats[-1]
+        direct_url = best_audio.get('url')
+        
+        if not direct_url:
+            print(f">>> [BG-AUDIO] FAILED: Best format has no URL <<<")
+            return None
+        
+        print(f">>> [BG-AUDIO] SUCCESS: {best_audio.get('ext')} / {best_audio.get('acodec')} / {best_audio.get('abr', '?')}kbps <<<")
+        return {
+            "audio_url": direct_url,
+            "total_duration": float(info.get('duration') or 0)
+        }
+    except Exception as e:
+        print(f">>> [BG-AUDIO] EXCEPTION: {str(e)[:100]} <<<")
+        return None
 
 
 def get_original_audio_info(video_id: str) -> dict | None:
