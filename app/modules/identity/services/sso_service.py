@@ -63,6 +63,16 @@ class SSOService:
                 # Link this local user to the Central Auth identity
                 user.central_auth_id = central_id
         
+        # 3. Fallback to Username (To prevent UNIQUE constraint errors)
+        if not user:
+            user = User.query.filter_by(username=username).first()
+            if user:
+                # Link this local user to the Central Auth identity
+                user.central_auth_id = central_id
+                # Also sync email if the local one was different/placeholder
+                if not user.email or '@' not in user.email:
+                    user.email = email
+        
         if user:
             # Sync Profile Info
             user.email = email
