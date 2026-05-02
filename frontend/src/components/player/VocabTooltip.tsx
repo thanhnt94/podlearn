@@ -20,6 +20,38 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
 }) => {
     if (!hoveredToken) return null;
 
+        // 2. Function to parse Furigana: Kanji{furigana} -> <ruby>Kanji<rt>furigana</rt></ruby>
+        const processFurigana = (txt: string) => {
+            const regex = /([^\x00-\x7F]+)\{([^\}]+)\}/g; // Matches Kanji/non-ascii followed by {furigana}
+            const elements = [];
+            let lastIndex = 0;
+            let match;
+
+            while ((match = regex.exec(txt)) !== null) {
+                if (match.index > lastIndex) {
+                    elements.push(txt.substring(lastIndex, match.index));
+                }
+                elements.push(
+                    <ruby key={match.index}>
+                        {match[1]}
+                        <rt style={{ fontSize: '0.5em', opacity: 0.8 }}>{match[2]}</rt>
+                    </ruby>
+                );
+                lastIndex = regex.lastIndex;
+            }
+            if (lastIndex < txt.length) {
+                elements.push(txt.substring(lastIndex));
+            }
+            return elements.length > 0 ? elements : txt;
+        };
+
+    const term = hoveredToken.word.lemma && hoveredToken.word.lemma !== 'skip' 
+        ? hoveredToken.word.lemma 
+        : hoveredToken.word.surface;
+    
+    // Clean term for external lookup (remove Furigana syntax)
+    const cleanLookupTerm = term.replace(/\{[^\}]+\}/g, '');
+
     return createPortal(
         <div 
             className="fixed z-[99999] origin-bottom animate-in fade-in zoom-in-95 duration-200 pointer-events-auto"
@@ -35,15 +67,13 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
                 <div className="bg-gradient-to-b from-white/5 to-transparent p-8 pb-4">
                     <div className="flex justify-between items-start mb-4">
                         <div className="space-y-1">
-                            <h4 className="text-3xl font-black text-white tracking-tight">
-                                {hoveredToken.word.lemma && hoveredToken.word.lemma !== 'skip' 
-                                    ? hoveredToken.word.lemma 
-                                    : hoveredToken.word.surface}
+                            <h4 className="text-3xl font-black text-white tracking-tight leading-loose">
+                                {processFurigana(term)}
                             </h4>
                             {hoveredToken.word.lemma && hoveredToken.word.lemma !== hoveredToken.word.surface && hoveredToken.word.lemma !== 'skip' && (
                                 <div className="text-slate-500 text-xs font-bold flex items-center gap-1.5 opacity-80">
                                     <span className="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] uppercase">Dạng gốc</span>
-                                    {hoveredToken.word.surface}
+                                    {processFurigana(hoveredToken.word.surface)}
                                 </div>
                             )}
                             <div className="flex items-center gap-3 pt-1">
@@ -89,7 +119,7 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
                             <Plus size={18} strokeWidth={4} /> Add To Vocab
                         </button>
                         <a 
-                            href={`https://jisho.org/search/${hoveredToken.word.lemma || hoveredToken.word.surface}`}
+                            href={`https://jisho.org/search/${cleanLookupTerm}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-16 flex items-center justify-center bg-white/5 rounded-2xl text-slate-500 hover:bg-white/10 hover:text-white transition-all border border-white/10"

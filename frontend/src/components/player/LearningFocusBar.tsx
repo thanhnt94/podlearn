@@ -58,7 +58,6 @@ const TokenEditChip = ({ token, isLast, onMerge, onDelete, onClick }: any) => {
 export const LearningFocusBar: React.FC = () => {
     const { 
         analyzedWords, 
-        showFurigana, 
         subtitles,
         activeLineIndex,
         lessonId,
@@ -174,11 +173,12 @@ export const LearningFocusBar: React.FC = () => {
         const currentLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
         const timestamp = currentLine ? currentLine.start : 0;
 
+        const termToSave = (word.lemma || word.surface).replace(/\{[^\}]+\}/g, '');
         try {
-            const exampleText = (currentLine ? currentLine.text : '').replace(/[|/]/g, '');
+            const exampleText = (currentLine ? currentLine.text : '').replace(/[|/]/g, '').replace(/\{[^\}]+\}/g, '');
             const response = await axios.post(`/api/study/vocab/add`, {
                 lesson_id: lessonId,
-                term: word.lemma || word.surface,
+                term: termToSave,
                 reading: word.reading,
                 definition: Array.isArray(word.meanings) ? word.meanings.join(', ') : word.meanings,
                 example: exampleText,
@@ -422,17 +422,27 @@ export const LearningFocusBar: React.FC = () => {
                                                     onMouseEnter={isSkip ? undefined : ((e) => handleTokenMouseEnter(e, word))}
                                                     onMouseLeave={isSkip ? undefined : handleTokenMouseLeave}
                                                 >
-                                                    {showFurigana && word.furigana && !isSkip && (
-                                                        <span className="text-[9px] md:text-[11px] font-bold text-sky-400/80 mb-0 leading-none">
-                                                            {word.furigana}
-                                                        </span>
-                                                    )}
                                                     <span 
                                                         className={`text-[15px] md:text-[22px] font-black tracking-tight transition-all duration-300 leading-tight ${
                                                             isSkip ? 'text-slate-600' : 'text-white group-hover:text-sky-400 group-hover:drop-shadow-[0_0_8px_rgba(14,165,233,0.5)]'
                                                         }`}
                                                     >
-                                                        {word.surface}
+                                                        {word.surface.includes('{') ? (
+                                                            word.surface.split(/([^\x00-\x7F]+\{[^\}]+\})/g).filter(Boolean).map((part: string, pIdx: number) => {
+                                                                const match = part.match(/([^\x00-\x7F]+)\{([^\}]+)\}/);
+                                                                if (match) {
+                                                                    return (
+                                                                        <ruby key={pIdx}>
+                                                                            {match[1]}
+                                                                            <rt style={{ fontSize: '0.45em', opacity: 0.8, color: '#38bdf8' }}>{match[2]}</rt>
+                                                                        </ruby>
+                                                                    );
+                                                                }
+                                                                return part;
+                                                            })
+                                                        ) : (
+                                                            word.surface
+                                                        )}
                                                     </span>
                                                 </motion.div>
                                             );

@@ -868,10 +868,11 @@ def analyze_vocab():
                 match = re.search(r'(.+?)\[(.+?)\]', seg)
                 if match:
                     surface = match.group(1).strip()
-                    lemma = match.group(2).strip()
+                    lemma = match.group(2).strip().replace('{', '').replace('}', '') # Clean lemma for lookup
                 else:
                     surface = seg.strip()
-                    lemma = seg.strip()
+                    # If no [lemma], strip furigana from surface to use as lemma
+                    lemma = re.sub(r'\{[^\}]+\}', '', surface).strip()
                     
                 is_skip = (lemma.lower() == 'skip')
                 if is_skip:
