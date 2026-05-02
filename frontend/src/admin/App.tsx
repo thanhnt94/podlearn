@@ -4,6 +4,7 @@ import { Dashboard } from './components/modules/Dashboard'
 import { MemberHub } from './components/modules/MemberHub'
 import { AISettings } from './components/modules/AISettings'
 import { SSOSettings } from './components/modules/SSOSettings'
+import { VideoApproval } from './components/modules/VideoApproval'
 
 // Fallback Module Component
 const PlaceholderModule: React.FC<{ name: string }> = ({ name }) => (
@@ -19,13 +20,13 @@ const PlaceholderModule: React.FC<{ name: string }> = ({ name }) => (
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
     const hash = window.location.hash.replace('#', '');
-    return ['dashboard', 'members', 'ai-studio', 'ecosystem', 'settings'].includes(hash) ? hash : 'dashboard';
+    return ['dashboard', 'approvals', 'members', 'ai-studio', 'ecosystem', 'settings'].includes(hash) ? hash : 'dashboard';
   });
 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      if (['dashboard', 'members', 'ai-studio', 'ecosystem', 'settings'].includes(hash)) {
+      if (['dashboard', 'approvals', 'members', 'ai-studio', 'ecosystem', 'settings'].includes(hash)) {
         setActiveTab(hash);
       }
     };
@@ -42,6 +43,8 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
+      case 'approvals':
+        return <VideoApproval />;
       case 'members':
         return <MemberHub />;
       case 'ai-studio':

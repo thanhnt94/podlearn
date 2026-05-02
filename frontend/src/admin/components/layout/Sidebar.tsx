@@ -36,9 +36,10 @@ const NavItem: React.FC<NavItemProps> = ({ icon: Icon, label, active, onClick })
 export const Sidebar: React.FC<{ activeTab: string; onTabChange: (tab: string) => void }> = ({ activeTab, onTabChange }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'approvals', label: 'Community', icon: Globe },
     { id: 'members', label: 'Members', icon: Users },
     { id: 'ai-studio', label: 'AI Studio', icon: Sparkles },
-    { id: 'ecosystem', label: 'Ecosystem', icon: Globe },
+    { id: 'ecosystem', label: 'Ecosystem', icon: BarChart3 }, // Changed icon to distinguish from Community
     { id: 'settings', label: 'General', icon: Settings },
   ];
 

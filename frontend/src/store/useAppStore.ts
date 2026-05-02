@@ -143,10 +143,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (e) {}
     },
 
-    toggleVideoVisibility: async (id, visible) => {
-        const isPublic = visible === 'public' || visible === true;
+    toggleVideoVisibility: async (id, visibility) => {
         try {
-            await axios.patch(`/api/content/video/${id}/visibility`, { is_public: isPublic });
+            await axios.patch(`/api/content/video/${id}/visibility`, { visibility });
             get().fetchDashboard();
         } catch (e) {}
     },

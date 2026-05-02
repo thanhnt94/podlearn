@@ -379,3 +379,34 @@ def update_curated_content(youtube_id):
     
     db.session.commit()
     return jsonify({"status": "success"})
+
+@content_api.route('/video/<int:video_id>/visibility', methods=['PATCH', 'POST'])
+@jwt_required()
+def set_video_visibility(video_id):
+    """Update video visibility. Admins can set directly; users can request public."""
+    video = Video.query.get_or_404(video_id)
+    data = request.get_json() or {}
+    
+    # If using the old 'is_public' flag from some frontend versions
+    if 'is_public' in data:
+        target_visibility = 'public' if data['is_public'] else 'private'
+    else:
+        target_visibility = data.get('visibility')
+
+    if not target_visibility:
+        return jsonify({"error": "Missing visibility parameter"}), 400
+
+    if current_user.role == 'admin':
+        # Admin can do anything
+        video.visibility = target_visibility
+    else:
+        # Regular user can only request public or go back to private
+        if target_visibility == 'public':
+            video.visibility = 'pending_public'
+        elif target_visibility == 'private':
+            video.visibility = 'private'
+        else:
+            return jsonify({"error": "Unauthorized visibility change"}), 403
+            
+    db.session.commit()
+    return jsonify({"success": True, "visibility": video.visibility})

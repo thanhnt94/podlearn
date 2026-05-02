@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, CheckCircle2, Clock, Trash2, Layers, Plus, Globe, Lock, ShieldCheck } from 'lucide-react';
+import { Play, CheckCircle2, Clock, Trash2, Layers, Plus, Globe, Lock, ShieldCheck, Hourglass } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -58,6 +58,11 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                     {video.visibility === 'public' && (
                         <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg backdrop-blur-md">
                             <Globe size={12} strokeWidth={3} /> Featured
+                        </div>
+                    )}
+                    {video.visibility === 'pending_public' && (
+                        <div className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg backdrop-blur-md">
+                            <Hourglass size={12} strokeWidth={3} /> Pending Review
                         </div>
                     )}
                 </div>
@@ -183,19 +188,37 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                             </button>
                         )}
 
-                        {onToggleVisibility && isAdmin && (
+                        {onToggleVisibility && (isAdmin || video.visibility !== 'public') && (
                             <button 
                                 type="button"
                                 onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    const nextStatus = video.visibility === 'public' ? 'private' : 'public';
-                                    onToggleVisibility(video.id, nextStatus);
+                                    // Admins toggle directly; Users request public
+                                    if (isAdmin) {
+                                        const nextStatus = video.visibility === 'public' ? 'private' : 'public';
+                                        onToggleVisibility(video.id, nextStatus);
+                                    } else if (video.visibility === 'private') {
+                                        onToggleVisibility(video.id, 'public'); // API will handle setting to pending_public
+                                    } else if (video.visibility === 'pending_public') {
+                                        onToggleVisibility(video.id, 'private'); // Cancel request
+                                    }
                                 }}
-                                className={`p-2 rounded-xl transition-all border ${video.visibility === 'public' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-white/10'}`}
-                                title={video.visibility === 'public' ? "Set to Private" : "Feature in Discovery"}
+                                className={`p-2 rounded-xl transition-all border ${
+                                    video.visibility === 'public' 
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                                        : video.visibility === 'pending_public'
+                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                            : 'bg-slate-800 text-slate-400 border-white/10'
+                                }`}
+                                title={
+                                    isAdmin 
+                                        ? (video.visibility === 'public' ? "Set to Private" : "Feature in Discovery")
+                                        : (video.visibility === 'public' ? "Public Content" : video.visibility === 'pending_public' ? "Cancel Approval Request" : "Share with Community")
+                                }
+                                disabled={!isAdmin && video.visibility === 'public'}
                             >
-                                {video.visibility === 'public' ? <Globe size={16} /> : <Lock size={16} />}
+                                {video.visibility === 'public' ? <Globe size={16} /> : video.visibility === 'pending_public' ? <Hourglass size={16} /> : <Lock size={16} />}
                             </button>
                         )}
                     </div>
