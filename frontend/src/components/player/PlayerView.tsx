@@ -13,7 +13,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { SettingsDrawer, type MainTab } from '../layout/SettingsDrawer';
 import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 import { LearningFocusBar } from './LearningFocusBar';
-import { BackgroundAudioPlayer } from './BackgroundAudioPlayer';
+
 import { VocabStudio } from './VocabStudio';
 import { DictManagerStudio } from './DictManagerStudio';
 import { ExportModal } from './ExportModal';
@@ -306,8 +306,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                       <Zap size={20} fill={!isFocusBarCollapsed ? "currentColor" : "none"} />
                   </button>
 
-                  {/* Background Audio Mode Toggle (Mobile Only) */}
-                  <BackgroundAudioPlayer />
+
 
                   <button onClick={() => { setSettingsTab('display'); setIsSettingsOpen(true); }} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <Settings size={20} />

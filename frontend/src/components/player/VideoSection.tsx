@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Headphones } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { SubtitleOverlay } from './SubtitleOverlay';
@@ -29,7 +29,7 @@ export const VideoSection: React.FC = () => {
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
     volume, setVolume, playbackRate, isLockedPaused, isNativeCCOn, nativeCCLang, originalLang,
     requestSeek, initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount,
-    lessonTitle
+    lessonTitle, isBackgroundMode
   } = usePlayerStore();
 
   const [isReady, setIsReady] = React.useState(false);
@@ -179,7 +179,9 @@ export const VideoSection: React.FC = () => {
   }, []);
 
   // Sync isPlaying state from Store to Player (manual control)
+  // SKIP when in background mode — the audio element handles playback
   useEffect(() => {
+    if (isBackgroundMode) return; // Background audio player handles this
     if (!ytPlayer.current || !isReady || !ytPlayer.current.getPlayerState) return;
     const currentState = ytPlayer.current.getPlayerState();
     
@@ -202,7 +204,7 @@ export const VideoSection: React.FC = () => {
       ytPlayer.current.pauseVideo();
       if (bgAudioRef.current) bgAudioRef.current.pause();
     }
-  }, [isPlaying, isLockedPaused]);
+  }, [isPlaying, isLockedPaused, isBackgroundMode]);
 
   // Page Visibility: Auto-resume YouTube when returning to app
   useEffect(() => {
@@ -212,7 +214,9 @@ export const VideoSection: React.FC = () => {
         wasPlayingRef.current = usePlayerStore.getState().isPlaying;
       } else if (document.visibilityState === 'visible') {
         // Returned to app - try to resume if was playing
-        if (wasPlayingRef.current && ytPlayer.current && isReady) {
+        // SKIP if in background mode — audio element handles its own playback
+        const { isBackgroundMode: bgMode } = usePlayerStore.getState();
+        if (wasPlayingRef.current && ytPlayer.current && isReady && !bgMode) {
           setTimeout(() => {
             try {
               const state = ytPlayer.current?.getPlayerState?.();
@@ -253,13 +257,15 @@ export const VideoSection: React.FC = () => {
   }, [videoId, lessonTitle]);
 
   // Handle Seek Requests from Store
+  // SKIP when in background mode — BackgroundAudioPlayer handles seeking
   useEffect(() => {
+    if (isBackgroundMode) return;
     if (seekToTime !== null && ytPlayer.current && isReady && ytPlayer.current.seekTo) {
       ytPlayer.current.seekTo(seekToTime, true);
       // Reset seek request in store AND unlock poller
       usePlayerStore.setState({ seekToTime: null, isSeeking: false });
     }
-  }, [seekToTime, isReady]);
+  }, [seekToTime, isReady, isBackgroundMode]);
 
   // Handle Native CC Toggle
   useEffect(() => {
@@ -302,12 +308,38 @@ export const VideoSection: React.FC = () => {
         className="hidden"
       />
 
-      {/* YouTube Iframe Placeholder */}
+      {/* YouTube Iframe Placeholder — hidden when in background mode */}
       <div 
         ref={playerRef}
         id="yt-player-element" 
         className="absolute inset-0 w-full h-full"
+        style={{ display: isBackgroundMode ? 'none' : 'block' }}
       />
+
+      {/* Audio Mode Cover — shown when background mode is active */}
+      {isBackgroundMode && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-slate-950 via-amber-950/20 to-slate-950">
+          {videoId && (
+            <img 
+              src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+              alt="" 
+              className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl"
+            />
+          )}
+          <div className="relative z-10 flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-amber-500/20 rounded-full blur-2xl animate-pulse" />
+              <div className="relative w-24 h-24 bg-amber-500/10 border-2 border-amber-500/30 rounded-full flex items-center justify-center backdrop-blur-sm">
+                <Headphones size={40} className="text-amber-400" />
+              </div>
+            </div>
+            <div className="text-center px-6">
+              <p className="text-[10px] font-black text-amber-400 uppercase tracking-[0.2em] mb-1">🎧 Background Mode</p>
+              <p className="text-xs text-white/50">Có thể tắt màn hình • Lock screen controls</p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Gesture / Interaction Layer */}
       <div 

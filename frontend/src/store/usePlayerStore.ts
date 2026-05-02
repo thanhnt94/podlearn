@@ -287,6 +287,11 @@ interface PlayerState {
   setTTSTrackSource: (source: 's1' | 's2' | 's3') => void;
   generateHandsFreeMixed: () => void;
 
+  // Background Audio Mode
+  isBackgroundMode: boolean;
+  backgroundAudioUrl: string | null;
+  setBackgroundMode: (active: boolean, audioUrl?: string | null) => void;
+
   // New Management UI State
   showDictManager: boolean;
   setShowDictManager: (show: boolean) => void;
@@ -490,6 +495,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   aiProgress: { processed: 0, total: 0 },
   aiSummary: null,
   abLoop: { start: null, end: null, enabled: false },
+
+  // Background Audio Mode
+  isBackgroundMode: false,
+  backgroundAudioUrl: null,
+  setBackgroundMode: (active, audioUrl = null) => set({ isBackgroundMode: active, backgroundAudioUrl: audioUrl }),
 
   settings: {
     s1: defaultTrackSettings(2.5, '#ffffff', 0.6, 12),

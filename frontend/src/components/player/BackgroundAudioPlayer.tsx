@@ -1,17 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Headphones, Loader2, X, SkipBack, SkipForward, Play, Pause } from 'lucide-react';
+import { Headphones, Loader2 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import axios from 'axios';
 
 /**
- * BackgroundAudioPlayer — Mobile-only audio player that extracts YouTube audio
- * and plays it via a standard <audio> element for background playback support.
+ * BackgroundAudioPlayer — Mobile-only toggle + audio engine.
  * 
- * When active, it takes over playback from the YouTube iframe:
- * - Pauses the iframe
- * - Syncs currentTime to the audio element
- * - Enables lock-screen controls via Media Session API
+ * When activated:
+ * - Fetches a direct audio stream URL from the backend
+ * - Sets isBackgroundMode=true in the store (VideoSection reacts by hiding iframe)
+ * - Plays audio via a standard <audio> element (supports background/lock-screen playback)
+ * - Drives currentTime in the store so subtitles stay in sync
+ * - Sets up Media Session API for lock-screen controls
+ * 
+ * When deactivated:
+ * - Sets isBackgroundMode=false (VideoSection recreates the iframe)
+ * - Pauses and cleans up the audio element
  */
 export const BackgroundAudioPlayer: React.FC = () => {
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -19,16 +23,15 @@ export const BackgroundAudioPlayer: React.FC = () => {
     
     const {
         videoId, isPlaying, setPlaying, setCurrentTime,
-        currentTime, duration, lessonTitle,
-        skipNextSentence, skipPrevSentence
+        lessonTitle,
+        skipNextSentence, skipPrevSentence,
+        isBackgroundMode, backgroundAudioUrl, setBackgroundMode
     } = usePlayerStore();
 
-    const [isActive, setIsActive] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Fetch audio stream URL when activated
+    // ─── Activate: Fetch audio URL and switch mode ───────────────
     const activateBackgroundMode = async () => {
         if (!videoId || isLoading) return;
         
@@ -36,24 +39,29 @@ export const BackgroundAudioPlayer: React.FC = () => {
         setError(null);
         
         try {
-            const res = await axios.get(`/api/content/audio-stream/${videoId}`);
+            const res = await axios.get(`/api/content/audio-stream/${videoId}`, { timeout: 30000 });
             if (res.data.success && res.data.audio_url) {
-                setAudioUrl(res.data.audio_url);
-                setIsActive(true);
+                // Save the current position before switching
+                const savedTime = usePlayerStore.getState().currentTime;
                 
-                // Pause the YouTube iframe
+                // Stop YouTube first, then activate background mode
                 setPlaying(false);
                 
-                // Wait for audio element to load, then seek to current position and play
+                // Small delay to let YouTube pause, then switch mode
                 setTimeout(() => {
-                    if (audioRef.current) {
-                        audioRef.current.currentTime = currentTime;
-                        audioRef.current.play().then(() => {
-                            setPlaying(true);
-                            setupMediaSession();
-                        }).catch(() => {});
-                    }
-                }, 500);
+                    setBackgroundMode(true, res.data.audio_url);
+                    
+                    // Wait for audio element to mount, then seek and play
+                    setTimeout(() => {
+                        if (audioRef.current) {
+                            audioRef.current.currentTime = savedTime;
+                            audioRef.current.play().then(() => {
+                                setPlaying(true);
+                                setupMediaSession();
+                            }).catch(() => {});
+                        }
+                    }, 300);
+                }, 200);
             } else {
                 setError('Không thể trích xuất audio');
             }
@@ -64,19 +72,27 @@ export const BackgroundAudioPlayer: React.FC = () => {
         }
     };
 
+    // ─── Deactivate: Switch back to YouTube iframe ───────────────
     const deactivateBackgroundMode = () => {
+        const savedTime = audioRef.current?.currentTime || usePlayerStore.getState().currentTime;
+        
+        // Stop audio
         if (audioRef.current) {
             audioRef.current.pause();
-            // Sync position back to YouTube
-            const pos = audioRef.current.currentTime;
-            usePlayerStore.getState().requestSeek(pos);
         }
-        setIsActive(false);
-        setAudioUrl(null);
         stopPolling();
+        setPlaying(false);
+        
+        // Switch mode back — VideoSection will recreate the iframe
+        setBackgroundMode(false, null);
+        
+        // After iframe recreates, seek to the saved position
+        setTimeout(() => {
+            usePlayerStore.getState().requestSeek(savedTime);
+        }, 1000);
     };
 
-    // Poll currentTime from audio element
+    // ─── Polling: Sync audio currentTime → store ─────────────────
     const startPolling = () => {
         stopPolling();
         pollRef.current = window.setInterval(() => {
@@ -93,9 +109,9 @@ export const BackgroundAudioPlayer: React.FC = () => {
         }
     };
 
-    // Sync play/pause from store to audio element
+    // ─── Sync play/pause from store → audio element ──────────────
     useEffect(() => {
-        if (!isActive || !audioRef.current) return;
+        if (!isBackgroundMode || !audioRef.current) return;
         
         if (isPlaying) {
             audioRef.current.play().catch(() => {});
@@ -104,9 +120,19 @@ export const BackgroundAudioPlayer: React.FC = () => {
             audioRef.current.pause();
             stopPolling();
         }
-    }, [isPlaying, isActive]);
+    }, [isPlaying, isBackgroundMode]);
 
-    // Setup Media Session (lock screen controls)
+    // ─── Handle seek requests from store ─────────────────────────
+    useEffect(() => {
+        if (!isBackgroundMode || !audioRef.current) return;
+        const seekTo = usePlayerStore.getState().seekToTime;
+        if (seekTo !== null) {
+            audioRef.current.currentTime = seekTo;
+            usePlayerStore.setState({ seekToTime: null, isSeeking: false });
+        }
+    }, [usePlayerStore.getState().seekToTime]);
+
+    // ─── Media Session (lock screen controls) ────────────────────
     const setupMediaSession = () => {
         if (!('mediaSession' in navigator) || !videoId) return;
 
@@ -131,29 +157,53 @@ export const BackgroundAudioPlayer: React.FC = () => {
         });
     };
 
-    // Cleanup on unmount
+    // ─── Cleanup on unmount ──────────────────────────────────────
     useEffect(() => {
         return () => {
             stopPolling();
+            if (isBackgroundMode) {
+                setBackgroundMode(false, null);
+            }
         };
     }, []);
 
-    // Handle seek from store (e.g. clicking on transcript)
-    useEffect(() => {
-        const seekTo = usePlayerStore.getState().seekToTime;
-        if (isActive && audioRef.current && seekTo !== null) {
-            audioRef.current.currentTime = seekTo;
-        }
-    }, [usePlayerStore.getState().seekToTime]);
+    // ─── Render: Toggle button (mobile only) ─────────────────────
+    return (
+        <>
+            {/* Hidden audio element — always mounted so ref is stable */}
+            {isBackgroundMode && backgroundAudioUrl && (
+                <audio
+                    ref={audioRef}
+                    src={backgroundAudioUrl}
+                    playsInline
+                    preload="auto"
+                    onEnded={() => setPlaying(false)}
+                    onPlay={() => {
+                        startPolling();
+                        if ('mediaSession' in navigator) {
+                            navigator.mediaSession.playbackState = 'playing';
+                        }
+                    }}
+                    onPause={() => {
+                        stopPolling();
+                        if ('mediaSession' in navigator) {
+                            navigator.mediaSession.playbackState = 'paused';
+                        }
+                    }}
+                    className="hidden"
+                />
+            )}
 
-    // Toggle button (only shown on mobile)
-    if (!isActive) {
-        return (
+            {/* Toggle button */}
             <button
-                onClick={activateBackgroundMode}
+                onClick={isBackgroundMode ? deactivateBackgroundMode : activateBackgroundMode}
                 disabled={isLoading}
-                className="md:hidden flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all active:scale-95 disabled:opacity-50"
-                title="Background Mode - Nghe khi tắt màn hình"
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl transition-all active:scale-95 disabled:opacity-50 ${
+                    isBackgroundMode
+                        ? 'bg-amber-500 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                        : 'bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+                }`}
+                title={isBackgroundMode ? "Tắt Background Mode" : "Background Mode - Nghe khi tắt màn hình"}
             >
                 {isLoading ? (
                     <Loader2 size={14} className="animate-spin" />
@@ -162,108 +212,6 @@ export const BackgroundAudioPlayer: React.FC = () => {
                 )}
                 {error && <span className="text-[9px] text-red-400">{error}</span>}
             </button>
-        );
-    }
-
-    // Active background player UI
-    return (
-        <>
-            {/* Hidden audio element — the real player */}
-            <audio
-                ref={audioRef}
-                src={audioUrl || undefined}
-                playsInline
-                preload="auto"
-                onEnded={() => setPlaying(false)}
-                onPlay={() => {
-                    startPolling();
-                    if ('mediaSession' in navigator) {
-                        navigator.mediaSession.playbackState = 'playing';
-                    }
-                }}
-                onPause={() => {
-                    stopPolling();
-                    if ('mediaSession' in navigator) {
-                        navigator.mediaSession.playbackState = 'paused';
-                    }
-                }}
-            />
-
-            {/* Floating mini player (mobile only) */}
-            <AnimatePresence>
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="md:hidden fixed bottom-20 left-3 right-3 z-[200] bg-gradient-to-r from-amber-950/95 to-slate-950/95 backdrop-blur-2xl border border-amber-500/20 rounded-2xl shadow-[0_8px_32px_rgba(245,158,11,0.15)] p-3"
-                >
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-                            <span className="text-[9px] font-black text-amber-400 uppercase tracking-[0.15em]">
-                                🎧 Background Mode
-                            </span>
-                        </div>
-                        <button 
-                            onClick={deactivateBackgroundMode}
-                            className="p-1 text-slate-500 hover:text-red-400 transition-colors"
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
-
-                    {/* Title */}
-                    <p className="text-[11px] text-white/80 font-semibold truncate mb-2">
-                        {lessonTitle || 'Đang phát...'}
-                    </p>
-
-                    {/* Controls */}
-                    <div className="flex items-center justify-center gap-6">
-                        <button 
-                            onClick={skipPrevSentence}
-                            className="text-white/60 hover:text-white active:scale-90 transition-all"
-                        >
-                            <SkipBack size={20} />
-                        </button>
-                        
-                        <button 
-                            onClick={() => setPlaying(!isPlaying)}
-                            className="bg-amber-500 text-slate-950 p-2.5 rounded-full hover:bg-amber-400 active:scale-90 transition-all shadow-lg shadow-amber-500/30"
-                        >
-                            {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
-                        </button>
-                        
-                        <button 
-                            onClick={skipNextSentence}
-                            className="text-white/60 hover:text-white active:scale-90 transition-all"
-                        >
-                            <SkipForward size={20} />
-                        </button>
-                    </div>
-
-                    {/* Progress */}
-                    <div className="mt-2 flex items-center gap-2">
-                        <span className="text-[9px] text-white/40 font-mono tabular-nums">
-                            {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}
-                        </span>
-                        <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                            <div 
-                                className="h-full bg-amber-500 rounded-full transition-all"
-                                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-                            />
-                        </div>
-                        <span className="text-[9px] text-white/40 font-mono tabular-nums">
-                            {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')}
-                        </span>
-                    </div>
-
-                    {/* Tip */}
-                    <p className="text-[8px] text-amber-500/50 text-center mt-1.5 tracking-wide">
-                        Có thể tắt màn hình • Điều khiển từ lock screen
-                    </p>
-                </motion.div>
-            </AnimatePresence>
         </>
     );
 };

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BackgroundAudioPlayer } from './BackgroundAudioPlayer';
 
 export const VideoControls: React.FC = () => {
     const { 
@@ -147,6 +148,9 @@ export const VideoControls: React.FC = () => {
                                 </div>
 
                                  <div className="flex items-center gap-3 md:gap-5 ml-auto">
+                                    {/* Background Audio Mode (Mobile) */}
+                                    <BackgroundAudioPlayer />
+
                                     {/* Settings Button */}
                                     <button 
                                         onClick={() => setIsSettingsOpen(!isSettingsOpen)}
