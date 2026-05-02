@@ -69,6 +69,8 @@ const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' }> = ({ mode = '
 
 import { LandingView } from './components/layout/LandingView';
 
+import { SSOCallback } from './components/auth/SSOCallback';
+
 const App: React.FC = () => {
   const { fetchDashboard, fetchAuthConfig, isLoggedIn, isLoading, authConfig } = useAppStore();
 
@@ -93,6 +95,7 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={<LandingView />} />
           <Route path="/login" element={<LoginView />} />
+          <Route path="/auth/callback" element={<SSOCallback />} />
           <Route path="*" element={<LandingView />} />
         </Routes>
       </BrowserRouter>
