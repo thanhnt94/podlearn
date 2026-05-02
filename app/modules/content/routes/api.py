@@ -11,10 +11,20 @@ content_api = Blueprint('content_api', __name__, url_prefix='/api/content')
 # ── Player & Subtitles ────────────────────────────────────────
 
 @content_api.route('/player/lesson/<int:lesson_id>', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def get_player_data(lesson_id):
     """Retrieve all data needed for the Video Player SPA."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    # 1. Fetch lesson
+    lesson = Lesson.query.get_or_404(lesson_id)
+    
+    # 2. Permission Check: Owner or Public Video
+    is_owner = current_user and lesson.user_id == current_user.id
+    from app.modules.content.models import Video
+    video = Video.query.get(lesson.video_id)
+    is_public = video and video.visibility == 'public'
+    
+    if not is_owner and not is_public:
+        return jsonify({"status": "error", "message": "Unauthorized or Private Content"}), 404
     
     # Get available tracks for the video
     all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
@@ -46,10 +56,20 @@ def get_player_data(lesson_id):
     })
 
 @content_api.route('/subtitles/available/<int:lesson_id>', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def get_available_subtitles(lesson_id):
     """List all available subtitle tracks for a lesson's video with full metadata."""
-    lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first_or_404()
+    lesson = Lesson.query.get_or_404(lesson_id)
+    
+    # Permission Check
+    is_owner = current_user and lesson.user_id == current_user.id
+    from app.modules.content.models import Video
+    video = Video.query.get(lesson.video_id)
+    is_public = video and video.visibility == 'public'
+    
+    if not is_owner and not is_public:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 404
+        
     all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
     
     return jsonify({
