@@ -11,14 +11,8 @@ class SSOService:
 
     @staticmethod
     def get_modular_bp(app, provision_callback, success_callback):
-        # Path to the shared module
-        import sys
-        import os
-        shared_path = os.path.abspath(os.path.join(app.root_path, '..', '..', 'shared_files'))
-        if shared_path not in sys.path:
-            sys.path.append(shared_path)
-        
-        from ecosystem_sso import create_sso_blueprint
+        # Import directly from the local project utility
+        from app.core.utils.ecosystem_sso import create_sso_blueprint
         
         with app.app_context():
             server_url = AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://127.0.0.1:5000')
