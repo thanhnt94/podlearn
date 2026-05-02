@@ -204,7 +204,6 @@ export const TranscriptBody: React.FC = () => {
                     </div>
                 );
             })}
-            <div className="h-48" /> {/* Extra bottom padding */}
         </div>
     );
 };

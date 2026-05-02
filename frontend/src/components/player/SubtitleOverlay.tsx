@@ -27,28 +27,25 @@ export const SubtitleOverlay: React.FC = () => {
                 }`}
             >
                 <div 
-                    className={`px-4 py-2 rounded-xl shadow-2xl font-bold border border-white/5 max-w-[90%] sm:max-w-[80%] ${
-                        alignDefault === 'left' ? 'text-left' : 
-                        alignDefault === 'right' ? 'text-right' : 'text-center'
-                    }`}
+                    className={`font-bold px-4 py-2 rounded-2xl shadow-2xl border border-white/10 backdrop-blur-xl transition-all duration-300`}
                     style={{
                         fontSize: `clamp(10px, ${s.fontSize}cqw, 100px)`,
                         color: s.color,
                         backgroundColor: convertHexToRgba(s.bgColor, s.bgOpacity),
-                        lineHeight: 1.3,
-                        backdropFilter: 'blur(8px)',
+                        lineHeight: 1.4,
                         textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                        textAlign: alignDefault
+                        textAlign: 'center',
+                        width: 'max-content',
+                        maxWidth: '90%',
+                        wordBreak: 'break-word'
                     }}
                 >
                     {isAnalyzed ? (
-                        <div className="flex flex-wrap justify-center gap-x-1.5 gap-y-2">
-                            {analyzedWords.map((word: any, idx: number) => (
-                                <span key={idx} className="inline-block">
-                                    {word.surface}
-                                </span>
-                            ))}
-                        </div>
+                        analyzedWords.map((word: any, idx: number) => (
+                            <span key={idx} className="inline-block mx-[0.1em]">
+                                {word.surface}
+                            </span>
+                        ))
                     ) : (
                         (line.text || '').replace(/[|/]/g, '').replace(/\s*\[[^\]]*\]/g, '')
                     )}

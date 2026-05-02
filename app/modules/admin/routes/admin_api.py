@@ -198,6 +198,34 @@ def trigger_ai_analysis(video_id):
     else:
         return jsonify({'success': False, 'message': 'Quá trình phân tích AI thất bại.'}), 500
 
+@admin_api_bp.route('/save-auth-settings', methods=['POST'])
+@jwt_required()
+@admin_required
+def save_auth_settings():
+    data = request.get_json()
+    base_url = data.get('base_url', '').strip().rstrip('/')
+    
+    # Auto-prepend scheme if missing
+    if base_url and not base_url.startswith(('http://', 'https://')):
+        base_url = f"https://{base_url}"
+        
+    client_id = str(data.get('client_id', '')).strip().strip('"').strip("'")
+    client_secret = str(data.get('client_secret', '')).strip().strip('"').strip("'")
+
+    # If secret is literally just dots or stars and we have a saved secret, 
+    # then it's a UI mask and we should use the DB value.
+    current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
+    if not client_secret or client_secret.count('.') > 5 or client_secret.count('*') > 5:
+        # Don't overwrite if masked
+        pass
+    else:
+        AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
+
+    AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
+    AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
+
+    return jsonify({'success': True, 'message': 'Đã lưu cấu hình kết nối Ecosystem.'})
+
 @admin_api_bp.route('/test-auth', methods=['POST'])
 @jwt_required()
 @admin_required

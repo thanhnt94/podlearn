@@ -269,13 +269,15 @@ export const LearningFocusBar: React.FC = () => {
     }, [activeLineIndex, autoSegmentationEnabled]);
 
     if (!currentLine) return (
-        <div className="w-full bg-slate-950/80 border-t border-white/5 backdrop-blur-xl px-4 py-2 h-[110px] flex items-center justify-center z-[999]">
+        <div className="w-full bg-slate-950/80 border-t border-white/5 backdrop-blur-xl px-4 py-2 min-h-[70px] md:min-h-[90px] flex items-center justify-center z-[999] relative">
             <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Playback idle • Select a line to start analysis</p>
         </div>
     );
 
     return (
-        <div className="w-full bg-slate-950/90 border-t border-white/5 backdrop-blur-3xl px-4 py-1 h-[110px] flex flex-col shadow-[0_-30px_60px_rgba(0,0,0,0.8)] relative transition-all duration-500 z-[999]">
+        <div className="w-full bg-slate-950/90 border-t border-white/10 backdrop-blur-3xl px-4 py-1 min-h-[70px] md:min-h-[90px] flex flex-col shadow-[0_-30px_60px_rgba(0,0,0,0.8)] relative transition-all duration-500 z-[999]">
+            {/* Premium Top Border Gradient */}
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-sky-500/30 to-transparent" />
             
             {/* NEEDS SCAN STATE - STATIC FLOW */}
             {/* NEEDS SCAN STATE - ONLY IF AUTO SEGMENTATION IS ON AND NO WORDS */}
@@ -322,8 +324,8 @@ export const LearningFocusBar: React.FC = () => {
                 ) : (
                 <div className="w-full h-full relative flex items-center justify-center">
                     {/* Center: Content */}
-                    <div className="w-full h-full overflow-y-auto no-scrollbar px-4 flex items-center justify-center">
-                        <div className="flex flex-wrap items-end justify-center gap-x-3 gap-y-4 py-4">
+                    <div className="w-full h-full overflow-hidden px-4 flex items-center justify-center">
+                        <div className="flex flex-wrap items-end justify-center gap-x-2 md:gap-x-3 gap-y-1 md:gap-y-2 py-2 md:py-4">
                             {isEditingSegmentation ? (
                                 <div className="flex flex-wrap items-center justify-center gap-3 p-4 bg-amber-500/5 rounded-2xl border border-amber-500/20 w-full relative">
                                     {editTokens.map((token, i) => (
@@ -421,13 +423,13 @@ export const LearningFocusBar: React.FC = () => {
                                                     onMouseLeave={isSkip ? undefined : handleTokenMouseLeave}
                                                 >
                                                     {showFurigana && word.furigana && !isSkip && (
-                                                        <span className="text-[9px] font-bold text-sky-400/80 mb-0">
+                                                        <span className="text-[9px] md:text-[11px] font-bold text-sky-400/80 mb-0 leading-none">
                                                             {word.furigana}
                                                         </span>
                                                     )}
                                                     <span 
-                                                        className={`text-base md:text-xl font-black tracking-tight transition-all duration-300 ${
-                                                            isSkip ? 'text-slate-600' : 'text-white group-hover:text-sky-400 group-hover:scale-110'
+                                                        className={`text-[15px] md:text-[22px] font-black tracking-tight transition-all duration-300 leading-tight ${
+                                                            isSkip ? 'text-slate-600' : 'text-white group-hover:text-sky-400 group-hover:drop-shadow-[0_0_8px_rgba(14,165,233,0.5)]'
                                                         }`}
                                                     >
                                                         {word.surface}

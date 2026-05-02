@@ -39,6 +39,7 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #0ea5e9; }
 
 /* ─── PREMIUM MARKDOWN STYLING (.pod-markdown) ─── */
+.pod-markdown > *:first-child { margin-top: 0 !important; }
 .pod-markdown h1 { font-size: 1.875rem; font-weight: 900; color: white; margin-top: 2.5rem; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: -0.05em; border-bottom: 2px solid rgba(255,255,255,0.08); padding-bottom: 0.75rem; }
 .pod-markdown h2 { font-size: 1.5rem;   font-weight: 900; color: white; margin-top: 2rem;   margin-bottom: 1rem;  text-transform: uppercase; letter-spacing: -0.025em; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem; }
 .pod-markdown h3 { font-size: 1.25rem;  font-weight: 900; color: #38bdf8; margin-top: 1.5rem;  margin-bottom: 0.75rem; }

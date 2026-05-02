@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    ArrowLeft, Lock, CreditCard, RefreshCw, Settings, MoveHorizontal, Scissors, Edit2, Save, X
+    ArrowLeft, Lock, CreditCard, RefreshCw, Settings, MoveHorizontal, Scissors, Edit2, Save, X, Zap
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,6 +43,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     isVocabStudioOpen, setVocabStudioOpen,
     requestSeek, currentTime,
     activeSidebarTab, isEditingCurated, setEditingCurated,
+    isFocusBarCollapsed, setFocusBarCollapsed,
     curatedContent, draftCuratedContent, setDraftCuratedContent, updateCuratedContent,
     timelineSub, notes, comments,
     showDictManager, setShowDictManager
@@ -242,19 +243,19 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
       {/* 1. MAIN AREA (LEFT) - Balanced Cinema Focus */}
       <div className="flex-none md:flex-1 flex flex-col bg-black md:bg-[#020617] relative overflow-hidden z-10 min-h-0">
           {/* Header (Integrated) - Flexible on Mobile, Floating on Desktop */}
-          <div className="relative w-full flex items-center justify-between px-4 py-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl shrink-0 z-20">
-              <div className="flex items-center gap-3">
-                  <button onClick={() => navigate('/')} className="p-2 text-slate-400 hover:text-white transition-colors">
+          <div className="relative w-full flex items-center justify-between px-4 py-1.5 md:py-3 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl shrink-0 z-20">
+              <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
+                  <button onClick={() => navigate('/')} className="p-2 text-slate-400 hover:text-white transition-colors shrink-0">
                       <ArrowLeft size={20} />
                   </button>
-                  <h1 className="text-sm font-bold text-slate-200 line-clamp-1">{lessonTitle || 'Untitled Lesson'}</h1>
+                  <h1 className="text-sm font-bold text-slate-200 line-clamp-1 flex-1 min-w-0">{lessonTitle || 'Untitled Lesson'}</h1>
               </div>
               <div className="flex items-center gap-2">
 
-                  {/* Hands-Free Toggle (Header) */}
+                  {/* Hands-Free Toggle (Header) - Hidden on Mobile */}
                   <button 
                       onClick={toggleHandsFreeMode}
-                      className={`relative flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black tracking-widest transition-all ${
+                      className={`hidden md:flex relative items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black tracking-widest transition-all ${
                           handsFreeModeEnabled 
                           ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(14,165,233,0.3)]' 
                           : 'bg-slate-900 text-slate-500 hover:text-white border border-white/5'
@@ -282,18 +283,28 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                   </div>
                   <button 
                     onClick={() => navigate(`/player/lesson/syncstudio/${lessonId}`)} 
-                    className="p-2 text-slate-400 hover:text-sky-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
+                    className="hidden md:block p-2 text-slate-400 hover:text-sky-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
                     title="Open Sync Studio"
                   >
                       <MoveHorizontal size={20} />
                   </button>
                   <button 
                     onClick={() => setVocabStudioOpen(true)} 
-                    className="p-2 text-slate-400 hover:text-amber-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
+                    className="hidden md:block p-2 text-slate-400 hover:text-amber-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
                     title="Open Vocab Studio"
                   >
                       <Scissors size={20} />
                   </button>
+
+                  {/* Analysis Bar Toggle (Mobile Only) */}
+                  <button 
+                    onClick={() => setFocusBarCollapsed(!isFocusBarCollapsed)}
+                    className={`md:hidden p-2 rounded-lg transition-all ${!isFocusBarCollapsed ? 'bg-sky-500/10 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.2)]' : 'text-slate-500 hover:text-white'}`}
+                    title={isFocusBarCollapsed ? "Mở phân tích" : "Đóng phân tích"}
+                  >
+                      <Zap size={20} fill={!isFocusBarCollapsed ? "currentColor" : "none"} />
+                  </button>
+
                   <button onClick={() => { setSettingsTab('display'); setIsSettingsOpen(true); }} className="p-2 text-slate-400 hover:text-white transition-colors">
                       <Settings size={20} />
                   </button>
@@ -312,7 +323,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           </div>
           
           {/* Focus Area (Analysis) */}
-          <div className="shrink-0 relative z-[500] h-[110px]">
+          <div className={`shrink-0 relative z-[500] transition-all duration-500 overflow-hidden ${isFocusBarCollapsed ? 'h-0 opacity-0' : 'h-[110px] opacity-100'}`}>
               <LearningFocusBar />
           </div>
       </div>
@@ -333,7 +344,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           <SidebarContainer />
 
           {/* Sidebar Footer: High-Visibility Actions */}
-          <div className="relative p-2.5 border-t border-white/20 bg-[#0f172a] z-50 shrink-0">
+          <div className={`relative border-t border-white/20 bg-[#0f172a] z-50 shrink-0 ${activeSidebarTab === 'Overview' ? 'hidden md:block p-2.5' : 'p-2.5'}`}>
               <div className="flex items-center justify-between gap-4">
                   {activeSidebarTab !== 'Overview' && (
                     <div className="flex items-center justify-between gap-4 flex-1">
@@ -440,7 +451,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                   )}
                   
                   {isAdmin && activeSidebarTab === 'Overview' && (
-                    <div className="flex-1">
+                    <div className="hidden md:block flex-1">
                       {isEditingCurated ? (
                         <div className="flex gap-2">
                            <button 

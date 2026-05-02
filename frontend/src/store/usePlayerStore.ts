@@ -134,6 +134,8 @@ interface PlayerState {
   
   isNativeCCOn: boolean; 
   nativeCCLang: string;
+  isFocusBarCollapsed: boolean;
+  setFocusBarCollapsed: (collapsed: boolean) => void;
   comments: any[];
   
   // Gamification Tracking
@@ -449,6 +451,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVocabStudioOpen: (open) => set({ isVocabStudioOpen: open }),
   activeSidebarTab: 'Overview',
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
+  isFocusBarCollapsed: typeof window !== 'undefined' && window.innerWidth < 768,
+  setFocusBarCollapsed: (collapsed) => set({ isFocusBarCollapsed: collapsed }),
   timelineSub: 'transcript',
   setTimelineSub: (sub) => set({ timelineSub: sub }),
   practiceSub: 'shadowing',
