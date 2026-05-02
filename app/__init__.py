@@ -96,6 +96,9 @@ def create_app(config_name: str | None = None) -> Flask:
             file_path = path.replace('static/dist/', '')
             return send_from_directory(app.static_folder, file_path)
 
+        if path == 'admin' or path.startswith('admin/'):
+            return send_from_directory(app.static_folder, 'admin.html')
+
         return send_from_directory(app.static_folder, 'index.html')
 
     return app

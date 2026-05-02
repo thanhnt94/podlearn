@@ -814,6 +814,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         lessonTitle: data.title,
         availableTracks: data.subtitles?.available_tracks || [],
         settings: newSettings,
+        initialListeningSeconds: data.time_spent || 0,
         isCompleted: data.is_completed || false,
         isLoaded: true 
     };

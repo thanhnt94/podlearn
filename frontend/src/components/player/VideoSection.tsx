@@ -138,9 +138,14 @@ export const VideoSection: React.FC = () => {
   };
 
   const formatSessionTime = (seconds: number) => {
-    const totalSecs = Number(initialListeningSeconds || 0) + Number(seconds || 0);
-    const m = Math.floor(totalSecs / 60);
+    const totalSecs = Math.floor(Number(initialListeningSeconds || 0) + Number(seconds || 0));
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
     const s = totalSecs % 60;
+    
+    if (h > 0) {
+      return `${h}:${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
+    }
     return `${m}:${s < 10 ? '0' + s : s}`;
   };
 

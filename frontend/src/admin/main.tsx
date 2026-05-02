@@ -20,9 +20,7 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
-      console.warn("Unauthorized or Forbidden access to admin API. Redirecting...");
-      // Redirect to main app login or dashboard
-      window.location.href = '/';
+      console.warn("Unauthorized access to admin API.");
     }
     return Promise.reject(error);
   }

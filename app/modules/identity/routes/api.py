@@ -16,6 +16,15 @@ from app.modules.engagement import interface as engagement_interface
 identity_api = Blueprint('identity_api', __name__, url_prefix='/api/identity')
 user_schema = UserSchema()
 
+@identity_api.route('/config', methods=['GET'])
+def get_auth_config():
+    """Returns public auth configuration for the frontend."""
+    auth_provider = engagement_interface.get_app_setting_dto('AUTH_PROVIDER', 'local')
+    return jsonify({
+        "auth_provider": auth_provider,
+        "sso_enabled": auth_provider == 'central'
+    })
+
 # ── Local Auth ────────────────────────────────────────────────
 
 @identity_api.route('/register', methods=['POST'])

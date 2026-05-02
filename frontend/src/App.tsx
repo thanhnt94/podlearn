@@ -67,15 +67,36 @@ const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' }> = ({ mode = '
   );
 };
 
+import { LandingView } from './components/layout/LandingView';
+
 const App: React.FC = () => {
-  const { fetchDashboard, isLoggedIn, isLoading } = useAppStore();
+  const { fetchDashboard, fetchAuthConfig, isLoggedIn, isLoading, authConfig } = useAppStore();
 
   useEffect(() => {
+    fetchAuthConfig();
     fetchDashboard();
   }, []);
 
+  // Handle unauthenticated routes
   if (!isLoggedIn && !isLoading) {
-    return <LoginView />;
+    const isLoginPath = window.location.pathname === '/login';
+    const isSSOEnabled = authConfig?.sso_enabled;
+
+    // Auto-redirect to SSO if on /login and SSO is enabled
+    if (isLoginPath && isSSOEnabled) {
+      window.location.href = '/api/identity/sso/login';
+      return null;
+    }
+
+    return (
+      <BrowserRouter basename="/">
+        <Routes>
+          <Route path="/" element={<LandingView />} />
+          <Route path="/login" element={<LoginView />} />
+          <Route path="*" element={<LandingView />} />
+        </Routes>
+      </BrowserRouter>
+    );
   }
 
   return (

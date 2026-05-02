@@ -24,11 +24,13 @@ interface AppState {
     stats: any;
     notifications: any[];
     communityVideos: any[];
+    authConfig: { auth_provider: string; sso_enabled: boolean } | null;
     
     // Actions
     login: (credentials: any) => Promise<boolean>;
     logout: () => Promise<void>;
     fetchDashboard: () => Promise<void>;
+    fetchAuthConfig: () => Promise<void>;
     checkNewBadges: () => Promise<void>;
     clearCelebration: () => void;
     deleteLesson: (id: number) => Promise<void>;
@@ -58,6 +60,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     stats: null,
     notifications: [],
     communityVideos: [],
+    authConfig: null,
 
     login: async (credentials) => {
         try {
@@ -115,6 +118,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (e) {
             console.error("Dashboard fetch failed", e);
             set({ isLoading: false });
+        }
+    },
+
+    fetchAuthConfig: async () => {
+        try {
+            const res = await axios.get('/api/identity/config');
+            set({ authConfig: res.data });
+        } catch (e) {
+            console.error("Failed to fetch auth config", e);
         }
     },
 
