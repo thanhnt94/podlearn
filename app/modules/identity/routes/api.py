@@ -14,6 +14,7 @@ from app.modules.identity.schemas import UserSchema
 from app.modules.engagement import interface as engagement_interface
 
 identity_api = Blueprint('identity_api', __name__, url_prefix='/api/identity')
+sso_bridge = Blueprint('sso_bridge', __name__)
 user_schema = UserSchema()
 
 @identity_api.route('/config', methods=['GET'])
@@ -100,19 +101,9 @@ def get_me():
 
 # ── SSO (Central Auth) ────────────────────────────────────────
 
-@identity_api.route('/sso/login')
-def sso_login():
-    """Redirect to Central Auth login page."""
-    sso = SSOService.get_client()
-    callback_url = url_for('identity_api.sso_callback', _external=True)
-    # Ensure https for production domains
-    if 'mindstack.click' in callback_url:
-        callback_url = callback_url.replace('http://', 'https://')
-    return redirect(sso.get_login_url(callback_url))
-
-@identity_api.route('/sso/callback')
-def sso_callback():
-    """Handle callback from Central Auth and issue JWT."""
+@sso_bridge.route('/auth-center/callback')
+def sso_callback_bridge():
+    """Handle callback from Central Auth (Bridge Route to match SSO config)."""
     code = request.args.get('code')
     if not code:
         return jsonify({"status": "error", "message": "Missing authorization code"}), 400
@@ -126,6 +117,28 @@ def sso_callback():
         return redirect(f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}")
     
     return redirect(f"{frontend_url}/login?error=sso_failed")
+
+@sso_bridge.route('/auth-center/webhook/backchannel-log', methods=['POST'])
+def sso_backchannel_logout():
+    """Handle Global Logout notifications from Central Auth."""
+    # Logic to clear local session/tokens for the specific user
+    # For now, we'll just return success to satisfy the SSO server
+    return jsonify({"success": True}), 200
+
+@identity_api.route('/sso/login')
+def sso_login():
+    """Redirect to Central Auth login page."""
+    sso = SSOService.get_client()
+    # Match the exact Redirect URI from the SSO server config
+    callback_url = url_for('sso_bridge.sso_callback_bridge', _external=True)
+    if 'mindstack.click' in callback_url:
+        callback_url = callback_url.replace('http://', 'https://')
+    return redirect(sso.get_login_url(callback_url))
+
+@identity_api.route('/sso/callback')
+def sso_callback():
+    """Legacy callback route (redirects to bridge)."""
+    return redirect(url_for('sso_bridge.sso_callback_bridge', **request.args))
 
 @identity_api.route('/profile', methods=['PATCH'])
 @jwt_required()

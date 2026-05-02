@@ -17,7 +17,9 @@ class EcosystemAuth:
 
     def get_login_url(self, callback_url):
         """Generates the redirect URL to Central Auth."""
-        return f"{self.server_url}/api/auth/login?client_id={self.client_id}&redirect_uri={callback_url}"
+        import urllib.parse
+        encoded_callback = urllib.parse.quote(callback_url, safe='')
+        return f"{self.server_url}/auth/login?client_id={self.client_id}&redirect_uri={encoded_callback}"
 
     def handle_callback(self, code):
         """Exchanges authorization code for tokens and fetches user info."""
