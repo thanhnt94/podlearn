@@ -25,7 +25,8 @@ export const VideoSection: React.FC = () => {
   const { 
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
     volume, setVolume, playbackRate, isLockedPaused, isNativeCCOn, nativeCCLang, originalLang,
-    requestSeek, initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount
+    requestSeek, initialListeningSeconds, sessionListeningSeconds, sessionShadowingCount,
+    lessonTitle
   } = usePlayerStore();
 
   const [isReady, setIsReady] = React.useState(false);
@@ -155,10 +156,39 @@ export const VideoSection: React.FC = () => {
 
     if (isPlaying && currentState !== window.YT.PlayerState.PLAYING) {
       ytPlayer.current.playVideo();
+      // Start background audio trick
+      const bgAudio = document.getElementById('bg-audio-helper') as HTMLAudioElement;
+      if (bgAudio) bgAudio.play().catch(() => {});
     } else if (!isPlaying && currentState === window.YT.PlayerState.PLAYING) {
       ytPlayer.current.pauseVideo();
+      // Pause background audio trick
+      const bgAudio = document.getElementById('bg-audio-helper') as HTMLAudioElement;
+      if (bgAudio) bgAudio.pause();
     }
   }, [isPlaying, isLockedPaused]);
+
+  // Media Session API for Lock Screen Controls
+  useEffect(() => {
+    if ('mediaSession' in navigator && videoId) {
+      const { lessonTitle, skipNextSentence, skipPrevSentence, setPlaying, requestSeek } = usePlayerStore.getState();
+      
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: lessonTitle || 'PodLearn Lesson',
+        artist: 'PodLearn AuraFlow',
+        album: 'Language Learning',
+        artwork: [
+          { src: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`, sizes: '1280x720', type: 'image/jpeg' }
+        ]
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => setPlaying(true));
+      navigator.mediaSession.setActionHandler('pause', () => setPlaying(false));
+      navigator.mediaSession.setActionHandler('previoustrack', () => skipPrevSentence());
+      navigator.mediaSession.setActionHandler('nexttrack', () => skipNextSentence());
+      navigator.mediaSession.setActionHandler('seekbackward', () => requestSeek(usePlayerStore.getState().currentTime - 5));
+      navigator.mediaSession.setActionHandler('seekforward', () => requestSeek(usePlayerStore.getState().currentTime + 5));
+    }
+  }, [videoId, lessonTitle]);
 
   // Handle Seek Requests from Store
   useEffect(() => {
@@ -201,6 +231,14 @@ export const VideoSection: React.FC = () => {
 
   return (
     <div id="player-container" className="relative w-full h-full bg-black group overflow-hidden">
+      {/* Background Audio Trick for Mobile Background Playback */}
+      <audio 
+        id="bg-audio-helper"
+        loop
+        src="data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAP8AAf8=" 
+        className="hidden"
+      />
+
       {/* YouTube Iframe Placeholder */}
       <div 
         ref={playerRef}
