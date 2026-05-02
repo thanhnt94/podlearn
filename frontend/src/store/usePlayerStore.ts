@@ -985,8 +985,42 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           await axios.post('/api/study/user/preferences', get().settings);
       } catch (e) {}
   },
-  skipNextSentence: () => {},
-  skipPrevSentence: () => {},
+  skipNextSentence: () => {
+    const { subtitles, currentTime, requestSeek } = get();
+    if (subtitles.length === 0) return;
+    
+    const nextLine = subtitles.find(l => l.start > currentTime + 0.1);
+    if (nextLine) {
+      requestSeek(nextLine.start);
+    }
+  },
+  skipPrevSentence: () => {
+    const { subtitles, currentTime, requestSeek } = get();
+    if (subtitles.length === 0) return;
+
+    const currentIndex = subtitles.findIndex(l => currentTime >= l.start && currentTime <= l.end);
+    
+    if (currentIndex !== -1) {
+      const currentLine = subtitles[currentIndex];
+      // If we are more than 1s into the current line, go to its start
+      if (currentTime - currentLine.start > 1.5) {
+        requestSeek(currentLine.start);
+      } else if (currentIndex > 0) {
+        // Otherwise go to previous line start
+        requestSeek(subtitles[currentIndex - 1].start);
+      } else {
+        requestSeek(0);
+      }
+    } else {
+      // Not in a line, find the closest one BEFORE us
+      const prevLine = [...subtitles].reverse().find(l => l.start < currentTime);
+      if (prevLine) {
+        requestSeek(prevLine.start);
+      } else {
+        requestSeek(0);
+      }
+    }
+  },
   updateSubtitleLine: async (trackKey, index, data) => {
       const trackId = get().trackIds[trackKey];
       try {
