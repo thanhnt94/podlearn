@@ -49,6 +49,10 @@ interface PlayerState {
   activeLineIndex: number;
   isVocabStudioOpen: boolean;
   setVocabStudioOpen: (open: boolean) => void;
+  isSettingsOpen: boolean;
+  setIsSettingsOpen: (open: boolean) => void;
+  settingsTab: 'hub' | 'subtitles' | 'display' | 'vocab';
+  setSettingsTab: (tab: 'hub' | 'subtitles' | 'display' | 'vocab') => void;
   activeSidebarTab: string;
   setActiveSidebarTab: (tab: string) => void;
   timelineSub: 'transcript' | 'notes' | 'social';
@@ -451,6 +455,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   preferredDictionary: 'mazii_offline',
   preferredSystemDictId: null,
   setPreferredSystemDictId: (id) => set({ preferredSystemDictId: id }),
+  isSettingsOpen: false,
+  setIsSettingsOpen: (open) => set({ isSettingsOpen: open }),
+  settingsTab: 'hub',
+  setSettingsTab: (tab) => set({ settingsTab: tab }),
   rawJsonInput: '',
 
   setVocabStudioOpen: (open) => set({ isVocabStudioOpen: open }),
@@ -989,7 +997,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           });
       } catch (e) {}
   },
-  saveSettings: async () => {},
+  saveSettings: async () => {
+      const { lessonId, settings } = get();
+      if (!lessonId) return;
+      try {
+          await axios.patch(`/api/study/lesson/${lessonId}/settings`, {
+              settings_json: JSON.stringify(settings)
+          });
+      } catch (e) {
+          console.error("Failed to save lesson settings", e);
+      }
+  },
   saveAsDefaultPreferences: async () => {
       try {
           await axios.post('/api/study/user/preferences', get().settings);

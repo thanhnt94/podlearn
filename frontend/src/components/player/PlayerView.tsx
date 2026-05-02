@@ -10,7 +10,7 @@ import { PodcastOverlay } from './PodcastOverlay';
 import { SidebarContainer } from './sidebar/SidebarContainer';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { useAppStore } from '../../store/useAppStore';
-import { SettingsDrawer, type MainTab } from '../layout/SettingsDrawer';
+import { SettingsDrawer } from '../layout/SettingsDrawer';
 import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 import { LearningFocusBar } from './LearningFocusBar';
 
@@ -27,8 +27,6 @@ interface PlayerViewProps {
 
 export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false }) => {
   const navigate = useNavigate();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<MainTab>('display');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const isSyncStudioOpen = initialStudioMode;
@@ -47,7 +45,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     isFocusBarCollapsed, setFocusBarCollapsed,
     curatedContent, draftCuratedContent, setDraftCuratedContent, updateCuratedContent,
     timelineSub, notes, comments,
-    showDictManager, setShowDictManager
+    showDictManager, setShowDictManager,
+    setIsSettingsOpen, setSettingsTab
   } = usePlayerStore();
 
   const { user } = useAppStore();
@@ -80,7 +79,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
   // Expose control to window for child components (e.g. TranscriptBody empty state)
   useEffect(() => {
-    (window as any).openSettings = () => setIsSettingsOpen(true);
+    (window as any).openSettings = () => {
+        setSettingsTab('hub');
+        setIsSettingsOpen(true);
+    };
     return () => { delete (window as any).openSettings; };
   }, []);
 
@@ -439,7 +441,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                                 <div className="flex-1 flex justify-end">
                                     <button 
                                         onClick={() => {
-                                            setSettingsTab('library');
+                                            setSettingsTab('subtitles');
                                             setIsSettingsOpen(true);
                                         }}
                                         className="group flex items-center gap-2 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-xl transition-all"
@@ -489,11 +491,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
       <HandsFreeEngine />
       <VocabStudio isOpen={isVocabStudioOpen} onClose={() => setVocabStudioOpen(false)} />
-      <SettingsDrawer 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-        initialTab={settingsTab}
-      />
+      <SettingsDrawer />
       <DictManagerStudio isOpen={showDictManager} onClose={() => setShowDictManager(false)} />
       <AnimatePresence>
         {isSyncStudioOpen && (

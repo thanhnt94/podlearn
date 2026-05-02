@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     Play, Pause, Volume2, VolumeX, 
-    Maximize, Tv, MessageSquare, Users,
-    ChevronLeft, ChevronRight, Settings, Gauge, X
+    Maximize,
+    ChevronLeft, ChevronRight, Settings, Languages
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,16 +14,11 @@ export const VideoControls: React.FC = () => {
         currentTime, duration, requestSeek,
         skipNextSentence, skipPrevSentence,
         volume, setVolume,
-        playbackRate, setPlaybackRate,
-        abLoop, setAbLoop,
-        isNativeCCOn, toggleNativeCC, nativeCCLang, setNativeCCLang,
-        toggleCommunity,
-        settings, setNoteSettings, setTrackSettings,
+        isSettingsOpen, setIsSettingsOpen, setSettingsTab,
         handsFreeModeEnabled, handsFreeType, setHandsFreeType
     } = usePlayerStore();
 
     const [isVisible, setIsVisible] = useState(true);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const timeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -151,160 +146,36 @@ export const VideoControls: React.FC = () => {
                                     {/* Background Audio Mode (Mobile) */}
                                     <BackgroundAudioPlayer />
 
-                                    {/* Settings Button */}
-                                    <button 
-                                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                        className={`p-2.5 rounded-2xl transition-all ${isSettingsOpen ? 'bg-sky-500 text-slate-950 shadow-lg' : 'bg-white/5 text-white/60 hover:text-white border border-white/10'}`}
-                                    >
-                                        <Settings size={20} />
-                                    </button>
+                                     {/* Subtitle Studio Button */}
+                                     <button 
+                                         onClick={() => {
+                                             setSettingsTab('subtitles');
+                                             setIsSettingsOpen(true);
+                                         }}
+                                         className="p-2.5 rounded-2xl bg-white/5 text-white/60 hover:text-white border border-white/10 transition-all hover:bg-sky-500/10 hover:border-sky-500/30"
+                                     >
+                                         <Languages size={20} />
+                                     </button>
 
-                                    {/* Fullscreen */}
-                                    <button onClick={toggleFullscreen} className="text-white/60 hover:text-white transition-colors shrink-0 p-2">
-                                        <Maximize size={20} />
-                                    </button>
+                                     {/* Settings (Hub) Button */}
+                                     <button 
+                                         onClick={() => {
+                                             setSettingsTab('hub');
+                                             setIsSettingsOpen(!isSettingsOpen);
+                                         }}
+                                         className={`p-2.5 rounded-2xl transition-all ${isSettingsOpen ? 'bg-sky-500 text-slate-950 shadow-lg' : 'bg-white/5 text-white/60 hover:text-white border border-white/10'}`}
+                                     >
+                                         <Settings size={20} />
+                                     </button>
+
+                                     {/* Fullscreen */}
+                                     <button onClick={toggleFullscreen} className="text-white/60 hover:text-white transition-colors shrink-0 p-2">
+                                         <Maximize size={20} />
+                                     </button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Modern Settings Overlay Panel */}
-                        <AnimatePresence>
-                            {isSettingsOpen && (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                                    className="absolute bottom-24 right-4 w-72 bg-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden pointer-events-auto"
-                                >
-                                    <div className="p-6 space-y-6">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Studio Controls</h3>
-                                            <button onClick={() => setIsSettingsOpen(false)} className="text-slate-500 hover:text-white">
-                                                <X size={16} />
-                                            </button>
-                                        </div>
-
-                                        {/* Playback Speed */}
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sky-400">
-                                                <Gauge size={14} />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Tempo</span>
-                                                <span className="ml-auto text-[10px] font-black">{playbackRate}x</span>
-                                            </div>
-                                            <div className="grid grid-cols-4 gap-1.5">
-                                                {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
-                                                    <button 
-                                                        key={rate}
-                                                        onClick={() => setPlaybackRate(rate)}
-                                                        className={`py-2 rounded-xl text-[10px] font-black border transition-all ${playbackRate === rate ? 'bg-sky-500 border-sky-500 text-slate-950 shadow-md' : 'bg-white/5 border-white/5 text-slate-400 hover:text-white'}`}
-                                                    >
-                                                        {rate}x
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Subtitle Channels */}
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-purple-400">
-                                                <Tv size={14} />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Layers</span>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                {[1, 2, 3].map(num => {
-                                                    const realKey = `s${num}` as 's1' | 's2' | 's3';
-                                                    const isOn = settings[realKey].enabled;
-                                                    return (
-                                                        <button 
-                                                            key={num}
-                                                            onClick={() => setTrackSettings(realKey, { enabled: !isOn })}
-                                                            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${isOn ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20' : 'bg-white/5 text-slate-400 border border-white/5'}`}
-                                                        >
-                                                            T{num}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                            
-                                            {/* Native CC Toggle */}
-                                            <div className="flex items-center gap-2 bg-white/5 p-2 rounded-2xl border border-white/5">
-                                                <button 
-                                                    onClick={toggleNativeCC}
-                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all ${isNativeCCOn ? 'bg-red-500 text-white' : 'text-slate-500'}`}
-                                                >
-                                                    YOUTUBE CC
-                                                </button>
-                                                {isNativeCCOn && (
-                                                    <select 
-                                                        value={nativeCCLang}
-                                                        onChange={(e) => setNativeCCLang(e.target.value)}
-                                                        className="flex-1 bg-transparent text-[10px] font-black uppercase text-white outline-none cursor-pointer"
-                                                    >
-                                                        <option value="en">EN</option>
-                                                        <option value="ja">JA</option>
-                                                        <option value="vi">VI</option>
-                                                    </select>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Interactive Layers */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button 
-                                                onClick={() => setNoteSettings({ enabled: !settings.notes.enabled })}
-                                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all border ${settings.notes.enabled ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-white/5 border-white/5 text-slate-500'}`}
-                                            >
-                                                <MessageSquare size={14} />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Notes</span>
-                                            </button>
-                                            <button 
-                                                onClick={toggleCommunity}
-                                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all border ${settings.community.enabled ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' : 'bg-white/5 border-white/5 text-slate-500'}`}
-                                            >
-                                                <Users size={14} />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Social</span>
-                                            </button>
-                                        </div>
-
-                                        {/* A-B Loop Controls */}
-                                        <div className="bg-black/40 rounded-2xl p-3 border border-white/5 space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">A-B Repeat</span>
-                                                {(abLoop.start || abLoop.end) && (
-                                                    <button onClick={() => setAbLoop({ start: null, end: null })} className="text-red-500/60 hover:text-red-500 transition-colors">
-                                                        <X size={12} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => setAbLoop({ start: currentTime })}
-                                                    className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${abLoop.start !== null ? 'bg-sky-500 text-slate-950' : 'bg-white/5 text-slate-400'}`}
-                                                >
-                                                    START
-                                                </button>
-                                                <button 
-                                                    onClick={() => setAbLoop({ end: currentTime })}
-                                                    className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${abLoop.end !== null ? 'bg-sky-500 text-slate-950' : 'bg-white/5 text-slate-400'}`}
-                                                >
-                                                    END
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Mobile Volume (Fallback) */}
-                                        <div className="md:hidden flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/5">
-                                            <Volume2 size={16} className="text-slate-500" />
-                                            <input 
-                                                type="range" min="0" max="100" value={volume} 
-                                                onChange={(e) => setVolume(parseInt(e.target.value))} 
-                                                className="flex-1 accent-sky-500 h-1" 
-                                            />
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
                     </motion.div>
             )}
         </AnimatePresence>

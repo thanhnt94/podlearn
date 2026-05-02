@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-    Plus, Check, Activity, Globe, Languages, 
-    RotateCcw, Book, ChevronDown,
-    BarChart3, AlertCircle, Clock
+    Plus, Check, Globe, RotateCcw,
+    BarChart3, AlertCircle, Clock, Book, Languages
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,65 +10,24 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 
-
 export const VocabPanel: React.FC = () => {
     const { 
         lessonId, activeLineIndex, subtitles,
         appendNote, fetchNotes,
-        sourceTrackId, setSourceTrackId, analysisSource,
-        availableTracks, fetchVideoGlossary,
         analyzedWords, fetchAnalyzedWords,
         showFurigana, toggleFurigana,
-        autoSegmentationEnabled, setAutoSegmentationEnabled,
-        useOfflineDict,
-        targetLang, setTargetLang,
-        preferredSystemDictId, setPreferredSystemDictId,
-        globalDictionaries,
-        setAnalysisSource
+        setShowDictManager, fetchSystemDictionaries,
+        fetchVideoGlossary
     } = usePlayerStore();
     
     // UI State
-    const [activeTab, setActiveTab] = useState<'track' | 'live' | 'stats'>('track');
+    const [activeTab, setActiveTab] = useState<'live' | 'stats'>('live');
     const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
-    const [isSaving, setIsSaving] = useState(false);
-
-    const { 
-        setShowDictManager,
-        fetchSystemDictionaries
-    } = usePlayerStore();
 
     useEffect(() => {
         fetchVideoGlossary();
         fetchSystemDictionaries();
     }, [lessonId]);
-
-
-    const handleApplySettings = async () => {
-        setIsSaving(true);
-        try {
-            // Save settings to database
-            await axios.patch(`/api/study/lesson/${lessonId}/settings`, {
-                sourceTrackId,
-                autoSegmentationEnabled,
-                useOfflineDict,
-                analysisSource
-            });
-
-            // Trigger analysis for current line if active
-            if (activeLineIndex !== -1) {
-                const currentText = subtitles[activeLineIndex]?.text || '';
-                const selectedTrack = availableTracks.find(t => t.id === sourceTrackId);
-                const srcLang = selectedTrack?.language_code || 'ja';
-                await fetchAnalyzedWords(currentText, srcLang);
-            }
-            // Switch to Live Tab after saving
-            setActiveTab('live');
-        } catch (err) {
-            console.error("Failed to save settings:", err);
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     const handleSaveToVocab = async (item: any) => {
         try {
@@ -105,13 +63,10 @@ export const VocabPanel: React.FC = () => {
     // Statistics Calculation - aggregate from all subtitles
     const vocabStats = useMemo(() => {
         const counts: Record<string, { term: string, reading: string, count: number }> = {};
-        
         const delimiters = ['|', '/', ' '];
         
         subtitles.forEach(line => {
-            // Find active delimiter like backend does
             const activeDelimiter = delimiters.find(d => line.text.includes(d));
-            
             let words: string[] = [];
             if (activeDelimiter) {
                 words = line.text.split(activeDelimiter).map(w => w.trim()).filter(w => w.length > 0);
@@ -129,7 +84,6 @@ export const VocabPanel: React.FC = () => {
             });
         });
 
-        // Merge with reading/meaning info from analyzedWords if currently present
         analyzedWords.forEach(aw => {
             if (counts[aw.surface]) {
                 counts[aw.surface].reading = aw.reading || '';
@@ -137,7 +91,7 @@ export const VocabPanel: React.FC = () => {
         });
 
         return Object.values(counts)
-            .filter(v => v.term.length > 1 || /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(v.term)) // Filter noise but keep CJK
+            .filter(v => v.term.length > 1 || /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(v.term))
             .sort((a, b) => b.count - a.count)
             .slice(0, 100);
     }, [subtitles, analyzedWords]);
@@ -164,7 +118,6 @@ export const VocabPanel: React.FC = () => {
                 
                 <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
                     {[
-                        { id: 'track', label: 'Settings', icon: Activity },
                         { id: 'live', label: 'Analysis', icon: Globe },
                         { id: 'stats', label: 'Stats', icon: BarChart3 },
                     ].map((tab) => (
@@ -186,140 +139,6 @@ export const VocabPanel: React.FC = () => {
 
             <div className="flex-1 overflow-hidden relative">
                 <AnimatePresence mode="wait">
-                    {activeTab === 'track' && (
-                        <motion.div 
-                            key="track"
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 20 }}
-                            className="p-6 space-y-8 h-full overflow-y-auto no-scrollbar"
-                        >
-                            {/* Subtitle Track Selection */}
-                            <div className="space-y-4">
-                                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                    <Globe size={12} className="text-sky-500" />
-                                    Subtitle Track
-                                </label>
-                                <div className="relative group">
-                                    <select 
-                                        value={sourceTrackId || ''}
-                                        onChange={(e) => setSourceTrackId(Number(e.target.value))}
-                                        className="w-full bg-slate-900/60 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black uppercase tracking-wider text-white appearance-none cursor-pointer outline-none focus:border-sky-500/50 transition-all shadow-inner"
-                                    >
-                                        <option value="" disabled>Select a track...</option>
-                                        {availableTracks.map((track: any) => (
-                                            <option key={track.id} value={track.id}>
-                                                [{ (track.language_code || '??').toUpperCase() }] {track.name || 'Untitled Track'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-hover:text-sky-500 transition-colors">
-                                        <ChevronDown size={14} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Segmentation Toggle */}
-                            <div className="space-y-4">
-                                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                    <Activity size={12} className="text-amber-500" />
-                                    Analysis Mode
-                                </label>
-                                <div className="p-6 rounded-[32px] bg-slate-900/40 border border-white/5 flex items-center justify-between">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">
-                                            {autoSegmentationEnabled ? 'Automatic Splitting' : 'Original Subtitle'}
-                                        </span>
-                                        <span className="text-[9px] text-slate-500 font-medium leading-tight max-w-[180px]">
-                                            {autoSegmentationEnabled 
-                                                ? 'AI analyzes and splits sentences into words automatically.' 
-                                                : 'Strictly follow the time-aligned lines from the subtitle file.'}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            const newVal = !autoSegmentationEnabled;
-                                            setAutoSegmentationEnabled(newVal);
-                                            // Also update analysis source to match
-                                            setAnalysisSource(newVal ? 'auto' : 'track', sourceTrackId);
-                                        }}
-                                        className={`w-12 h-6 rounded-full relative transition-all flex-shrink-0 ${autoSegmentationEnabled ? 'bg-sky-500' : 'bg-slate-800'}`}
-                                    >
-                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all ${autoSegmentationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Dictionary Language */}
-                            <div className="space-y-4">
-                                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                    <Languages size={12} className="text-emerald-500" />
-                                    Dictionary Target
-                                </label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {['vi', 'en', 'cn'].map(lang => (
-                                        <button
-                                            key={lang}
-                                            onClick={() => setTargetLang(lang as any)}
-                                            className={`px-3 py-3 rounded-2xl border text-[10px] font-black uppercase transition-all ${
-                                                targetLang === lang 
-                                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' 
-                                                : 'bg-white/5 border-white/5 text-slate-500'
-                                            }`}
-                                        >
-                                            {lang.toUpperCase()}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Dictionary Selection (Dynamic based on pair) */}
-                            {sourceTrackId && (
-                                <div className="space-y-4">
-                                    <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                        <Book size={12} className="text-rose-500" />
-                                        Dictionary Selection
-                                    </label>
-                                    <div className="relative group">
-                                        <select 
-                                            value={preferredSystemDictId || ''}
-                                            onChange={(e) => setPreferredSystemDictId(e.target.value)}
-                                            className="w-full bg-slate-900/60 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black uppercase tracking-wider text-white appearance-none cursor-pointer outline-none focus:border-rose-500/50 transition-all shadow-inner"
-                                        >
-                                            <option value="">Default (System Auto)</option>
-                                            {globalDictionaries
-                                                .filter(d => {
-                                                    const selectedTrack = availableTracks.find(t => t.id === sourceTrackId);
-                                                    const srcLang = selectedTrack?.language_code || 'ja';
-                                                    return d.src === srcLang && d.target === targetLang;
-                                                })
-                                                .map(dict => (
-                                                    <option key={dict.id} value={dict.id}>
-                                                        {dict.name} ({dict.count} terms)
-                                                    </option>
-                                                ))
-                                            }
-                                        </select>
-                                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-hover:text-rose-500 transition-colors">
-                                            <ChevronDown size={14} />
-                                        </div>
-                                    </div>
-                                    <p className="text-[9px] text-slate-600 font-bold px-2 italic uppercase">
-                                        Showing dictionaries for {availableTracks.find(t => t.id === sourceTrackId)?.language_name || '...'} → {targetLang.toUpperCase()}
-                                    </p>
-                                </div>
-                            )}
-
-                            <button
-                                onClick={handleApplySettings}
-                                disabled={isSaving}
-                                className="w-full py-5 rounded-[32px] bg-sky-500 text-slate-950 text-[11px] font-black uppercase tracking-[0.3em] shadow-xl shadow-sky-500/20 active:scale-95 transition-all"
-                            >
-                                {isSaving ? 'Applying...' : 'Apply & Refresh'}
-                            </button>
-                        </motion.div>
-                    )}
-
                     {activeTab === 'live' && (
                         <motion.div 
                             key="live"
@@ -330,7 +149,7 @@ export const VocabPanel: React.FC = () => {
                         >
                             <div className="flex items-center justify-between">
                                 <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-600 flex items-center gap-2">
-                                    <Activity size={14} className="text-sky-500" />
+                                    <Globe size={14} className="text-sky-500" />
                                     Current Vocabulary
                                 </h3>
                                 <div className="flex items-center gap-4">
@@ -339,8 +158,9 @@ export const VocabPanel: React.FC = () => {
                                     </button>
                                     <button 
                                         onClick={() => {
+                                            const { sourceTrackId, availableTracks, originalLang } = usePlayerStore.getState();
                                             const selectedTrack = availableTracks.find(t => t.id === sourceTrackId);
-                                            const srcLang = selectedTrack?.language_code || 'ja';
+                                            const srcLang = selectedTrack?.language_code || originalLang || 'ja';
                                             fetchAnalyzedWords(subtitles[activeLineIndex]?.text || '', srcLang);
                                         }}
                                         className="text-slate-600 hover:text-white"
@@ -350,7 +170,7 @@ export const VocabPanel: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid gap-4">
+                            <div className="grid gap-4 h-full overflow-y-auto no-scrollbar pb-20">
                                 {analyzedWords.map((item: any, idx: number) => {
                                     const isSaved = justAdded.has(item.surface || item.lemma || item.term);
                                     const isSkip = item.lemma === 'skip' || item.lemma_override === 'skip';
@@ -412,7 +232,7 @@ export const VocabPanel: React.FC = () => {
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: 20 }}
-                            className="p-6 space-y-6"
+                            className="p-6 space-y-6 h-full overflow-y-auto no-scrollbar pb-20"
                         >
                             <div className="flex items-center justify-between">
                                 <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-600 flex items-center gap-2">

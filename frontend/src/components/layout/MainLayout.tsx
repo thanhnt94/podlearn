@@ -8,13 +8,12 @@ import { BottomNav } from './BottomNav';
 import { AchievementModal } from '../dashboard/AchievementModal';
 
 export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const location = useLocation();
   const isPlayerRoute = location.pathname.includes('/player/');
 
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-slate-200 overflow-hidden font-sans">
-      <SettingsDrawer isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SettingsDrawer />
       <AchievementModal />
 
       {/* 1. Header cho Mobile (Ẩn trên Desktop và ẩn khi ở trong Player) */}
