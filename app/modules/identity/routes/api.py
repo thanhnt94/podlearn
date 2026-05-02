@@ -105,6 +105,9 @@ def sso_login():
     """Redirect to Central Auth login page."""
     sso = SSOService.get_client()
     callback_url = url_for('identity_api.sso_callback', _external=True)
+    # Ensure https for production domains
+    if 'mindstack.click' in callback_url:
+        callback_url = callback_url.replace('http://', 'https://')
     return redirect(sso.get_login_url(callback_url))
 
 @identity_api.route('/sso/callback')
