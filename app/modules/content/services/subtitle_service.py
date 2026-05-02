@@ -46,7 +46,6 @@ def _get_ytdlp_opts(extra_opts=None):
         'connect_timeout': 10,
         'extractor_args': {
             'youtube': {
-                'skip': ['dash', 'hls'], # Try skipping manifest to see if it speeds up or bypasses
                 'player_client': ['android', 'web'],
             }
         },

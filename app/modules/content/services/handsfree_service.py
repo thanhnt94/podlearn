@@ -503,15 +503,27 @@ def get_direct_audio_url(video_id: str) -> dict | None:
         return None
         
     formats = info.get('formats', [])
+    if not formats:
+        # One last ditch effort: maybe it was cached as flat without formats
+        print(f">>> [HF-FALLBACK] No formats in cache. Retrying fresh... <<<")
+        ydl_opts = _get_ytdlp_opts({
+            'extract_flat': False,
+            'youtube_include_dash_manifest': True,
+            'youtube_include_hls_manifest': True,
+        })
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            formats = info.get('formats', []) if info else []
+
     # Filter for audio-only formats
-    # Note: vcodec is often 'none' for DASH audio streams
     audio_formats = [
         f for f in formats 
-        if f.get('acodec') != 'none' and (f.get('vcodec') == 'none' or not f.get('vcodec'))
+        if f.get('acodec') != 'none' and (not f.get('vcodec') or f.get('vcodec') == 'none')
     ]
     
     if not audio_formats:
-        print(f">>> [HF-FALLBACK] FAILED: No audio formats found in metadata for {video_id} <<<")
+        all_exts = set(f.get('ext') for f in formats)
+        print(f">>> [HF-FALLBACK] FAILED: No audio formats found. Available exts: {all_exts} <<<")
         return None
         
     # Pick the best audio format (usually the last one in the list is higher bitrate)
