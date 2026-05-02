@@ -240,6 +240,26 @@ def get_handsfree_original(video_id):
         return jsonify(result)
     return jsonify({"error": "Failed to fetch original audio"}), 500
 
+@content_api.route('/audio-stream/<video_id>', methods=['GET'])
+@jwt_required()
+def get_audio_stream_url(video_id):
+    """Extract a direct audio stream URL for background playback mode.
+    Returns a temporary YouTube audio URL that can be played via <audio> element.
+    """
+    from app.modules.content.services.handsfree_service import get_direct_audio_url
+    
+    result = get_direct_audio_url(video_id)
+    if result:
+        return jsonify({"success": True, **result})
+    
+    # Fallback: try to serve a pre-downloaded file
+    from app.modules.content.services.handsfree_service import get_original_audio_info
+    result = get_original_audio_info(video_id)
+    if result:
+        return jsonify({"success": True, **result})
+    
+    return jsonify({"success": False, "error": "Could not extract audio stream"}), 500
+
 # ── AI ASSESSMENT STUBS (Cost Optimization) ───────────────────
 
 @content_api.route('/ai/analyze-sentence', methods=['POST'])

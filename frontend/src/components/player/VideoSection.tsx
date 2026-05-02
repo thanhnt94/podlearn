@@ -21,6 +21,9 @@ export const VideoSection: React.FC = () => {
   const playerRef = useRef<HTMLDivElement>(null);
   const ytPlayer = useRef<any>(null);
   const pollInterval = useRef<number | null>(null);
+  const bgAudioRef = useRef<HTMLAudioElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const wasPlayingRef = useRef(false);
   
   const { 
     videoId, setPlaying, setCurrentTime, setDuration, isPlaying, seekToTime,
@@ -141,6 +144,40 @@ export const VideoSection: React.FC = () => {
     return `${m}:${s < 10 ? '0' + s : s}`;
   };
 
+  // Initialize Background Audio Keeper (Web Audio API)
+  useEffect(() => {
+    if (!audioCtxRef.current) {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        // Create a near-silent oscillator (inaudible frequency, near-zero volume)
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.frequency.value = 1; // 1Hz - inaudible
+        gainNode.gain.value = 0.001; // Near-silent
+        oscillator.connect(gainNode);
+        
+        // Route through MediaStream -> real <audio> element
+        const dest = ctx.createMediaStreamDestination();
+        gainNode.connect(dest);
+        gainNode.connect(ctx.destination); // Also connect to output for Media Session
+        oscillator.start();
+        
+        if (bgAudioRef.current) {
+          bgAudioRef.current.srcObject = dest.stream;
+        }
+        audioCtxRef.current = ctx;
+      } catch (e) {
+        console.warn('Background audio init failed:', e);
+      }
+    }
+    return () => {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+      }
+    };
+  }, []);
+
   // Sync isPlaying state from Store to Player (manual control)
   useEffect(() => {
     if (!ytPlayer.current || !isReady || !ytPlayer.current.getPlayerState) return;
@@ -156,24 +193,49 @@ export const VideoSection: React.FC = () => {
 
     if (isPlaying && currentState !== window.YT.PlayerState.PLAYING) {
       ytPlayer.current.playVideo();
-      // Start background audio trick
-      const bgAudio = document.getElementById('bg-audio-helper') as HTMLAudioElement;
-      if (bgAudio) bgAudio.play().catch(() => {});
+      // Resume AudioContext and start background audio
+      if (audioCtxRef.current?.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+      if (bgAudioRef.current) bgAudioRef.current.play().catch(() => {});
     } else if (!isPlaying && currentState === window.YT.PlayerState.PLAYING) {
       ytPlayer.current.pauseVideo();
-      // Pause background audio trick
-      const bgAudio = document.getElementById('bg-audio-helper') as HTMLAudioElement;
-      if (bgAudio) bgAudio.pause();
+      if (bgAudioRef.current) bgAudioRef.current.pause();
     }
   }, [isPlaying, isLockedPaused]);
+
+  // Page Visibility: Auto-resume YouTube when returning to app
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        // Remember if we were playing before leaving
+        wasPlayingRef.current = usePlayerStore.getState().isPlaying;
+      } else if (document.visibilityState === 'visible') {
+        // Returned to app - try to resume if was playing
+        if (wasPlayingRef.current && ytPlayer.current && isReady) {
+          setTimeout(() => {
+            try {
+              const state = ytPlayer.current?.getPlayerState?.();
+              if (state !== window.YT.PlayerState.PLAYING) {
+                ytPlayer.current.playVideo();
+                usePlayerStore.setState({ isPlaying: true });
+              }
+            } catch (e) {}
+          }, 300);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isReady]);
 
   // Media Session API for Lock Screen Controls
   useEffect(() => {
     if ('mediaSession' in navigator && videoId) {
-      const { lessonTitle, skipNextSentence, skipPrevSentence, setPlaying, requestSeek } = usePlayerStore.getState();
+      const { lessonTitle: title, skipNextSentence, skipPrevSentence, setPlaying: sp, requestSeek: rs } = usePlayerStore.getState();
       
       navigator.mediaSession.metadata = new window.MediaMetadata({
-        title: lessonTitle || 'PodLearn Lesson',
+        title: title || 'PodLearn Lesson',
         artist: 'PodLearn AuraFlow',
         album: 'Language Learning',
         artwork: [
@@ -181,12 +243,12 @@ export const VideoSection: React.FC = () => {
         ]
       });
 
-      navigator.mediaSession.setActionHandler('play', () => setPlaying(true));
-      navigator.mediaSession.setActionHandler('pause', () => setPlaying(false));
+      navigator.mediaSession.setActionHandler('play', () => sp(true));
+      navigator.mediaSession.setActionHandler('pause', () => sp(false));
       navigator.mediaSession.setActionHandler('previoustrack', () => skipPrevSentence());
       navigator.mediaSession.setActionHandler('nexttrack', () => skipNextSentence());
-      navigator.mediaSession.setActionHandler('seekbackward', () => requestSeek(usePlayerStore.getState().currentTime - 5));
-      navigator.mediaSession.setActionHandler('seekforward', () => requestSeek(usePlayerStore.getState().currentTime + 5));
+      navigator.mediaSession.setActionHandler('seekbackward', () => rs(usePlayerStore.getState().currentTime - 5));
+      navigator.mediaSession.setActionHandler('seekforward', () => rs(usePlayerStore.getState().currentTime + 5));
     }
   }, [videoId, lessonTitle]);
 
@@ -231,11 +293,12 @@ export const VideoSection: React.FC = () => {
 
   return (
     <div id="player-container" className="relative w-full h-full bg-black group overflow-hidden">
-      {/* Background Audio Trick for Mobile Background Playback */}
+      {/* Background Audio Keeper - real MediaStream for lock screen support */}
       <audio 
+        ref={bgAudioRef}
         id="bg-audio-helper"
         loop
-        src="data:audio/wav;base64,UklGRigAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAP8AAf8=" 
+        playsInline
         className="hidden"
       />
 
