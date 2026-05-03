@@ -1,7 +1,8 @@
 import React from 'react';
-import { Play, CheckCircle2, Clock, Trash2, Layers, Plus, Globe, Lock, ShieldCheck, Hourglass } from 'lucide-react';
+import { Play, CheckCircle2, Clock, Trash2, Layers, Plus, Globe, Lock, ShieldCheck, Hourglass, Package, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
+import axios from 'axios';
 
 interface LessonCardProps {
     lesson: any;
@@ -14,9 +15,38 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
     const { video, time_spent, is_completed, last_accessed } = lesson;
     const { user, playlists, addVideoToPlaylist } = useAppStore();
     const [showPlaylistSelector, setShowPlaylistSelector] = React.useState(false);
+    const [isExporting, setIsExporting] = React.useState(false);
 
     const isAdmin = user?.is_admin;
     const progressPercent = Math.min(100, Math.round((time_spent / (video.duration_seconds || 1)) * 100));
+
+    const handleExport = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsExporting(true);
+        try {
+            const response = await axios.get(`/api/study/portable/export/${lesson.id}`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = `lesson_package_${lesson.id}.json`;
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename=(.+)/);
+                if (match) filename = match[1];
+            }
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("Export failed", err);
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     const formatDuration = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
@@ -187,6 +217,16 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                                 <ShieldCheck size={16} />
                             </button>
                         )}
+
+                        <button 
+                            type="button"
+                            onClick={handleExport}
+                            disabled={isExporting}
+                            className={`p-2 rounded-xl transition-all border ${isExporting ? 'bg-sky-500/20 text-sky-400 border-sky-500/30' : 'bg-slate-800 text-slate-400 border-white/10 hover:bg-sky-500/10 hover:text-sky-400'}`}
+                            title="Export JSON Package"
+                        >
+                            {isExporting ? <RefreshCw size={16} className="animate-spin" /> : <Package size={16} />}
+                        </button>
 
                         {onToggleVisibility && (isAdmin || video.visibility !== 'public') && (
                             <button 
