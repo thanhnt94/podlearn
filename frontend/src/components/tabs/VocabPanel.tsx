@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Plus, Check, Globe, RotateCcw,
     BarChart3, AlertCircle, Clock, Languages,
-    Layers
+    Layers, StickyNote
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +15,6 @@ import { FlashcardTab } from './FlashcardTab';
 export const VocabPanel: React.FC = () => {
     const { 
         lessonId, activeLineIndex, subtitles,
-        fetchNotes,
         analyzedWords, fetchAnalyzedWords,
         showFurigana, toggleFurigana,
         fetchSystemDictionaries,
@@ -43,13 +42,38 @@ export const VocabPanel: React.FC = () => {
                 lesson_id: lessonId,
                 word: term,
                 reading: item.reading,
-                meaning: Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning),
+                meaning: Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning || ''),
                 example: exampleText
             });
             
-            setJustAdded(prev => new Set(prev).add(term));
+            setJustAdded(prev => new Set(prev).add(term + '-vocab'));
             usePlayerStore.getState().fetchVocab();
-            fetchNotes();
+        } catch (err) {}
+    };
+
+    const handleSaveNote = async (item: any) => {
+        try {
+            const currentLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
+            const timestamp = currentLine ? currentLine.start : 0;
+            const exampleText = (item.original || currentLine?.text || '')
+                .replace(/\|/g, '')
+                .replace(/\s*\[[^\]]*\]/g, '');
+            
+            const term = item.lemma || item.surface || item.term || item.word;
+            const reading = item.reading || '';
+            const meaning = Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning || '');
+            
+            const noteContent = `**${term}**${reading ? ` [${reading}]` : ''}\n${meaning}\n\n*${exampleText}*`;
+            
+            const response = await axios.post(`/api/study/lesson/${lessonId}/notes`, {
+                timestamp: timestamp,
+                content: noteContent
+            });
+            
+            if (response.data.success) {
+                usePlayerStore.getState().appendNote(response.data.note);
+                setJustAdded(prev => new Set(prev).add(term + '-note'));
+            }
         } catch (err) {}
     };
 
@@ -152,7 +176,9 @@ export const VocabPanel: React.FC = () => {
                                 {analyzedWords.filter((item: any) => {
                                     return !(['-', 's', 'skip'].includes(item.lemma) || ['-', 's', 'skip'].includes(item.lemma_override));
                                 }).map((item: any, idx: number) => {
-                                    const isSaved = justAdded.has(item.surface || item.lemma || item.term);
+                                    const term = item.surface || item.lemma || item.term;
+                                    const isSavedVocab = justAdded.has(term + '-vocab');
+                                    const isSavedNote = justAdded.has(term + '-note');
                                     const displaySurface = (item.surface || item.lemma || '').replace(/\{[^\}]+\}/g, '').replace(/\[[^\]]*\]/g, '');
                                     
                                     return (
@@ -178,12 +204,22 @@ export const VocabPanel: React.FC = () => {
                                                         </ReactMarkdown>
                                                     </div>
                                                 </div>
-                                                <button 
-                                                    onClick={() => handleSaveToVocab(item)} 
-                                                    className={`p-4 rounded-2xl transition-all duration-300 shadow-xl active:scale-90 ${isSaved ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white'}`}
-                                                >
-                                                    {isSaved ? <Check size={20} strokeWidth={3} /> : <Plus size={20} strokeWidth={3} />}
-                                                </button>
+                                                <div className="flex flex-col gap-2 relative z-20">
+                                                    <button 
+                                                        onClick={() => handleSaveToVocab(item)} 
+                                                        className={`p-3 rounded-xl transition-all duration-300 shadow-lg active:scale-90 ${isSavedVocab ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white'}`}
+                                                        title="Add to Flashcards"
+                                                    >
+                                                        {isSavedVocab ? <Check size={16} strokeWidth={3} /> : <Plus size={16} strokeWidth={3} />}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleSaveNote(item)} 
+                                                        className={`p-3 rounded-xl transition-all duration-300 shadow-lg active:scale-90 ${isSavedNote ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-emerald-500 hover:text-white'}`}
+                                                        title="Add to Notes"
+                                                    >
+                                                        {isSavedNote ? <Check size={16} strokeWidth={3} /> : <StickyNote size={16} strokeWidth={3} />}
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </motion.div>
@@ -229,12 +265,28 @@ export const VocabPanel: React.FC = () => {
                                                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{item.reading}</span>
                                             </div>
                                         </div>
-                                        <div className="flex flex-col items-end gap-1">
-                                            <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 rounded-full border border-amber-500/20">
-                                                <Clock size={10} className="text-amber-500" />
-                                                <span className="text-[10px] font-black text-amber-500">{item.count}</span>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex flex-col items-end gap-1">
+                                                <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 rounded-full border border-amber-500/20">
+                                                    <Clock size={10} className="text-amber-500" />
+                                                    <span className="text-[10px] font-black text-amber-500">{item.count}</span>
+                                                </div>
+                                                <span className="text-[8px] font-black text-slate-700 uppercase tracking-tighter">Occurrences</span>
                                             </div>
-                                            <span className="text-[8px] font-black text-slate-700 uppercase tracking-tighter">Occurrences</span>
+                                            <div className="flex flex-col gap-1.5 ml-2">
+                                                <button 
+                                                    onClick={() => handleSaveToVocab(item)} 
+                                                    className={`p-2 rounded-lg transition-all active:scale-90 ${justAdded.has(item.term + '-vocab') ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-500 hover:bg-sky-500 hover:text-white'}`}
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleSaveNote(item)} 
+                                                    className={`p-2 rounded-lg transition-all active:scale-90 ${justAdded.has(item.term + '-note') ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-500 hover:bg-emerald-500 hover:text-white'}`}
+                                                >
+                                                    <StickyNote size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

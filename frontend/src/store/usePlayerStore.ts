@@ -243,7 +243,7 @@ interface PlayerState {
   fetchNotes: () => Promise<void>;
   fetchVocab: () => Promise<void>;
   addVocab: (word: string, reading: string, meaning: string) => Promise<void>;
-  updateVocab: (id: number, data: { reading?: string, meaning?: string }) => Promise<void>;
+  updateVocab: (id: number, data: { reading?: string, meaning?: string, extra_data?: any }) => Promise<void>;
   removeVocab: (word: string) => Promise<void>;
   fetchShadowingStats: () => Promise<void>;
   setAutoNext: (isAutoNext: boolean) => void;
@@ -945,7 +945,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         get().fetchVocab();
     } catch (e) {}
   },
-  updateVocab: async (id: number, data: { reading?: string, meaning?: string }) => {
+  updateVocab: async (id: number, data: { reading?: string, meaning?: string, extra_data?: any }) => {
     const { lessonId } = get();
     if (!lessonId) return;
     try {

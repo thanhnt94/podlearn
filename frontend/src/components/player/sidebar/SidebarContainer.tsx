@@ -10,8 +10,7 @@ import {
     Target,
     Mic2,
     Type,
-    Sparkles,
-    Search
+    Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -111,13 +110,7 @@ export const SidebarContainer: React.FC = () => {
                             </motion.div>
                         )}
                         {activeTab === 'Vocab' && (
-                            <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-center justify-between px-1">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-500"><BookMarked size={14} /></div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word Manager</span>
-                                </div>
-                                <div className="p-2 text-slate-600 hover:text-white transition-colors cursor-pointer"><Search size={16} /></div>
-                            </motion.div>
+                            <div className="h-6" />
                         )}
                     </AnimatePresence>
                 </div>

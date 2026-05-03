@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Zap, ExternalLink, RotateCcw } from 'lucide-react';
+import { Plus, ExternalLink, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -65,11 +65,11 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
         >
-            <div className="w-96 bg-[#0a0a0c]/95 border border-white/10 rounded-[2.5rem] shadow-[0_40px_100_rgba(0,0,0,0.9)] backdrop-blur-2xl overflow-hidden border-t-white/20">
-                <div className="bg-gradient-to-b from-white/5 to-transparent p-8 pb-4">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="space-y-1">
-                            <h4 className="text-3xl font-black text-white tracking-tight leading-loose">
+            <div className="w-80 bg-[#0a0a0c]/95 border border-white/10 rounded-[2rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.9)] backdrop-blur-2xl overflow-hidden border-t-white/20">
+                <div className="bg-gradient-to-b from-white/5 to-transparent p-5 pb-3">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="space-y-0.5">
+                            <h4 className="text-2xl font-black text-white tracking-tight leading-tight">
                                 {processFurigana(term)}
                             </h4>
                             {hoveredToken.word.lemma && hoveredToken.word.lemma !== hoveredToken.word.surface && hoveredToken.word.lemma !== 'skip' && (
@@ -89,53 +89,49 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
                                 )}
                             </div>
                         </div>
-                        <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-500">
-                            <Zap size={20} />
+                        <div className="flex gap-1.5 shrink-0">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onAddVocab(hoveredToken.word); }}
+                                className="w-8 h-8 flex items-center justify-center bg-sky-500 text-slate-950 rounded-lg hover:bg-sky-400 hover:scale-[1.05] active:scale-95 transition-all shadow-lg shadow-sky-500/20"
+                                title="Add to Vocab"
+                            >
+                                <Plus size={16} strokeWidth={4} />
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onAddNote(hoveredToken.word); }}
+                                className="w-8 h-8 flex items-center justify-center bg-emerald-500 text-slate-950 rounded-lg hover:bg-emerald-400 hover:scale-[1.05] active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
+                                title="Add to Note"
+                            >
+                                <RotateCcw size={16} strokeWidth={4} />
+                            </button>
+                            <a 
+                                href={`https://jisho.org/search/${cleanLookupTerm}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-8 h-8 flex items-center justify-center bg-white/5 text-slate-400 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition-all"
+                                title="Search on Jisho"
+                            >
+                                <ExternalLink size={14} />
+                            </a>
                         </div>
                     </div>
                 </div>
                 
-                <div className="px-8 pb-8 space-y-6">
-                    <div className="space-y-4">
-                        <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2 text-slate-300 text-sm leading-relaxed font-medium">
-                            {hoveredToken.word.meanings && hoveredToken.word.meanings.length > 0 ? (
-                                hoveredToken.word.meanings.map((m: string, i: number) => (
-                                    <div key={i} className="flex gap-4 bg-white/5 p-3 rounded-2xl border border-white/5">
-                                        <span className="text-sky-500 font-black text-xs opacity-60 mt-0.5">{i+1}</span>
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                                            {m}
-                                        </ReactMarkdown>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-[11px] text-slate-600 italic text-center p-4">No definition found.</p>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-3 pointer-events-auto pt-2">
-                        <div className="flex gap-3">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onAddVocab(hoveredToken.word); }}
-                                className="flex-1 flex items-center justify-center gap-3 py-4 bg-sky-500 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-sky-400 hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
-                            >
-                                <Plus size={18} strokeWidth={4} /> Add Vocab
-                            </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onAddNote(hoveredToken.word); }}
-                                className="flex-1 flex items-center justify-center gap-3 py-4 bg-emerald-500 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-400 hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
-                            >
-                                <RotateCcw size={18} strokeWidth={4} /> Add Note
-                            </button>
-                        </div>
-                        <a 
-                            href={`https://jisho.org/search/${cleanLookupTerm}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full flex items-center justify-center py-3 bg-white/5 rounded-2xl text-slate-500 hover:bg-white/10 hover:text-white transition-all border border-white/10 text-[10px] font-bold uppercase tracking-widest"
-                        >
-                            <ExternalLink size={14} className="mr-2" /> Search Jisho
-                        </a>
+                <div className="px-5 pb-5">
+                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1.5 text-slate-300 text-[13px] leading-relaxed font-medium">
+                        {hoveredToken.word.meanings && hoveredToken.word.meanings.length > 0 ? (
+                            hoveredToken.word.meanings.map((m: string, i: number) => (
+                                <div key={i} className="flex gap-3 bg-white/5 p-2.5 rounded-xl border border-white/5">
+                                    <span className="text-sky-500 font-black text-[10px] opacity-60 mt-0.5">{i+1}</span>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                                        {m}
+                                    </ReactMarkdown>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-[11px] text-slate-600 italic text-center p-2">No definition found.</p>
+                        )}
                     </div>
                 </div>
             </div>
