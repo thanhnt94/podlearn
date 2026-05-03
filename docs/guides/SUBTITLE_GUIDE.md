@@ -9,10 +9,12 @@
 ## 2. Cấu trúc nội dung (Syntax đặc biệt)
 
 ### A. Furigana (Cách đọc)
-Sử dụng dấu ngoặc nhọn `{}` ngay sau từ.
-*   **Kanji**: `HánTự{hiragana}` -> Ví dụ: `昨日{きのう}`
-*   **Katakana (Từ mượn)**: `Katakana{từ_gốc_lowercase}` -> Ví dụ: `ポッドキャスト{podcast}`
-*   **Katakana (Từ thuần Nhật/Từ tượng thanh)**: `Katakana{hiragana}` -> Ví dụ: `コロコロ{ころころ}`, `サッパリ{さっぱり}`
+Sử dụng dấu ngoặc nhọn `{}` ngay sau chữ Hán hoặc Katakana.
+*   **Kanji (CHỈ dùng cho chữ Hán)**: `HánTự{hiragana}` -> Ví dụ: `昨日{きのう}`. 
+    *   *Lưu ý*: Nếu từ có cả Hiragana đi kèm (Okurigana), chỉ đặt `{}` sau phần chữ Hán. 
+    *   *Ví dụ*: `聞{き}きたくて` (Đúng), `聞きたくて{ききたくて}` (Sai).
+*   **Katakana (Từ mượn)**: `Katakana{từ_gốc_lowercase}` -> Ví dụ: `ポッドキャスト{podcast}`.
+*   **Katakana (Từ tượng thanh)**: `Katakana{hiragana}` -> Ví dụ: `コロコロ{ころころ}`.
 
 ### B. Phân tách từ (Segmentation)
 Sử dụng dấu gạch đứng `|` để ngăn cách các từ. (Tuyệt đối không có khoảng trắng quanh dấu `|`).
@@ -35,10 +37,15 @@ Bạn là một chuyên gia Ngôn ngữ học tiếng Nhật. Hãy xử lý nộ
 
 1. GIỮ NGUYÊN định dạng SRT (số thứ tự và timestamps).
 2. Dùng dấu gạch đứng `|` để phân tách từ (KHÔNG có khoảng trắng).
-3. Furigana cho Katakana (QUAN TRỌNG):
-   - Nếu là từ mượn tiếng nước ngoài (Gairaigo): Thêm từ gốc tiếng Anh/ngoại ngữ (viết thường) vào { }. Ví dụ: ポッドキャスト{podcast}.
-   - Nếu là từ thuần Nhật, từ tượng thanh (Onomatopoeia) viết bằng Katakana: Thêm Hiragana tương ứng vào { }. Ví dụ: コロコロ{ころころ}, サッパリ{さっぱり}.
-4. Furigana cho Kanji: Thêm Hiragana vào { }. Ví dụ: 日本{にほん}.
+3. Furigana cho Kanji (RẤT QUAN TRỌNG): 
+   - CHỈ thêm Furigana cho phần chữ Hán (Kanji). 
+   - Đặt dấu { } ngay sau chữ Hán đó. 
+   - TUYỆT ĐỐI không bao gồm phần chữ mềm Hiragana đi kèm (Okurigana) vào trong dấu { }.
+   - Ví dụ ĐÚNG: 聞{き}きたくて, 食べ{た}べました.
+   - Ví dụ SAI: 聞きたくて{ききたくて}, 食べました{たべました}.
+4. Furigana cho Katakana:
+   - Nếu là từ mượn: Thêm từ gốc ngoại ngữ (viết thường) vào { }. Ví dụ: ポッドキャスト{podcast}.
+   - Nếu là từ thuần Nhật/Tượng thanh: Thêm Hiragana vào { }. Ví dụ: コロコロ{ころころ}.
 5. Lemma: Với Động từ/Tính từ, khôi phục về thể từ điển trong [ ]. Ví dụ: 食べたい[食べる].
 6. Nhãn Skip [-]:
    - Dùng cho trợ từ, dấu câu, từ đệm.
