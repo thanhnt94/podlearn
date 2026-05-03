@@ -32,7 +32,7 @@ export const VocabPanel: React.FC = () => {
     const handleSaveToVocab = async (item: any) => {
         try {
             const exampleText = (item.original || subtitles[activeLineIndex]?.text || '')
-                .replace(/[|/]/g, '')
+                .replace(/\|/g, '')
                 .replace(/\s*\[[^\]]*\]/g, '');
                 
             const term = item.lemma || item.surface || item.term || item.word;
@@ -63,7 +63,7 @@ export const VocabPanel: React.FC = () => {
     // Statistics Calculation - aggregate from all subtitles
     const vocabStats = useMemo(() => {
         const counts: Record<string, { term: string, reading: string, count: number }> = {};
-        const delimiters = ['|', '/', ' '];
+        const delimiters = ['|', ' '];
         
         subtitles.forEach(line => {
             const activeDelimiter = delimiters.find(d => line.text.includes(d));
@@ -173,7 +173,7 @@ export const VocabPanel: React.FC = () => {
                             <div className="grid gap-4 h-full overflow-y-auto no-scrollbar pb-20">
                                 {analyzedWords.map((item: any, idx: number) => {
                                     const isSaved = justAdded.has(item.surface || item.lemma || item.term);
-                                    const isSkip = item.lemma === 'skip' || item.lemma_override === 'skip';
+                                    const isSkip = ['-', 's', 'skip'].includes(item.lemma) || ['-', 's', 'skip'].includes(item.lemma_override);
                                     
                                     return (
                                         <motion.div 

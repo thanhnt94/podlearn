@@ -8,7 +8,7 @@ import { soundEffects } from '../../services/SoundEffectsService';
 import { VocabTooltip } from './VocabTooltip';
 
 const TokenEditChip = ({ token, isLast, onMerge, onDelete, onClick }: any) => {
-    const isSkip = token.lemma_override === 'skip';
+    const isSkip = ['-', 's', 'skip'].includes(token.lemma_override);
 
     return (
         <div 
@@ -29,7 +29,7 @@ const TokenEditChip = ({ token, isLast, onMerge, onDelete, onClick }: any) => {
                     </span>
                 )}
                 {isSkip && (
-                    <span className="text-[8px] text-rose-500/60 font-black uppercase tracking-[0.2em] -mt-0.5">SKIP</span>
+                    <span className="text-[8px] text-rose-500/60 font-black uppercase tracking-[0.2em] -mt-0.5">-</span>
                 )}
             </div>
 
@@ -83,7 +83,7 @@ export const LearningFocusBar: React.FC = () => {
         const token = editTokens[idx];
         setEditingIdx(idx);
         setEditValue(token.surface);
-        setEditSkip(token.lemma_override === 'skip');
+        setEditSkip(['-', 's', 'skip'].includes(token.lemma_override));
     };
 
     const applyTokenChanges = () => {
@@ -92,7 +92,7 @@ export const LearningFocusBar: React.FC = () => {
         newTokens[editingIdx] = { 
             ...newTokens[editingIdx], 
             surface: editValue.trim(), 
-            lemma_override: editSkip ? 'skip' : (newTokens[editingIdx].lemma_override === 'skip' ? null : newTokens[editingIdx].lemma_override)
+            lemma_override: editSkip ? '-' : (['-', 's', 'skip'].includes(newTokens[editingIdx].lemma_override) ? null : newTokens[editingIdx].lemma_override)
         };
         setEditTokens(newTokens);
         setEditingIdx(null);
@@ -104,7 +104,7 @@ export const LearningFocusBar: React.FC = () => {
     const wasPlayingBeforeHover = React.useRef<boolean>(false);
 
     const handleTokenMouseEnter = (e: React.MouseEvent, word: any) => {
-        if (word.lemma_override === 'skip') return;
+        if (['-', 's', 'skip'].includes(word.lemma_override) || ['-', 's', 'skip'].includes(word.lemma)) return;
         
         if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
         const rect = e.currentTarget.getBoundingClientRect();
@@ -175,7 +175,7 @@ export const LearningFocusBar: React.FC = () => {
 
         const termToSave = (word.lemma || word.surface).replace(/\{[^\}]+\}/g, '');
         try {
-            const exampleText = (currentLine ? currentLine.text : '').replace(/[|/]/g, '').replace(/\{[^\}]+\}/g, '');
+            const exampleText = (currentLine ? currentLine.text : '').replace(/\|/g, '').replace(/\{[^\}]+\}/g, '');
             const response = await axios.post(`/api/study/vocab/add`, {
                 lesson_id: lessonId,
                 term: termToSave,
@@ -371,7 +371,7 @@ export const LearningFocusBar: React.FC = () => {
                                                                     editSkip ? 'bg-rose-500 text-white' : 'bg-white/5 text-slate-500 hover:bg-white/10'
                                                                 }`}
                                                             >
-                                                                {editSkip ? 'Skipped' : 'Skip this word'}
+                                                                {editSkip ? 'Skipped' : 'Skip word [-]'}
                                                             </button>
                                                         </div>
 
@@ -412,7 +412,7 @@ export const LearningFocusBar: React.FC = () => {
                                 <AnimatePresence mode="popLayout">
                                     {analyzedWords.length > 0 ? (
                                         analyzedWords.map((word: any, idx: number) => {
-                                            const isSkip = word.lemma_override === 'skip' || word.lemma === 'skip' || word.pos === '助詞';
+                                            const isSkip = ['-', 's', 'skip'].includes(word.lemma_override) || ['-', 's', 'skip'].includes(word.lemma) || word.pos === '助詞';
                                             return (
                                                 <motion.div 
                                                     key={`${activeLineIndex}-${idx}`}
@@ -453,7 +453,7 @@ export const LearningFocusBar: React.FC = () => {
                                             animate={{ opacity: 1 }}
                                             className="text-xl md:text-2xl font-black text-slate-400 tracking-tight"
                                         >
-                                            {(currentLine.text || '').replace(/[|/]/g, '')}
+                                            {(currentLine.text || '').replace(/\|/g, '')}
                                         </motion.span>
                                     )}
                                 </AnimatePresence>

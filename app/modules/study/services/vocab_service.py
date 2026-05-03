@@ -87,7 +87,7 @@ def get_dict_connection(db_path):
 
 def query_offline_dict(db_path, term):
     """Query a SQLite dictionary for a term."""
-    if not term or term.lower() == 'skip':
+    if not term or term.lower() in ['skip', 's', '-']:
         return None
     if not os.path.exists(db_path):
         return None
@@ -224,8 +224,8 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
             
             is_polite = surface in SKIP_WORDS or best_pos in SKIP_POS
             final_results.append({
-                'surface': surface, 'original': surface, 'lemma': 'skip' if is_polite else best_lemma,
-                'word': 'skip' if is_polite else best_lemma, 'reading': best_reading,
+                'surface': surface, 'original': surface, 'lemma': '-' if is_polite else best_lemma,
+                'word': '-' if is_polite else best_lemma, 'reading': best_reading,
                 'furigana': best_reading if best_reading and best_reading != surface else None,
                 'pos': '助詞' if is_polite else best_pos, 'meanings': [] if is_polite else res.get('meanings', []),
                 'definition': "" if is_polite else "\n".join(res.get('meanings', [])),
@@ -240,8 +240,8 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
                     if include_all or not is_meaningless:
                         final_results.append({
                             'surface': t['surface'], 'original': t['surface'], 
-                            'lemma': 'skip' if is_meaningless else t['lemma'],
-                            'word': 'skip' if is_meaningless else t['lemma'], 'reading': t['reading'],
+                            'lemma': '-' if is_meaningless else t['lemma'],
+                            'word': '-' if is_meaningless else t['lemma'], 'reading': t['reading'],
                             'furigana': t['reading'] if t['reading'] and t['reading'] != t['surface'] else None,
                             'pos': '助詞' if is_meaningless else t['pos'], 'meanings': [], 'definition': "", 'source': 'none'
                         })
@@ -305,7 +305,7 @@ def analyze_batch_japanese(texts):
         words = analyze_japanese_text(text, include_all=False)
         for w in words:
             lemma = w.get('lemma')
-            if lemma and lemma != 'skip' and lemma not in seen:
+            if lemma and lemma not in ['skip', 's', '-'] and lemma not in seen:
                 all_tokens.append(w)
                 seen.add(lemma)
                 
