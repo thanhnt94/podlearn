@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
     Plus, 
     Loader2, AlertCircle, CheckCircle2, 
-    Sparkles, Globe, ArrowLeft, Video as Youtube, Lock
+    Sparkles, Globe, ArrowLeft, Video as Youtube, Lock,
+    Package, FileUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -46,6 +47,37 @@ export const ImportView: React.FC = () => {
         } catch (err: any) {
             console.error("Import error", err);
             const errMsg = err.response?.data?.error || 'An unexpected error occurred. Please check the URL.';
+            setStatus({ type: 'error', message: errMsg });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsLoading(true);
+        setStatus({ type: 'idle', message: '' });
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await axios.post('/api/study/portable/import', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (res.data.success) {
+                setStatus({ 
+                    type: 'success', 
+                    message: `Success! Lesson package imported correctly. redirecting...` 
+                });
+                setTimeout(() => navigate('/'), 2000);
+            }
+        } catch (err: any) {
+            console.error("Import error", err);
+            const errMsg = err.response?.data?.message || 'Failed to import lesson package.';
             setStatus({ type: 'error', message: errMsg });
         } finally {
             setIsLoading(false);
@@ -207,6 +239,40 @@ export const ImportView: React.FC = () => {
                         </AnimatePresence>
                     </div>
                 </motion.form>
+
+                <div className="w-full mt-12 grid grid-cols-1 md:grid-cols-1 gap-6">
+                    <motion.div 
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem] backdrop-blur-sm group hover:border-sky-500/20 transition-all"
+                    >
+                        <div className="flex flex-col md:flex-row items-center gap-8">
+                            <div className="w-20 h-20 bg-sky-500/10 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <Package size={32} className="text-sky-400" />
+                            </div>
+                            <div className="flex-1 text-center md:text-left space-y-2">
+                                <h3 className="text-lg font-black text-white uppercase tracking-tight">Import from Lesson Package</h3>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
+                                    Have a .json file from another server? Upload it here to instantly recreate the lesson with all metadata, subs and custom dict.
+                                </p>
+                            </div>
+                            <label className="relative cursor-pointer">
+                                <input 
+                                    type="file" 
+                                    accept=".json" 
+                                    className="hidden" 
+                                    onChange={handleFileImport}
+                                    disabled={isLoading}
+                                />
+                                <div className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white hover:bg-sky-500 hover:text-slate-950 hover:border-sky-500 transition-all flex items-center gap-2">
+                                    <FileUp size={16} />
+                                    Choose Package File
+                                </div>
+                            </label>
+                        </div>
+                    </motion.div>
+                </div>
 
                 {/* Footer Tip */}
                 <motion.p 

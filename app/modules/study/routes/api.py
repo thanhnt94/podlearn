@@ -31,6 +31,7 @@ from app.modules.content.services.subtitle_service import get_available_subs_fro
 from app.modules.study.models import Lesson, Note, SentenceSet, Sentence, VideoGlossary, VocabEditHistory, SentenceToken
 from app.modules.study.services import shadowing_service, vocab_service
 from app.modules.study.tasks import process_tracking_data
+from app.modules.content.services import portable_service
 
 # --- Unified Dashboard API ---
 
@@ -2743,3 +2744,47 @@ def update_lesson_settings(lesson_id):
     from app.core.extensions import db
     db.session.commit()
     return jsonify({'success': True, 'settings': current_settings})
+
+# --- Portable Lesson Export/Import ---
+
+@study_api_bp.route('/portable/export/<int:lesson_id>', methods=['GET'])
+@jwt_required()
+def export_lesson(lesson_id):
+    """Generate a full JSON package for a lesson."""
+    data = portable_service.export_lesson_package(lesson_id)
+    if not data:
+        return jsonify({"error": "NotFound", "message": "Lesson not found"}), 404
+    
+    # Return as file download
+    from flask import Response
+    import json
+    filename = f"podlearn_package_{data['video']['youtube_id']}.json"
+    return Response(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        mimetype="application/json",
+        headers={"Content-disposition": f"attachment; filename={filename}"}
+    )
+
+@study_api_bp.route('/portable/import', methods=['POST'])
+@jwt_required()
+def import_lesson():
+    """Import a lesson package from JSON."""
+    if 'file' not in request.files:
+        # Check if sent as raw JSON in body
+        data = request.get_json()
+    else:
+        file = request.files['file']
+        import json
+        try:
+            data = json.load(file)
+        except Exception as e:
+            return jsonify({"error": "InvalidFile", "message": str(e)}), 400
+
+    if not data:
+        return jsonify({"error": "NoData", "message": "No data provided"}), 400
+
+    result = portable_service.import_lesson_package(current_user.id, data)
+    if 'error' in result:
+        return jsonify(result), 400
+    
+    return jsonify(result)

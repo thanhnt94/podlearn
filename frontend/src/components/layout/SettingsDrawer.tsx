@@ -3,7 +3,7 @@ import {
     X, Palette, Check, Clock, 
     Globe, Download, Trash2, RefreshCw, Upload,
     Layers, Languages, Edit3, ChevronLeft,
-    Zap, Gauge, Users, AlignLeft, AlignCenter, AlignRight, Shield
+    Zap, Gauge, Users, AlignLeft, AlignCenter, AlignRight, Shield, Package
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
@@ -42,6 +42,7 @@ export const SettingsDrawer: React.FC = () => {
 
     const [isImportingId, setIsImportingId] = useState<string | null>(null);
     const [isTranslatingId, setIsTranslatingId] = useState<number | null>(null);
+    const [isExportingPackage, setIsExportingPackage] = useState(false);
     const [isChangingLangId, setIsChangingLangId] = useState<number | null>(null);
 
     // Source state
@@ -241,6 +242,34 @@ export const SettingsDrawer: React.FC = () => {
             setSaveStatus('success');
             setTimeout(() => setSaveStatus('idle'), 2000);
         } catch (err) { console.error(err); } finally { setIsSaving(false); }
+    };
+
+    const handleExportPackage = async () => {
+        if (!lessonId) return;
+        setIsExportingPackage(true);
+        try {
+            const response = await axios.get(`/api/study/portable/export/${lessonId}`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = `lesson_package_${lessonId}.json`;
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename=(.+)/);
+                if (match) filename = match[1];
+            }
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("Export failed", err);
+            alert("Export failed. Please try again.");
+        } finally {
+            setIsExportingPackage(false);
+        }
     };
 
     useEffect(() => {
@@ -654,6 +683,26 @@ export const SettingsDrawer: React.FC = () => {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+                        </div>
+
+                        {/* Portable Export Section */}
+                        <div className="px-6 py-4">
+                            <button 
+                                onClick={handleExportPackage}
+                                disabled={isExportingPackage}
+                                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group hover:bg-sky-500/10 hover:border-sky-500/30 transition-all"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-slate-900 rounded-xl group-hover:text-sky-400">
+                                        {isExportingPackage ? <RefreshCw size={20} className="animate-spin text-sky-400" /> : <Package size={20} />}
+                                    </div>
+                                    <div className="text-left">
+                                        <h4 className="text-xs font-black uppercase text-white group-hover:text-sky-400 transition-colors">Export Lesson Package</h4>
+                                        <p className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">Bundle metadata, subs & custom dict into a JSON</p>
+                                    </div>
+                                </div>
+                                <Download size={16} className="text-slate-600 group-hover:text-sky-400 transition-colors" />
+                            </button>
                         </div>
 
                         {/* Footer */}
