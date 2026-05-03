@@ -58,7 +58,7 @@ def _get_ytdlp_opts(extra_opts=None):
             'Referer': 'https://www.youtube.com/',
             'Origin': 'https://www.youtube.com/',
         },
-        'ignoreerrors': False,
+        'ignoreerrors': True,
         'ignore_no_formats_error': True,
         'noplaylist': True,
         'check_formats': False,
@@ -148,28 +148,31 @@ def get_available_subs_from_youtube(video_id: str):
 
         available = extract_from_info(info) if info else []
         
-        # If still empty, maybe we have a bad/stale cache. FORCE a full fresh extract.
+        # If still empty OR we had a failure, try the HARD RETRY
         if not available:
-            sys.stderr.write(f"[YT-DEBUG] No subs in cache for {video_id}. Forcing fresh full extraction... \n")
+            sys.stderr.write(f"[YT-DEBUG] No subs or failed fetch for {video_id}. Attempting Hard Retry... \n")
             if video_id in YT_INFO_CACHE:
                 del YT_INFO_CACHE[video_id]
             
             # Anti-throttling: Small random sleep before retry
             import random
-            time.sleep(random.uniform(1.5, 3.0))
+            time.sleep(random.uniform(2.0, 4.0))
 
-            # Use different options for the retry: Try more permissive clients
+            # Use more permissive clients for the hard retry
             retry_opts = {
                 'extract_flat': False, 
                 'listsubtitles': True,
                 'force_generic_extractor': False,
-                'extractor_args': {'youtube': {'player_client': ['web', 'web_embedded', 'tv', 'ios']}} 
+                'extractor_args': {'youtube': {'player_client': ['ios', 'web_embedded', 'tv']}} 
             }
-            info = fetch_info_cached(video_id, extra_opts=retry_opts)
-            available = extract_from_info(info) if info else []
+            try:
+                info = fetch_info_cached(video_id, extra_opts=retry_opts)
+                available = extract_from_info(info) if info else []
+            except Exception as retry_err:
+                sys.stderr.write(f"[YT-DEBUG] Hard Retry also failed: {str(retry_err)}\n")
             
         if not info:
-            return {"error": "NotFound", "message": "Video not found hoặc không thể truy cập"}
+            return {"error": "NotFound", "message": "Video not found hoặc bị chặn (Failed to extract player response). Vui lòng thử lại sau hoặc dùng Proxy."}
 
         subs_count = len(info.get('subtitles', {}) or {})
         auto_count = len(info.get('automatic_captions', {}) or {})
@@ -178,6 +181,11 @@ def get_available_subs_from_youtube(video_id: str):
         return {'subtitles': available}
     except yt_dlp.utils.DownloadError as e:
         error_msg = str(e)
+        # Check if we should still try the retry even after a DownloadError
+        if "Failed to extract any player response" in error_msg or "429" in error_msg:
+             # This part is technically unreachable now if ignoreerrors=True, 
+             # but we keep it for robustness if fetch_info_cached is called elsewhere.
+             pass 
         sys.stderr.write(f"[YT-DEBUG] DL ERROR: {error_msg}\n")
         sys.stderr.flush()
         if '429' in error_msg or 'Too Many Requests' in error_msg:
