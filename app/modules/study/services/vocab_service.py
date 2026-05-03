@@ -3,6 +3,7 @@ import sqlite3
 import json
 import logging
 import re
+import threading
 from collections import Counter
 from flask import current_app
 from sudachipy import dictionary, tokenizer
@@ -12,6 +13,9 @@ logger = logging.getLogger(__name__)
 # Global dictionary instance (Thread-safe)
 _sudachi_dict = None
 _sudachi_mode = None
+
+# Thread-local storage for dictionary connections
+_local_connections = threading.local()
 
 def get_tokenizer():
     global _sudachi_dict, _sudachi_mode
@@ -78,12 +82,29 @@ def get_dict_paths():
     legacy_paths = {d['name']: d['path'] for d in dicts}
     return dicts, legacy_paths
 
-_dict_connections = {}
-
 def get_dict_connection(db_path):
-    if db_path not in _dict_connections:
-        _dict_connections[db_path] = sqlite3.connect(db_path, check_same_thread=False)
-    return _dict_connections[db_path]
+    """Get a thread-local SQLite connection for the given database."""
+    if not hasattr(_local_connections, 'dicts'):
+        _local_connections.dicts = {}
+    
+    if db_path not in _local_connections.dicts:
+        try:
+            # Use check_same_thread=False as an extra precaution, though we use thread-local
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            _local_connections.dicts[db_path] = conn
+        except Exception as e:
+            logger.error(f"Failed to connect to dictionary {db_path}: {e}")
+            return None
+            
+    return _local_connections.dicts[db_path]
+
+def clean_term_for_lookup(term):
+    """Strip Japanese/English punctuation that wouldn't be in a dictionary."""
+    if not term: return ""
+    # Remove leading/trailing Japanese quotes, commas, periods, etc.
+    cleaned = re.sub(r'^[「」『』、。・（）()!?,.\[\]"\'\s]+', '', term)
+    cleaned = re.sub(r'[「」『』、。・（）()!?,.\[\]"\'\s]+$', '', cleaned)
+    return cleaned
 
 def query_offline_dict(db_path, term):
     """Query a SQLite dictionary for a term."""
@@ -94,8 +115,14 @@ def query_offline_dict(db_path, term):
         
     try:
         conn = get_dict_connection(db_path)
+        if not conn: return None
+        
+        # Clean the term before lookup
+        lookup_term = clean_term_for_lookup(term)
+        if not lookup_term: return None
+
         cursor = conn.cursor()
-        cursor.execute("SELECT reading, meanings_json FROM dictionary WHERE word = ? LIMIT 1", (term,))
+        cursor.execute("SELECT reading, meanings_json FROM dictionary WHERE word = ? LIMIT 1", (lookup_term,))
         row = cursor.fetchone()
         
         if row:
