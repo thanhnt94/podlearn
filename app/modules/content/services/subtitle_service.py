@@ -46,16 +46,15 @@ def _get_ytdlp_opts(extra_opts=None):
         'connect_timeout': 10,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android', 'web'],
                 'skip': ['hls', 'dash'], 
             }
         },
         'geo_bypass': True,
         'youtube_include_dash_manifest': True,
         'youtube_include_hls_manifest': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9,vi;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Referer': 'https://www.youtube.com/',
             'Origin': 'https://www.youtube.com/',
         },
@@ -155,12 +154,16 @@ def get_available_subs_from_youtube(video_id: str):
             if video_id in YT_INFO_CACHE:
                 del YT_INFO_CACHE[video_id]
             
-            # Use different options for the retry: NO player_client restriction
+            # Anti-throttling: Small random sleep before retry
+            import random
+            time.sleep(random.uniform(1.5, 3.0))
+
+            # Use different options for the retry: Try more permissive clients
             retry_opts = {
                 'extract_flat': False, 
                 'listsubtitles': True,
                 'force_generic_extractor': False,
-                'extractor_args': {'youtube': {'player_client': ['web', 'tv', 'ios']}} # TV client sometimes has different sub availability
+                'extractor_args': {'youtube': {'player_client': ['web', 'web_embedded', 'tv', 'ios']}} 
             }
             info = fetch_info_cached(video_id, extra_opts=retry_opts)
             available = extract_from_info(info) if info else []
