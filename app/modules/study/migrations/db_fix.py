@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 def migrate_flashcards(db_path):
     """
     Manually migrate video_glossaries table to the new Front/Back structure.
-    Renames 'term' to 'front' and 'definition' to 'back'.
+    Ensures all necessary columns exist.
     """
     if not os.path.exists(db_path):
         logger.warning(f"Database not found at {db_path}, skipping migration.")
@@ -17,47 +17,72 @@ def migrate_flashcards(db_path):
     cursor = conn.cursor()
     
     try:
-        # Check current columns
+        # 0. Ensure video_dictionaries table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS video_dictionaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lesson_id INTEGER,
+                name VARCHAR(100) NOT NULL,
+                is_active BOOLEAN DEFAULT 1,
+                created_at DATETIME,
+                language_code VARCHAR(10) DEFAULT 'ja',
+                target_language_code VARCHAR(10) DEFAULT 'vi',
+                FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+            )
+        """)
+
+        # 1. Check current columns in video_glossaries
         cursor.execute("PRAGMA table_info(video_glossaries)")
         columns = [row[1] for row in cursor.fetchall()]
         
-        if 'front' in columns and 'back' in columns:
-            logger.info("Database already migrated to Front/Back structure.")
-            return
-
-        print("Migrating Flashcard database to Front/Back structure...")
+        # 2. Add/Rename columns
+        print("Checking VideoGlossary columns...")
         
-        # 1. Start Transaction
-        cursor.execute("BEGIN TRANSACTION")
-        
-        # 2. Rename Columns (Requires SQLite 3.25.0+)
-        # If this fails, we fall back to a manual copy approach
-        try:
-            if 'term' in columns and 'front' not in columns:
+        # Rename term -> front if term exists
+        if 'term' in columns and 'front' not in columns:
+            try:
                 cursor.execute("ALTER TABLE video_glossaries RENAME COLUMN term TO front")
-            if 'definition' in columns and 'back' not in columns:
-                cursor.execute("ALTER TABLE video_glossaries RENAME COLUMN definition TO back")
-            
-            # Update unique constraints if needed? 
-            # SQLite doesn't automatically rename constraints in older versions, 
-            # but usually it's fine for simple name changes.
-            
-        except sqlite3.OperationalError as e:
-            print(f" [!] RENAME COLUMN failed, attempting manual migration: {e}")
-            # Manual approach: Create new table, copy data, drop old, rename new
-            # For simplicity in this script, we'll try to just ADD columns if RENAME failed
-            if 'front' not in columns:
+                print(" Renamed term to front")
+            except:
                 cursor.execute("ALTER TABLE video_glossaries ADD COLUMN front TEXT")
                 cursor.execute("UPDATE video_glossaries SET front = term")
-            if 'back' not in columns:
+                print(" Added front column and copied from term")
+
+        # Rename definition -> back if definition exists
+        if 'definition' in columns and 'back' not in columns:
+            try:
+                cursor.execute("ALTER TABLE video_glossaries RENAME COLUMN definition TO back")
+                print(" Renamed definition to back")
+            except:
                 cursor.execute("ALTER TABLE video_glossaries ADD COLUMN back TEXT")
                 cursor.execute("UPDATE video_glossaries SET back = definition")
-        
-        cursor.execute("COMMIT")
+                print(" Added back column and copied from definition")
+
+        # Ensure essential columns exist
+        missing_columns = {
+            'front': 'TEXT',
+            'back': 'TEXT',
+            'dictionary_id': 'INTEGER',
+            'reading': 'VARCHAR(255)',
+            'source': 'VARCHAR(20)',
+            'frequency': 'INTEGER',
+            'last_updated_by': 'INTEGER',
+            'updated_at': 'DATETIME',
+            'language_code': 'VARCHAR(10)',
+            'target_language_code': 'VARCHAR(10)',
+            'extra_data': 'JSON'
+        }
+
+        for col, col_type in missing_columns.items():
+            if col not in columns and col != 'front' and col != 'back': # already handled rename above
+                cursor.execute(f"ALTER TABLE video_glossaries ADD COLUMN {col} {col_type}")
+                print(f" Added missing column: {col}")
+
+        conn.commit()
         print(" Database migration successful.")
         
     except Exception as e:
-        cursor.execute("ROLLBACK")
+        conn.rollback()
         print(f" [!] Database migration failed: {e}")
         logger.error(f"Migration error: {e}")
     finally:

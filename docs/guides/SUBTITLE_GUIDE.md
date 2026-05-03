@@ -4,42 +4,46 @@
 
 ## 1. Định dạng File
 *   **Loại file**: Hỗ trợ `.srt` hoặc `.vtt`.
-*   **Encoding**: Bắt buộc sử dụng **UTF-8** (để hiển thị đúng tiếng Nhật/Việt).
+*   **Encoding**: Bắt buộc sử dụng **UTF-8**.
 
 ## 2. Cấu trúc nội dung (Syntax đặc biệt)
 
 ### A. Furigana (Cách đọc)
-Sử dụng dấu ngoặc nhọn `{}` ngay sau từ Hán tự hoặc từ cần chú thích cách đọc.
-*   **Cấu trúc**: `TừVựng{cách_đọc}`
-*   **Ví dụ**: 
-    - `昨日{きのう} là hôm qua.`
-    - `学習{がくしゅう}`
+Sử dụng dấu ngoặc nhọn `{}` ngay sau từ.
+*   **Kanji**: `HánTự{hiragana}` -> Ví dụ: `昨日{きのう}`
+*   **Katakana**: `Katakana{từ_gốc_lowercase}` -> Ví dụ: `ポッドキャスト{podcast}`
 
 ### B. Phân tách từ (Segmentation)
-Sử dụng dấu gạch đứng `|` để ngăn cách các từ. Việc này giúp hệ thống tra từ chính xác mà không phụ thuộc vào AI tự động.
+Sử dụng dấu gạch đứng `|` để ngăn cách các từ. (Tuyệt đối không có khoảng trắng quanh dấu `|`).
 *   **Ví dụ**: `私|は|日本|に|行きたい|です。`
 
 ### C. Từ gốc (Lemma)
-Với các từ đã chia (động từ, tính từ), bạn có thể cung cấp từ gốc trong ngoặc vuông `[]` để hệ thống tra từ điển chính xác hơn.
-*   **Ví dụ**: `話{はな}したい[話す]` (Hệ thống sẽ hiển thị "hanashitai" nhưng tra từ điển cho "hanasu").
+Dùng ngoặc vuông `[]` cho từ gốc (thể từ điển) của Động từ/Tính từ.
+*   **Ví dụ**: `話{はな}したい[話す]`
 
 ### D. Gán nhãn bỏ qua (Skip Tokens)
-Dùng `[-]` cho các trợ từ hoặc từ vô nghĩa.
-*   **Ví dụ**: `私|は[-]`
+Dùng `[-]` cho các trợ từ hoặc từ đệm. **Lưu ý quan trọng**: Nếu có nhiều thành phần bỏ qua đứng cạnh nhau, hãy gộp chúng lại thành một cụm duy nhất rồi mới gán nhãn `[-]`.
+*   **Ví dụ**: `私|は[-]|日本|に[-]` -> `私|は[-]` (Nếu "wa" và "ni" đứng cạnh nhau thì gộp lại).
+*   **Đúng chuẩn**: `レイラさんは、[-]` (Thay vì `レイラ|さん|は|、[-]`)
 
 ---
 
-## 3. AI Prompt mẫu để tạo Subtitle
-Bạn có thể copy prompt dưới đây và gửi kèm file SRT/Transcript cho AI (ChatGPT, Claude, Gemini) để nhờ nó xử lý đúng định dạng.
+## 3. AI Prompt mẫu để tạo Subtitle (Chuẩn nhất)
+Copy toàn bộ prompt dưới đây để gửi cho AI (Gemini, Claude, ChatGPT):
 
 ```text
-Bạn là một chuyên gia Ngôn ngữ học tiếng Nhật. Hãy xử lý nội dung phụ đề dưới đây theo các quy tắc:
+Bạn là một chuyên gia Ngôn ngữ học tiếng Nhật. Hãy xử lý nội dung phụ đề SRT dưới đây theo các quy tắc nghiêm ngặt:
 
-1. Băm nhỏ câu thành các phần, ngăn cách bởi dấu gạch đứng `|`.
-2. Với Chữ Hán (Kanji): Thêm Hiragana vào dấu ngoặc nhọn `{ }` (VD: 日本{にほん}).
-3. Với Từ mượn (Katakana): Thêm Từ ngoại ngữ gốc vào dấu ngoặc nhọn `{ }` (VD: ポッドキャスト{Podcast}).
-4. Với Động từ/Tính từ: Khôi phục về thể từ điển trong ngoặc vuông `[ ]`. (VD: 話{はな}したい[話す]). Lưu ý: Không thêm Furigana vào trong [lemma].
-5. Gán nhãn [-] cho các trợ từ đơn (wa, ga, wo, ni, e, de, mo), dấu câu, và từ đệm vô nghĩa.
+1. GIỮ NGUYÊN vẹn định dạng SRT (số thứ tự và timestamps).
+2. Dùng dấu gạch đứng `|` để phân tách từ (TUYỆT ĐỐI không có khoảng trắng xung quanh).
+3. Furigana:
+   - Với Kanji: Thêm Hiragana vào `{ }`. Ví dụ: 日本{にほん}.
+   - Với Katakana: Thêm từ ngoại ngữ gốc (viết thường - lowercase) vào `{ }`. Ví dụ: ポッドキャスト{podcast}.
+4. Lemma: Với Động từ/Tính từ, khôi phục về thể từ điển trong `[ ]`. Ví dụ: 食べたい[食べる]. (Không thêm Furigana vào trong [ ]).
+5. Nhãn Skip [-]:
+   - Chỉ dùng cho: Trợ từ (wa, ga, ni...), dấu câu, từ đệm (ano, eto).
+   - QUY TẮC GỘP: Nếu nhiều thành phần skip đứng cạnh nhau, hãy GỘP LẠI thành 1 cụm duy nhất rồi mới gán nhãn [-]. Ví dụ: "さんは、[-]" thay vì tách lẻ.
+6. TRẢ VỀ KẾT QUẢ: Đặt toàn bộ nội dung SRT đã xử lý vào trong một code block Markdown để tôi dễ dàng copy.
 
 Nội dung cần xử lý:
 [Dán nội dung SRT vào đây]
@@ -48,5 +52,5 @@ Nội dung cần xử lý:
 ---
 
 ## 4. Quy tắc trình bày (Best Practices)
-*   **Độ dài câu**: Không quá 2 dòng. Ngắt câu tại các vị trí tự nhiên.
+*   **Độ dài câu**: Không quá 2 dòng.
 *   **Timing**: Sub nên xuất hiện sớm hơn tiếng nói khoảng 100ms - 200ms.

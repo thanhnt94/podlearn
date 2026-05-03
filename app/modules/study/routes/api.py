@@ -992,24 +992,28 @@ def import_custom_dict():
             
         # 2. Parse and insert items
         lines = text.split('\n')
+        # Clear old items in this custom dict to avoid duplication
+        VideoGlossary.query.filter_by(dictionary_id=v_dict.id).delete()
+
         added = 0
         for line in lines:
             if '|' not in line: continue
             parts = [p.strip() for p in line.split('|', 1)]
             if len(parts) < 2: continue
             
-            front = parts[0]
+            original_front = parts[0]
             back = parts[1]
-            if not front or not back: continue
+            if not original_front or not back: continue
             
             # Clean front (strip furigana for lookup key)
-            lookup_key = re.sub(r'\{[^\}]+\}', '', front).strip()
+            lookup_key = re.sub(r'\{[^\}]+\}', '', original_front).strip()
             
             item = VideoGlossary(
                 dictionary_id=v_dict.id,
                 lesson_id=lesson_id,
                 front=lookup_key,
                 back=back,
+                reading=original_front if '{' in original_front else None, # Store original markup here
                 source='lesson_custom',
                 language_code=src_lang,
                 target_language_code=target_lang
@@ -1035,7 +1039,7 @@ def get_custom_dict(lesson_id):
         return jsonify({"success": True, "text": "", "lang_tag": "ja-vi"})
         
     items = VideoGlossary.query.filter_by(dictionary_id=v_dict.id).all()
-    text = "\n".join([f"{item.front} | {item.back}" for item in items])
+    text = "\n".join([f"{item.reading if item.reading else item.front} | {item.back}" for item in items])
     lang_tag = f"{v_dict.language_code}-{v_dict.target_language_code}"
     
     return jsonify({"success": True, "text": text, "lang_tag": lang_tag})
