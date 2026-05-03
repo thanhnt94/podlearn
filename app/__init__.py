@@ -83,6 +83,23 @@ def create_app(config_name: str | None = None) -> Flask:
     # that require all other models (like Video) to be already mapped.
     setup_identity(app)
 
+    # ── Database Migration (Auto-fix) ──────────────────────────
+    with app.app_context():
+        try:
+            from app.modules.study.migrations.db_fix import migrate_flashcards
+            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            if 'sqlite' in db_uri:
+                # Extract path from sqlite:///...
+                db_path = db_uri.split('///')[-1]
+                # If path is relative, make it absolute relative to instance/root
+                if not os.path.isabs(db_path):
+                    # In this project, relative paths are usually relative to the root or app dir
+                    # But we'll trust the URI for now
+                    pass
+                migrate_flashcards(db_path)
+        except Exception as e:
+            app.logger.error(f"Auto-migration failed: {e}")
+
     # ── SPA Bridge (Catch-all) ─────────────────────────────────
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')

@@ -128,20 +128,8 @@ if __name__ == '__main__':
             os.makedirs(d, exist_ok=True)
             print(f"Created directory: {d}")
 
-    # 2. Automatic Database Migration
-    print("Checking for database migrations...")
-    try:
-        from app.modules.study.migrations.db_fix import migrate_flashcards
-        podlearn_db = os.path.join(db_dir, 'podlearn.db')
-        migrate_flashcards(podlearn_db)
-        
-        # Original Flask-Migrate (Optional fallback)
-        # if os.path.exists(os.path.join(base_dir, 'migrations')):
-        #     from flask_migrate import upgrade as flask_db_upgrade
-        #     with app.app_context():
-        #         flask_db_upgrade()
-    except Exception as e:
-        print(f" [!] Migration notice: {e}")
+    # 2. Database check (Handled automatically in create_app)
+    print("Environment ready.")
 
     # 3. Build Frontend (Windows only, and only in main process)
     if os.name == 'nt' and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
