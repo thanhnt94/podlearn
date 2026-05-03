@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Zap, ExternalLink } from 'lucide-react';
+import { Plus, Zap, ExternalLink, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -9,14 +9,16 @@ interface VocabTooltipProps {
     hoveredToken: { word: any; rect: DOMRect } | null;
     onMouseEnter: () => void;
     onMouseLeave: () => void;
-    onSave: (word: any) => void;
+    onAddVocab: (word: any) => void;
+    onAddNote: (word: any) => void;
 }
 
 export const VocabTooltip: React.FC<VocabTooltipProps> = ({ 
     hoveredToken, 
     onMouseEnter, 
     onMouseLeave,
-    onSave
+    onAddVocab,
+    onAddNote
 }) => {
     if (!hoveredToken) return null;
 
@@ -111,20 +113,28 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
                         </div>
                     </div>
 
-                    <div className="flex gap-3 pointer-events-auto pt-2">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onSave(hoveredToken.word); }}
-                            className="flex-1 flex items-center justify-center gap-3 py-4 bg-sky-500 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-sky-400 hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
-                        >
-                            <Plus size={18} strokeWidth={4} /> Add To Vocab
-                        </button>
+                    <div className="flex flex-col gap-3 pointer-events-auto pt-2">
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onAddVocab(hoveredToken.word); }}
+                                className="flex-1 flex items-center justify-center gap-3 py-4 bg-sky-500 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-sky-400 hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
+                            >
+                                <Plus size={18} strokeWidth={4} /> Add Vocab
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onAddNote(hoveredToken.word); }}
+                                className="flex-1 flex items-center justify-center gap-3 py-4 bg-emerald-500 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-400 hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
+                            >
+                                <RotateCcw size={18} strokeWidth={4} /> Add Note
+                            </button>
+                        </div>
                         <a 
                             href={`https://jisho.org/search/${cleanLookupTerm}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-16 flex items-center justify-center bg-white/5 rounded-2xl text-slate-500 hover:bg-white/10 hover:text-white transition-all border border-white/10"
+                            className="w-full flex items-center justify-center py-3 bg-white/5 rounded-2xl text-slate-500 hover:bg-white/10 hover:text-white transition-all border border-white/10 text-[10px] font-bold uppercase tracking-widest"
                         >
-                            <ExternalLink size={18} />
+                            <ExternalLink size={14} className="mr-2" /> Search Jisho
                         </a>
                     </div>
                 </div>

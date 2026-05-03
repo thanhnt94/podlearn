@@ -171,32 +171,44 @@ export const LearningFocusBar: React.FC = () => {
     const handleAddToVocab = async (word: any) => {
         if (!lessonId) return;
         const currentLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
-        const timestamp = currentLine ? currentLine.start : 0;
-
         const termToSave = (word.lemma || word.surface).replace(/\{[^\}]+\}/g, '');
         try {
             const exampleText = (currentLine ? currentLine.text : '').replace(/\|/g, '').replace(/\{[^\}]+\}/g, '');
-            const response = await axios.post(`/api/study/vocab/add`, {
+            await axios.post(`/api/study/vocab/add`, {
                 lesson_id: lessonId,
-                term: termToSave,
+                word: termToSave,
                 reading: word.reading,
-                definition: Array.isArray(word.meanings) ? word.meanings.join(', ') : word.meanings,
-                example: exampleText,
-                timestamp: timestamp
+                meaning: Array.isArray(word.meanings) ? word.meanings.join(', ') : word.meanings,
+                example: exampleText
             });
             
             soundEffects.vibrate(50);
-            if (response.data.note_id) {
-                const newNote = {
-                    id: response.data.note_id,
-                    timestamp: timestamp,
-                    content: `**${word.lemma || word.surface}**${word.reading ? ` [${word.reading}]` : ''}\n${Array.isArray(word.meanings) ? word.meanings.join(', ') : word.meanings}\n\n*${exampleText}*`,
-                    created_at: new Date().toISOString()
-                };
-                appendNote(newNote);
-            }
+            usePlayerStore.getState().fetchVocab();
         } catch (err) {
             console.error("Save failed", err);
+        }
+    };
+
+    const handleAddNote = async (word: any) => {
+        if (!lessonId) return;
+        const currentLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
+        const timestamp = currentLine ? currentLine.start : 0;
+        const exampleText = (currentLine ? currentLine.text : '').replace(/\|/g, '').replace(/\{[^\}]+\}/g, '');
+        
+        const noteContent = `**${word.lemma || word.surface}**${word.reading ? ` [${word.reading}]` : ''}\n${Array.isArray(word.meanings) ? word.meanings.join(', ') : word.meanings}\n\n*${exampleText}*`;
+        
+        try {
+            const response = await axios.post(`/api/study/lesson/${lessonId}/notes`, {
+                timestamp: timestamp,
+                content: noteContent
+            });
+            
+            if (response.data.success) {
+                appendNote(response.data.note);
+                soundEffects.vibrate(50);
+            }
+        } catch (err) {
+            console.error("Note failed", err);
         }
     };
 
@@ -467,7 +479,8 @@ export const LearningFocusBar: React.FC = () => {
                 hoveredToken={hoveredToken}
                 onMouseEnter={handleTooltipMouseEnter}
                 onMouseLeave={handleTooltipMouseLeave}
-                onSave={handleAddToVocab}
+                onAddVocab={handleAddToVocab}
+                onAddNote={handleAddNote}
             />
         </div>
     );

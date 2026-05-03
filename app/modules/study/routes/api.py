@@ -407,6 +407,28 @@ def add_vocab():
     db.session.commit()
     return jsonify({"success": True})
 
+@study_api_bp.route('/vocab/<int:item_id>', methods=['PATCH'])
+@jwt_required()
+def update_vocab_item(item_id):
+    from app.modules.study.models import VideoGlossary
+    item = VideoGlossary.query.get_or_404(item_id)
+    
+    # Check permission (lesson owner)
+    from app.modules.study.models import Lesson
+    lesson = Lesson.query.get(item.lesson_id)
+    if not lesson or lesson.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    data = request.get_json() or {}
+    if 'reading' in data:
+        item.reading = data['reading'].strip()
+    if 'meaning' in data:
+        item.definition = data['meaning'].strip()
+        
+    item.last_updated_by = current_user.id
+    db.session.commit()
+    return jsonify({"success": True})
+
 @study_api_bp.route('/vocab/remove', methods=['DELETE'])
 @jwt_required()
 def remove_vocab():

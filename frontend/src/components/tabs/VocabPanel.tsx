@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Plus, Check, Globe, RotateCcw,
-    BarChart3, AlertCircle, Clock, Book, Languages
+    BarChart3, AlertCircle, Clock, Languages,
+    Layers
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,19 +10,20 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { FlashcardTab } from './FlashcardTab';
 
 export const VocabPanel: React.FC = () => {
     const { 
         lessonId, activeLineIndex, subtitles,
-        appendNote, fetchNotes,
+        fetchNotes,
         analyzedWords, fetchAnalyzedWords,
         showFurigana, toggleFurigana,
-        setShowDictManager, fetchSystemDictionaries,
+        fetchSystemDictionaries,
         fetchVideoGlossary
     } = usePlayerStore();
     
     // UI State
-    const [activeTab, setActiveTab] = useState<'live' | 'stats'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'stats' | 'mastery'>('live');
     const [justAdded, setJustAdded] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -37,25 +39,16 @@ export const VocabPanel: React.FC = () => {
                 
             const term = item.lemma || item.surface || item.term || item.word;
             
-            const response = await axios.post(`/api/study/vocab/add`, {
+            await axios.post(`/api/study/vocab/add`, {
                 lesson_id: lessonId,
-                term: term,
+                word: term,
                 reading: item.reading,
-                definition: Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning),
-                example: exampleText,
-                timestamp: item.timestamp || 0
+                meaning: Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning),
+                example: exampleText
             });
             
-            if (response.data.note_id) {
-                const newNote = {
-                    id: response.data.note_id,
-                    timestamp: item.timestamp || 0,
-                    content: `**${term}**${item.reading ? ` [${item.reading}]` : ''}\n${Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning)}\n\n*${exampleText}*`,
-                    created_at: new Date().toISOString()
-                };
-                appendNote(newNote);
-                setJustAdded(prev => new Set(prev).add(term));
-            }
+            setJustAdded(prev => new Set(prev).add(term));
+            usePlayerStore.getState().fetchVocab();
             fetchNotes();
         } catch (err) {}
     };
@@ -75,7 +68,12 @@ export const VocabPanel: React.FC = () => {
             }
 
             words.forEach(w => {
-                const term = w;
+                // Ignore tokens that are just brackets/tags or explicitly marked as skip
+                if (w.includes('[-]') || w.includes('[s]') || w.includes('[skip]') || /^[、。！？（）「」『』…ー\s\d]+$/.test(w)) return;
+                
+                const term = w.replace(/\{[^\}]+\}/g, '').replace(/\[[^\]]*\]/g, '').trim();
+                if (!term || term.length < 1) return;
+
                 if (!counts[term]) {
                     counts[term] = { term, reading: '', count: 1 };
                 } else {
@@ -84,14 +82,8 @@ export const VocabPanel: React.FC = () => {
             });
         });
 
-        analyzedWords.forEach(aw => {
-            if (counts[aw.surface]) {
-                counts[aw.surface].reading = aw.reading || '';
-            }
-        });
-
         return Object.values(counts)
-            .filter(v => v.term.length > 1 || /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(v.term))
+            .filter(v => v.term.length > 0 && /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf]/.test(v.term))
             .sort((a, b) => b.count - a.count)
             .slice(0, 100);
     }, [subtitles, analyzedWords]);
@@ -99,26 +91,12 @@ export const VocabPanel: React.FC = () => {
     return (
         <div className="flex flex-col h-full bg-slate-950 overflow-hidden">
             {/* Header / Tabs */}
-            <div className="p-4 border-b border-white/5 bg-slate-900/20">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-sky-500/10 flex items-center justify-center">
-                            <Book size={12} className="text-sky-500" />
-                        </div>
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Word Manager</h3>
-                    </div>
-                    <button 
-                        onClick={() => setShowDictManager(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-[9px] font-black uppercase tracking-widest text-sky-500 hover:bg-sky-500 hover:text-slate-950 transition-all shadow-lg shadow-sky-500/5"
-                    >
-                        <Languages size={12} />
-                        DictManager
-                    </button>
-                </div>
+            <div className="p-4 border-b border-white/5 bg-slate-900/40">
                 
                 <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
                     {[
                         { id: 'live', label: 'Analysis', icon: Globe },
+                        { id: 'mastery', label: 'Mastery', icon: Layers },
                         { id: 'stats', label: 'Stats', icon: BarChart3 },
                     ].map((tab) => (
                         <button
@@ -171,46 +149,43 @@ export const VocabPanel: React.FC = () => {
                             </div>
 
                             <div className="grid gap-4 h-full overflow-y-auto no-scrollbar pb-20">
-                                {analyzedWords.map((item: any, idx: number) => {
+                                {analyzedWords.filter((item: any) => {
+                                    return !(['-', 's', 'skip'].includes(item.lemma) || ['-', 's', 'skip'].includes(item.lemma_override));
+                                }).map((item: any, idx: number) => {
                                     const isSaved = justAdded.has(item.surface || item.lemma || item.term);
-                                    const isSkip = ['-', 's', 'skip'].includes(item.lemma) || ['-', 's', 'skip'].includes(item.lemma_override);
+                                    const displaySurface = (item.surface || item.lemma || '').replace(/\{[^\}]+\}/g, '').replace(/\[[^\]]*\]/g, '');
                                     
                                     return (
                                         <motion.div 
                                             key={idx}
                                             initial={{ opacity: 0, scale: 0.98 }}
                                             animate={{ opacity: 1, scale: 1 }}
-                                            className={`bg-slate-900/60 border border-white/5 rounded-[32px] p-6 hover:border-sky-500/40 transition-all group relative overflow-hidden ${isSkip ? 'opacity-30 grayscale scale-[0.98]' : ''}`}
+                                            className={`bg-slate-900/60 border border-white/5 rounded-[32px] p-6 hover:border-sky-500/40 transition-all group relative overflow-hidden`}
                                         >
                                             <div className="flex justify-between items-start relative z-10">
                                                 <div className="space-y-3 flex-1 pr-6">
                                                     <div className="flex items-center gap-4">
-                                                        <span className="text-2xl font-black text-white tracking-tight leading-none">{item.surface || item.lemma}</span>
-                                                        {item.reading && !isSkip && (
+                                                        <span className="text-2xl font-black text-white tracking-tight leading-none">{displaySurface}</span>
+                                                        {item.reading && (
                                                             <span className="text-[11px] text-sky-400 font-black tracking-widest uppercase bg-sky-400/10 px-3 py-1 rounded-full border border-sky-400/20">
                                                                 {item.reading}
                                                             </span>
                                                         )}
-                                                        {isSkip && <span className="text-[9px] text-slate-600 font-black uppercase tracking-widest">[Skipped]</span>}
                                                     </div>
-                                                    {!isSkip && (
-                                                        <div className="prose prose-invert max-w-none text-slate-400 text-sm leading-relaxed font-medium">
-                                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                                                                {Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || '')}
-                                                            </ReactMarkdown>
-                                                        </div>
-                                                    )}
+                                                    <div className="prose prose-invert max-w-none text-slate-400 text-sm leading-relaxed font-medium">
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                                                            {Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || '')}
+                                                        </ReactMarkdown>
+                                                    </div>
                                                 </div>
-                                                {!isSkip && (
-                                                    <button 
-                                                        onClick={() => handleSaveToVocab(item)} 
-                                                        className={`p-4 rounded-2xl transition-all duration-300 shadow-xl active:scale-90 ${isSaved ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white'}`}
-                                                    >
-                                                        {isSaved ? <Check size={20} strokeWidth={3} /> : <Plus size={20} strokeWidth={3} />}
-                                                    </button>
-                                                )}
+                                                <button 
+                                                    onClick={() => handleSaveToVocab(item)} 
+                                                    className={`p-4 rounded-2xl transition-all duration-300 shadow-xl active:scale-90 ${isSaved ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white'}`}
+                                                >
+                                                    {isSaved ? <Check size={20} strokeWidth={3} /> : <Plus size={20} strokeWidth={3} />}
+                                                </button>
                                             </div>
-                                            {!isSkip && <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                            <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </motion.div>
                                     );
                                 })}
@@ -272,6 +247,18 @@ export const VocabPanel: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+                        </motion.div>
+                    )}
+
+                    {activeTab === 'mastery' && (
+                        <motion.div 
+                            key="mastery"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="h-full"
+                        >
+                            <FlashcardTab />
                         </motion.div>
                     )}
                 </AnimatePresence>

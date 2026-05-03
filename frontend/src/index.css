@@ -24,6 +24,10 @@
   .glass-panel {
     @apply bg-slate-800/40 backdrop-blur-md border border-white/10;
   }
+
+  .perspective-1000 {
+    perspective: 1000px;
+  }
 }
 
 /* ─── Global Scrollbar (applies to all scrollable elements) ─── */
