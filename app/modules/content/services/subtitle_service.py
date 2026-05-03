@@ -46,17 +46,20 @@ def _get_ytdlp_opts(extra_opts=None):
         'connect_timeout': 10,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web'],
+                'player_client': ['ios', 'android', 'web'],
+                'skip': ['hls', 'dash'], 
             }
         },
         'geo_bypass': True,
+        'youtube_include_dash_manifest': True,
+        'youtube_include_hls_manifest': True,
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.youtube.com/',
             'Origin': 'https://www.youtube.com/',
         },
-        'ignoreerrors': True,
+        'ignoreerrors': False,
         'ignore_no_formats_error': True,
         'noplaylist': True,
         'check_formats': False,
@@ -64,8 +67,8 @@ def _get_ytdlp_opts(extra_opts=None):
         'writesubtitles': False,
         'writeautomaticsub': False,
         'prefer_ffmpeg': False, 
-        'youtube_include_dash_manifest': False,
-        'youtube_include_hls_manifest': False,
+        'youtube_include_dash_manifest': True,
+        'youtube_include_hls_manifest': True,
     }
 
     if os.path.exists(cookie_path):
@@ -148,22 +151,25 @@ def get_available_subs_from_youtube(video_id: str):
         # If still empty, maybe we have a bad/stale cache. FORCE a full fresh extract.
         if not available:
             sys.stderr.write(f"[YT-DEBUG] No subs in cache for {video_id}. Forcing fresh full extraction... \n")
-            # Clear cache for this video to ensure we get a fresh hit
             if video_id in YT_INFO_CACHE:
                 del YT_INFO_CACHE[video_id]
             
-            # Explicitly disable flat extraction and force list subtitles
-            info = fetch_info_cached(video_id, extra_opts={
+            # Use different options for the retry: NO player_client restriction
+            retry_opts = {
                 'extract_flat': False, 
                 'listsubtitles': True,
-                'force_generic_extractor': False
-            })
+                'force_generic_extractor': False,
+                'extractor_args': {'youtube': {'player_client': ['web', 'ios']}} # Web often has more subs
+            }
+            info = fetch_info_cached(video_id, extra_opts=retry_opts)
             available = extract_from_info(info) if info else []
             
         if not info:
-            return {"error": "NotFound", "message": "Video not found or inaccessible"}
+            return {"error": "NotFound", "message": "Video not found hoặc không thể truy cập"}
 
-        sys.stderr.write(f"[YT-DEBUG] SUCCESS: Returning {len(available)} tracks to API\n")
+        subs_count = len(info.get('subtitles', {}) or {})
+        auto_count = len(info.get('automatic_captions', {}) or {})
+        sys.stderr.write(f"[YT-DEBUG] SUCCESS: Found {subs_count} manual, {auto_count} auto. Total tracks: {len(available)}\n")
         sys.stderr.flush()
         return {'subtitles': available}
     except yt_dlp.utils.DownloadError as e:

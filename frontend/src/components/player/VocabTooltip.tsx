@@ -22,37 +22,37 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
 }) => {
     if (!hoveredToken) return null;
 
-        // 2. Function to parse Furigana: Kanji{furigana} -> <ruby>Kanji<rt>furigana</rt></ruby>
-        const processFurigana = (txt: string) => {
-            const regex = /([^\x00-\x7F]+)\{([^\}]+)\}/g; // Matches Kanji/non-ascii followed by {furigana}
-            const elements = [];
-            let lastIndex = 0;
-            let match;
+    // 2. Function to parse Furigana: Kanji{furigana} -> <ruby>Kanji<rt>furigana</rt></ruby>
+    const processFurigana = (txt: string) => {
+        const regex = /([^\x00-\x7F]+)\{([^\}]+)\}/g; // Matches Kanji/non-ascii followed by {furigana}
+        const elements = [];
+        let lastIndex = 0;
+        let match;
 
-            while ((match = regex.exec(txt)) !== null) {
-                if (match.index > lastIndex) {
-                    elements.push(txt.substring(lastIndex, match.index));
-                }
-                elements.push(
-                    <ruby key={match.index}>
-                        {match[1]}
-                        <rt style={{ fontSize: '0.5em', opacity: 0.8 }}>{match[2]}</rt>
-                    </ruby>
-                );
-                lastIndex = regex.lastIndex;
+        while ((match = regex.exec(txt)) !== null) {
+            if (match.index > lastIndex) {
+                elements.push(txt.substring(lastIndex, match.index));
             }
-            if (lastIndex < txt.length) {
-                elements.push(txt.substring(lastIndex));
-            }
-            return elements.length > 0 ? elements : txt;
-        };
+            elements.push(
+                <ruby key={match.index}>
+                    {match[1]}
+                    <rt style={{ fontSize: '0.5em', opacity: 0.8 }}>{match[2]}</rt>
+                </ruby>
+            );
+            lastIndex = regex.lastIndex;
+        }
+        if (lastIndex < txt.length) {
+            elements.push(txt.substring(lastIndex));
+        }
+        return elements.length > 0 ? elements : txt;
+    };
 
     const term = hoveredToken.word.lemma && hoveredToken.word.lemma !== 'skip' 
         ? hoveredToken.word.lemma 
         : hoveredToken.word.surface;
     
     // Clean term for external lookup (remove Furigana syntax)
-    const cleanLookupTerm = term.replace(/\{[^\}]+\}/g, '');
+    const cleanLookupTerm = String(term).replace(/\{[^\}]+\}/g, '');
 
     return createPortal(
         <div 
@@ -72,16 +72,12 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
                             <h4 className="text-2xl font-black text-white tracking-tight leading-tight">
                                 {processFurigana(term)}
                             </h4>
-                            {hoveredToken.word.lemma && hoveredToken.word.lemma !== hoveredToken.word.surface && hoveredToken.word.lemma !== 'skip' && (
-                                <div className="text-slate-500 text-xs font-bold flex items-center gap-1.5 opacity-80">
-                                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] uppercase">Dạng gốc</span>
-                                    {processFurigana(hoveredToken.word.surface)}
-                                </div>
-                            )}
                             <div className="flex items-center gap-3 pt-1">
-                                <span className="text-[11px] text-sky-400 font-black tracking-widest uppercase bg-sky-400/10 px-2.5 py-1 rounded-lg border border-sky-400/20">
-                                    {hoveredToken.word.reading || '...'}
-                                </span>
+                                {hoveredToken.word.reading && (
+                                    <span className="text-[11px] text-sky-400 font-black tracking-widest uppercase bg-sky-400/10 px-2.5 py-1 rounded-lg border border-sky-400/20">
+                                        {hoveredToken.word.reading}
+                                    </span>
+                                )}
                                 {hoveredToken.word.metadata?.kanji_viet && (
                                     <span className="text-[11px] text-amber-400 font-black tracking-widest uppercase bg-amber-400/10 px-2.5 py-1 rounded-lg border border-amber-400/20">
                                         {hoveredToken.word.metadata.kanji_viet}
@@ -124,9 +120,11 @@ export const VocabTooltip: React.FC<VocabTooltipProps> = ({
                             hoveredToken.word.meanings.map((m: string, i: number) => (
                                 <div key={i} className="flex gap-3 bg-white/5 p-2.5 rounded-xl border border-white/5">
                                     <span className="text-sky-500 font-black text-[10px] opacity-60 mt-0.5">{i+1}</span>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                                        {m}
-                                    </ReactMarkdown>
+                                    <div className="flex-1">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                                            {m}
+                                        </ReactMarkdown>
+                                    </div>
                                 </div>
                             ))
                         ) : (
