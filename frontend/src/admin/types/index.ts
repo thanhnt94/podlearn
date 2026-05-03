@@ -23,6 +23,7 @@ export interface AdminSettings {
   CENTRAL_AUTH_SERVER_ADDRESS: string;
   CENTRAL_AUTH_CLIENT_ID: string;
   CENTRAL_AUTH_CLIENT_SECRET: string;
+  YOUTUBE_PROXY_URL: string;
 }
 
 export interface AdminVideo {

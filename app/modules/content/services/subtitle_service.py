@@ -12,6 +12,7 @@ import yt_dlp
 
 from app.core.extensions import db
 from app.modules.content.models import SubtitleTrack
+from app.modules.engagement.models import AppSetting
 from deep_translator import GoogleTranslator
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,12 @@ def _get_ytdlp_opts(extra_opts=None):
         'youtube_include_dash_manifest': True,
         'youtube_include_hls_manifest': True,
     }
+
+    # Dynamic Proxy Support
+    proxy_url = AppSetting.get('YOUTUBE_PROXY_URL')
+    if proxy_url:
+        opts['proxy'] = proxy_url
+        sys.stderr.write(f"[YT-CONFIG] Using PROXY: {proxy_url}\n")
 
     if os.path.exists(cookie_path):
         if not os.access(cookie_path, os.R_OK):
@@ -236,7 +243,9 @@ def download_and_parse_youtube_sub(video_id: str, lang_code: str, is_auto: bool 
 
         # 4. Direct Download via requests
         print(f">>> [YT-SUB] Fetching VTT from: {vtt_url[:60]}... <<<")
-        response = requests.get(vtt_url, timeout=15)
+        proxy_url = AppSetting.get('YOUTUBE_PROXY_URL')
+        proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+        response = requests.get(vtt_url, timeout=15, proxies=proxies)
         response.raise_for_status()
         vtt_content = response.text
 

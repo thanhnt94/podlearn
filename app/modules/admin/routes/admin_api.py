@@ -148,7 +148,8 @@ def get_settings():
         'AUTH_PROVIDER': AppSetting.get('AUTH_PROVIDER', 'local'),
         'CENTRAL_AUTH_SERVER_ADDRESS': AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', ''),
         'CENTRAL_AUTH_CLIENT_ID': AppSetting.get('CENTRAL_AUTH_CLIENT_ID', ''),
-        'CENTRAL_AUTH_CLIENT_SECRET': AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
+        'CENTRAL_AUTH_CLIENT_SECRET': AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', ''),
+        'YOUTUBE_PROXY_URL': AppSetting.get('YOUTUBE_PROXY_URL', '')
     })
 
 @admin_api_bp.route('/settings/gemini', methods=['POST'])
@@ -225,6 +226,17 @@ def save_auth_settings():
     AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
 
     return jsonify({'success': True, 'message': 'Đã lưu cấu hình kết nối Ecosystem.'})
+
+@admin_api_bp.route('/settings/proxy', methods=['POST'])
+@jwt_required()
+@admin_required
+def save_proxy_settings():
+    data = request.get_json()
+    proxy_url = data.get('proxy_url', '').strip()
+    
+    AppSetting.set('YOUTUBE_PROXY_URL', proxy_url, category='infrastructure')
+    
+    return jsonify({'success': True, 'message': 'Đã cập nhật proxy cho YouTube.'})
 
 @admin_api_bp.route('/test-auth', methods=['POST'])
 @jwt_required()
