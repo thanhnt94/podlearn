@@ -67,6 +67,7 @@ def _get_ytdlp_opts(extra_opts=None):
         'writesubtitles': False,
         'writeautomaticsub': False,
         'prefer_ffmpeg': False, 
+        'force_ipv4': True,
         'youtube_include_dash_manifest': True,
         'youtube_include_hls_manifest': True,
     }
@@ -159,7 +160,7 @@ def get_available_subs_from_youtube(video_id: str):
                 'extract_flat': False, 
                 'listsubtitles': True,
                 'force_generic_extractor': False,
-                'extractor_args': {'youtube': {'player_client': ['web', 'ios']}} # Web often has more subs
+                'extractor_args': {'youtube': {'player_client': ['web', 'tv', 'ios']}} # TV client sometimes has different sub availability
             }
             info = fetch_info_cached(video_id, extra_opts=retry_opts)
             available = extract_from_info(info) if info else []
