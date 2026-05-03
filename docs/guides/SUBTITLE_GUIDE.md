@@ -11,11 +11,12 @@
 ### A. Furigana (Cách đọc)
 Sử dụng dấu ngoặc nhọn `{}` ngay sau từ.
 *   **Kanji**: `HánTự{hiragana}` -> Ví dụ: `昨日{きのう}`
-*   **Katakana**: `Katakana{từ_gốc_lowercase}` -> Ví dụ: `ポッドキャスト{podcast}`
+*   **Katakana (Từ mượn)**: `Katakana{từ_gốc_lowercase}` -> Ví dụ: `ポッドキャスト{podcast}`
+*   **Katakana (Từ thuần Nhật/Từ tượng thanh)**: `Katakana{hiragana}` -> Ví dụ: `コロコロ{ころころ}`, `サッパリ{さっぱり}`
 
 ### B. Phân tách từ (Segmentation)
 Sử dụng dấu gạch đứng `|` để ngăn cách các từ. (Tuyệt đối không có khoảng trắng quanh dấu `|`).
-*   **Ví dụ**: `私|は|日本|に|行きたい|です。`
+*   **Ví dụ**: `私|は|日本|に|行きたい|입니다. (nhầm ví dụ Nhật Việt)` -> `私|は|日本|に|行きたい|です。`
 
 ### C. Từ gốc (Lemma)
 Dùng ngoặc vuông `[]` cho từ gốc (thể từ điển) của Động từ/Tính từ.
@@ -23,34 +24,27 @@ Dùng ngoặc vuông `[]` cho từ gốc (thể từ điển) của Động từ
 
 ### D. Gán nhãn bỏ qua (Skip Tokens)
 Dùng `[-]` cho các trợ từ hoặc từ đệm. **Lưu ý quan trọng**: Nếu có nhiều thành phần bỏ qua đứng cạnh nhau, hãy gộp chúng lại thành một cụm duy nhất rồi mới gán nhãn `[-]`.
-*   **Ví dụ**: `私|は[-]|日本|に[-]` -> `私|は[-]` (Nếu "wa" và "ni" đứng cạnh nhau thì gộp lại).
-*   **Đúng chuẩn**: `レイラさんは、[-]` (Thay vì `レイラ|さん|は|、[-]`)
 
 ---
 
 ## 3. AI Prompt mẫu để tạo Subtitle (Chuẩn nhất)
-Copy toàn bộ prompt dưới đây để gửi cho AI (Gemini, Claude, ChatGPT):
+Copy toàn bộ prompt dưới đây để gửi cho AI:
 
 ```text
 Bạn là một chuyên gia Ngôn ngữ học tiếng Nhật. Hãy xử lý nội dung phụ đề SRT dưới đây theo các quy tắc nghiêm ngặt:
 
-1. GIỮ NGUYÊN vẹn định dạng SRT (số thứ tự và timestamps).
-2. Dùng dấu gạch đứng `|` để phân tách từ (TUYỆT ĐỐI không có khoảng trắng xung quanh).
-3. Furigana:
-   - Với Kanji: Thêm Hiragana vào `{ }`. Ví dụ: 日本{にほん}.
-   - Với Katakana: Thêm từ ngoại ngữ gốc (viết thường - lowercase) vào `{ }`. Ví dụ: ポッドキャスト{podcast}.
-4. Lemma: Với Động từ/Tính từ, khôi phục về thể từ điển trong `[ ]`. Ví dụ: 食べたい[食べる]. (Không thêm Furigana vào trong [ ]).
-5. Nhãn Skip [-]:
-   - Chỉ dùng cho: Trợ từ (wa, ga, ni...), dấu câu, từ đệm (ano, eto).
-   - QUY TẮC GỘP: Nếu nhiều thành phần skip đứng cạnh nhau, hãy GỘP LẠI thành 1 cụm duy nhất rồi mới gán nhãn [-]. Ví dụ: "さんは、[-]" thay vì tách lẻ.
-6. TRẢ VỀ KẾT QUẢ: Đặt toàn bộ nội dung SRT đã xử lý vào trong một code block Markdown để tôi dễ dàng copy.
+1. GIỮ NGUYÊN định dạng SRT (số thứ tự và timestamps).
+2. Dùng dấu gạch đứng `|` để phân tách từ (KHÔNG có khoảng trắng).
+3. Furigana cho Katakana (QUAN TRỌNG):
+   - Nếu là từ mượn tiếng nước ngoài (Gairaigo): Thêm từ gốc tiếng Anh/ngoại ngữ (viết thường) vào { }. Ví dụ: ポッドキャスト{podcast}.
+   - Nếu là từ thuần Nhật, từ tượng thanh (Onomatopoeia) viết bằng Katakana: Thêm Hiragana tương ứng vào { }. Ví dụ: コロコロ{ころころ}, サッパリ{さっぱり}.
+4. Furigana cho Kanji: Thêm Hiragana vào { }. Ví dụ: 日本{にほん}.
+5. Lemma: Với Động từ/Tính từ, khôi phục về thể từ điển trong [ ]. Ví dụ: 食べたい[食べる].
+6. Nhãn Skip [-]:
+   - Dùng cho trợ từ, dấu câu, từ đệm.
+   - QUY TẮC GỘP: Gộp các thành phần skip cạnh nhau thành 1 cụm duy nhất rồi mới gán nhãn [-]. Ví dụ: "さんは、[-]"
+7. TRẢ VỀ: Đặt kết quả vào trong một code block Markdown.
 
 Nội dung cần xử lý:
 [Dán nội dung SRT vào đây]
 ```
-
----
-
-## 4. Quy tắc trình bày (Best Practices)
-*   **Độ dài câu**: Không quá 2 dòng.
-*   **Timing**: Sub nên xuất hiện sớm hơn tiếng nói khoảng 100ms - 200ms.

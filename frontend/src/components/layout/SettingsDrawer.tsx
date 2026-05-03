@@ -67,10 +67,9 @@ export const SettingsDrawer: React.FC = () => {
         if (!lessonId) return;
         setIsFetchingCustomDict(true);
         try {
-            const res = await axios.get(`/api/study/vocab/custom-dict/${lessonId}`);
+            const res = await axios.get(`/api/study/vocab/custom-dict/${lessonId}?lang=${customDictLang}`);
             if (res.data.success) {
                 setCustomDictText(res.data.text);
-                setCustomDictLang(res.data.lang_tag || 'ja-vi');
             }
         } catch (err) {} finally { setIsFetchingCustomDict(false); }
     };
@@ -100,7 +99,7 @@ export const SettingsDrawer: React.FC = () => {
 
     useEffect(() => {
         if (isOpen && activeTab === 'vocab') fetchCustomDict();
-    }, [isOpen, activeTab]);
+    }, [isOpen, activeTab, customDictLang]);
 
     const fetchYoutubeSources = async () => {
         if (!videoId) return;

@@ -978,21 +978,27 @@ def import_custom_dict():
         src_lang, target_lang = parts[0], parts[1]
     
     try:
-        # 1. Get or create the custom dictionary for this lesson
-        v_dict = VideoDictionary.query.filter_by(lesson_id=lesson_id, name="Lesson Custom").first()
+        # 1. Create or find dictionary for this SPECIFIC language pair
+        v_dict = VideoDictionary.query.filter_by(
+            lesson_id=lesson_id, 
+            name="Lesson Custom",
+            language_code=src_lang,
+            target_language_code=target_lang
+        ).first()
+        
         if not v_dict:
-            v_dict = VideoDictionary(lesson_id=lesson_id, name="Lesson Custom", language_code=src_lang, target_language_code=target_lang)
+            v_dict = VideoDictionary(
+                lesson_id=lesson_id, 
+                name="Lesson Custom", 
+                language_code=src_lang, 
+                target_language_code=target_lang
+            )
             db.session.add(v_dict)
-            db.session.flush() # Get ID
-        else:
-            v_dict.language_code = src_lang
-            v_dict.target_language_code = target_lang
-            # Clear old items for this specific custom dict
-            VideoGlossary.query.filter_by(dictionary_id=v_dict.id).delete()
+            db.session.flush()
             
         # 2. Parse and insert items
         lines = text.split('\n')
-        # Clear old items in this custom dict to avoid duplication
+        # Clear old items in this SPECIFIC custom dict to avoid duplication
         VideoGlossary.query.filter_by(dictionary_id=v_dict.id).delete()
 
         added = 0
@@ -1032,15 +1038,27 @@ def import_custom_dict():
 @study_api_bp.route('/vocab/custom-dict/<int:lesson_id>', methods=['GET'])
 @jwt_required()
 def get_custom_dict(lesson_id):
-    """Retrieve the raw text of the custom dictionary for a lesson."""
+    """Retrieve the raw text of the custom dictionary for a lesson and specific lang pair."""
     from app.modules.study.models import VideoDictionary, VideoGlossary
-    v_dict = VideoDictionary.query.filter_by(lesson_id=lesson_id, name="Lesson Custom").first()
+    
+    lang_tag = request.args.get('lang', 'ja-vi')
+    try:
+        src_lang, target_lang = lang_tag.split('-')
+    except:
+        src_lang, target_lang = 'ja', 'vi'
+
+    v_dict = VideoDictionary.query.filter_by(
+        lesson_id=lesson_id, 
+        name="Lesson Custom",
+        language_code=src_lang,
+        target_language_code=target_lang
+    ).first()
+    
     if not v_dict:
-        return jsonify({"success": True, "text": "", "lang_tag": "ja-vi"})
+        return jsonify({"success": True, "text": "", "lang_tag": lang_tag})
         
     items = VideoGlossary.query.filter_by(dictionary_id=v_dict.id).all()
     text = "\n".join([f"{item.reading if item.reading else item.front} | {item.back}" for item in items])
-    lang_tag = f"{v_dict.language_code}-{v_dict.target_language_code}"
     
     return jsonify({"success": True, "text": text, "lang_tag": lang_tag})
 
