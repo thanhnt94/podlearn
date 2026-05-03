@@ -95,9 +95,7 @@ def _get_ytdlp_opts(extra_opts=None):
     return opts
 
 def fetch_info_cached(video_id: str, extra_opts=None):
-    """Fetch video info with 1-hour in-memory caching. 
-    Smart enough to re-fetch if we have a 'flat' cache but need a 'full' one.
-    """
+    """Fetch video info with 1-hour in-memory caching and resilient retry logic."""
     now = time.time()
     req_is_flat = extra_opts.get('extract_flat', False) if extra_opts else False
 
@@ -105,28 +103,49 @@ def fetch_info_cached(video_id: str, extra_opts=None):
         ts, info, cached_is_flat = YT_INFO_CACHE[video_id]
         if now - ts < YT_CACHE_TTL:
             has_sub_keys = 'subtitles' in info or 'automatic_captions' in info
-            has_actual_subs = bool(info.get('subtitles') or info.get('automatic_captions'))
-            
-            # If we need a full extract (req_is_flat=False) but the cache is flat OR has NO sub keys at all
-            # (which happens if it was a fast metadata-only extract), we MUST re-fetch.
             if not req_is_flat and (cached_is_flat or not has_sub_keys):
-                print(f">>> [YT CACHE] Incomplete data for {video_id} (Flat={cached_is_flat}, HasSubKeys={has_sub_keys}). Upgrading to full fetch... <<<")
+                pass # Upgrade needed
             else:
-                print(f">>> [YT CACHE] Hit for {video_id} (Flat={cached_is_flat}, HasActualSubs={has_actual_subs}) <<<")
                 return info
     
-    print(f">>> [YT FETCH] Extracting metadata for {video_id} (Flat={req_is_flat})... <<<")
     url = f"https://www.youtube.com/watch?v={video_id}"
-    ydl_opts = _get_ytdlp_opts(extra_opts)
     
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        if info:
-            # A result is flat if it's explicitly marked as composite OR it lacks substantial data like 'formats' or 'subtitles'
-            # Note: extract_flat: True often skips 'subtitles' field entirely in the response dict
-            is_flat_result = info.get('_type') == 'url_composite' or ('formats' not in info and 'subtitles' not in info)
-            YT_INFO_CACHE[video_id] = (now, info, is_flat_result)
-        return info
+    # Attempt 1: Default/Standard
+    try:
+        print(f">>> [YT FETCH] Attempt 1 for {video_id} (Flat={req_is_flat})... <<<")
+        ydl_opts = _get_ytdlp_opts(extra_opts)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info and ('title' in info or 'subtitles' in info):
+                is_flat_result = info.get('_type') == 'url_composite' or ('formats' not in info and 'subtitles' not in info)
+                YT_INFO_CACHE[video_id] = (now, info, is_flat_result)
+                return info
+    except Exception as e:
+        print(f">>> [YT FETCH] Attempt 1 failed: {str(e)} <<<")
+
+    # Attempt 2: Resilient Fallback (for VPS/Data Centers)
+    print(f">>> [YT FETCH] Attempt 2 (Resilient) for {video_id}... <<<")
+    import random
+    time.sleep(random.uniform(1.5, 3.0))
+    
+    resilient_opts = dict(extra_opts or {})
+    resilient_opts.update({
+        'extractor_args': {'youtube': {'player_client': ['ios', 'web_embedded', 'tv']}},
+        'ignoreerrors': True
+    })
+    
+    try:
+        ydl_opts = _get_ytdlp_opts(resilient_opts)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info and ('title' in info or 'subtitles' in info):
+                is_flat_result = info.get('_type') == 'url_composite' or ('formats' not in info and 'subtitles' not in info)
+                YT_INFO_CACHE[video_id] = (now, info, is_flat_result)
+                return info
+    except Exception as e:
+        print(f">>> [YT FETCH] Attempt 2 failed: {str(e)} <<<")
+
+    return None
 
 
 def get_available_subs_from_youtube(video_id: str):
@@ -145,31 +164,17 @@ def get_available_subs_from_youtube(video_id: str):
                 if any(a['lang_code'] == code for a in available): continue
                 available.append({'lang_code': code, 'name': (formats[0].get('name', code) if formats else code) + " (Auto)", 'is_auto': True})
             return available
-
         available = extract_from_info(info) if info else []
         
-        # If still empty OR we had a failure, try the HARD RETRY
+        # If still empty, clear cache and try one more time with listsubtitles forced
         if not available:
-            sys.stderr.write(f"[YT-DEBUG] No subs or failed fetch for {video_id}. Attempting Hard Retry... \n")
+            sys.stderr.write(f"[YT-DEBUG] No subs for {video_id}. Final attempt... \n")
             if video_id in YT_INFO_CACHE:
                 del YT_INFO_CACHE[video_id]
             
-            # Anti-throttling: Small random sleep before retry
-            import random
-            time.sleep(random.uniform(2.0, 4.0))
+            info = fetch_info_cached(video_id, extra_opts={'listsubtitles': True, 'extract_flat': False})
+            available = extract_from_info(info) if info else []
 
-            # Use more permissive clients for the hard retry
-            retry_opts = {
-                'extract_flat': False, 
-                'listsubtitles': True,
-                'force_generic_extractor': False,
-                'extractor_args': {'youtube': {'player_client': ['ios', 'web_embedded', 'tv']}} 
-            }
-            try:
-                info = fetch_info_cached(video_id, extra_opts=retry_opts)
-                available = extract_from_info(info) if info else []
-            except Exception as retry_err:
-                sys.stderr.write(f"[YT-DEBUG] Hard Retry also failed: {str(retry_err)}\n")
             
         if not info:
             return {"error": "NotFound", "message": "Video not found hoặc bị chặn (Failed to extract player response). Vui lòng thử lại sau hoặc dùng Proxy."}
