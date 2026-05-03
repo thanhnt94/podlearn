@@ -247,25 +247,24 @@ class VideoDictionary(db.Model):
 
 class VideoGlossary(db.Model):
     """
-    Shared community glossary for a specific video.
-    Definitions here override the generic JMDict meanings.
+    Flashcard mastery items (formerly shared community glossary).
+    Simplified to Front and Back structure for interactive learning.
     """
     __tablename__ = 'video_glossaries'
 
     id = db.Column(db.Integer, primary_key=True)
-    video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=True) # Now optional
+    video_id = db.Column(db.Integer, db.ForeignKey('videos.id'), nullable=True)
     lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id'), nullable=True, index=True)
     dictionary_id = db.Column(db.Integer, db.ForeignKey('video_dictionaries.id', ondelete='CASCADE'), nullable=True)
     
-    # The term being defined (usually the lemma/dictionary form)
-    term = db.Column(db.String(255), nullable=False, index=True)
+    # Front of the card (usually the word/sentence)
+    front = db.Column(db.String(255), nullable=False, index=True)
+    # Hidden part of the card (reading + meaning etc.)
+    back = db.Column(db.Text, nullable=False)
+
+    # Legacy fields (kept for migration/compatibility)
     reading = db.Column(db.String(255))
-    
-    # Current "Wiki" definition
-    definition = db.Column(db.Text, nullable=False)
-    
-    # Track the source of the definition (mazii or jamdict)
-    source = db.Column(db.String(20), default='jamdict')
+    source = db.Column(db.String(20), default='manual')
     
     # Frequency: Number of times this term appears in the lesson/video
     frequency = db.Column(db.Integer, default=1)
@@ -283,17 +282,18 @@ class VideoGlossary(db.Model):
     video = db.relationship('Video', backref=db.backref('glossary_items', lazy='dynamic'))
     updater = db.relationship('User', backref='wiki_edits')
     
-    # Unique constraint: One definition per term per dictionary (if exists) or lesson/video fallback
+    # Unique constraint
     __table_args__ = (
-        db.UniqueConstraint('dictionary_id', 'term', name='_dictionary_term_uc'),
-        db.UniqueConstraint('lesson_id', 'term', name='_lesson_term_uc'), # For legacy/fallback
+        db.UniqueConstraint('dictionary_id', 'front', name='_dictionary_front_uc'),
+        db.UniqueConstraint('lesson_id', 'front', name='_lesson_front_uc'),
     )
 
     def to_dict(self):
         return {
-            "term": self.term,
+            "id": self.id,
+            "front": self.front,
+            "back": self.back,
             "reading": self.reading,
-            "meaning": self.definition,
             "source": self.source,
             "extra_data": self.extra_data or {}
         }

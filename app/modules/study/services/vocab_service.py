@@ -155,6 +155,9 @@ def get_all_available_dicts(src_lang='ja', target_lang='vi', lesson_id=None):
     secondary_db = [d for d in db_dicts if d.target_language_code != target_lang]
     
     db_list = []
+    # Force 'Lesson Custom' to the top if it exists
+    primary_db = sorted(primary_db, key=lambda x: x.name != 'Lesson Custom')
+    
     for d in primary_db + secondary_db:
         db_list.append({
             'type': 'db', 'id': d.id, 'name': d.name, 'src': d.language_code, 'target': d.target_language_code
@@ -196,9 +199,9 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
                 res = None
                 if d['type'] == 'db':
                     from app.modules.study.models import VideoGlossary
-                    g = VideoGlossary.query.filter_by(dictionary_id=d['id'], term=chunk).first()
+                    g = VideoGlossary.query.filter_by(dictionary_id=d['id'], front=chunk).first()
                     if g:
-                        res = {'reading': g.reading, 'meanings': [g.definition] if g.definition else []}
+                        res = {'reading': g.reading, 'meanings': [g.back] if g.back else []}
                 else:
                     res = query_offline_dict(d['path'], chunk)
                 
@@ -300,9 +303,9 @@ def get_definitions_for_terms(terms, src_lang='ja', target_lang='vi', lesson_id=
         item_res, source = None, 'none'
         for d in all_dicts:
             if d['type'] == 'db':
-                g = VideoGlossary.query.filter_by(dictionary_id=d['id'], term=term).first()
+                g = VideoGlossary.query.filter_by(dictionary_id=d['id'], front=term).first()
                 if g:
-                    item_res = {'reading': g.reading, 'meanings': [g.definition] if g.definition else []}
+                    item_res = {'reading': g.reading, 'meanings': [g.back] if g.back else []}
                     source = d['name']
                     break
             else:

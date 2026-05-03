@@ -57,6 +57,51 @@ export const SettingsDrawer: React.FC = () => {
     const [isFetchingContent, setIsFetchingContent] = useState(false);
     const [isSavingContent, setIsSavingContent] = useState(false);
 
+    // Custom Dict state
+    const [customDictText, setCustomDictText] = useState('');
+    const [customDictLang, setCustomDictLang] = useState('ja-vi');
+    const [isSavingCustomDict, setIsSavingCustomDict] = useState(false);
+    const [isFetchingCustomDict, setIsFetchingCustomDict] = useState(false);
+
+    const fetchCustomDict = async () => {
+        if (!lessonId) return;
+        setIsFetchingCustomDict(true);
+        try {
+            const res = await axios.get(`/api/study/vocab/custom-dict/${lessonId}`);
+            if (res.data.success) {
+                setCustomDictText(res.data.text);
+                setCustomDictLang(res.data.lang_tag || 'ja-vi');
+            }
+        } catch (err) {} finally { setIsFetchingCustomDict(false); }
+    };
+
+    const handleSaveCustomDict = async () => {
+        if (!lessonId || !customDictText.trim()) return;
+        setIsSavingCustomDict(true);
+        try {
+            const res = await axios.post(`/api/study/vocab/import-custom-dict`, {
+                lesson_id: lessonId,
+                text: customDictText,
+                lang_tag: customDictLang
+            });
+            if (res.data.success) {
+                alert(`Imported ${res.data.count} items!`);
+                if (activeLineIndex !== -1) {
+                    const currentText = subtitles[activeLineIndex]?.text || '';
+                    const selectedTrack = availableTracks.find(t => t.id === sourceTrackId);
+                    const srcLang = selectedTrack?.language_code || originalLang || 'ja';
+                    await fetchAnalyzedWords(currentText, srcLang);
+                }
+            }
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Save failed.");
+        } finally { setIsSavingCustomDict(true); setTimeout(() => setIsSavingCustomDict(false), 2000); }
+    };
+
+    useEffect(() => {
+        if (isOpen && activeTab === 'vocab') fetchCustomDict();
+    }, [isOpen, activeTab]);
+
     const fetchYoutubeSources = async () => {
         if (!videoId) return;
         setIsLoadingSources(true);
@@ -552,11 +597,61 @@ export const SettingsDrawer: React.FC = () => {
                                             </select>
                                         </div>
                                         <div className="p-6 rounded-[2.5rem] bg-slate-900/40 border border-white/5 flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-white uppercase">Analysis Mode</span>
-                                            <button onClick={() => setAutoSegmentationEnabled(!autoSegmentationEnabled)} className={`w-12 h-6 rounded-full relative transition-all ${autoSegmentationEnabled ? 'bg-amber-500' : 'bg-slate-800'}`}>
-                                                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all ${autoSegmentationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                                            </button>
-                                        </div>
+                                             <span className="text-[10px] font-black text-white uppercase">Analysis Mode</span>
+                                             <button onClick={() => setAutoSegmentationEnabled(!autoSegmentationEnabled)} className={`w-12 h-6 rounded-full relative transition-all ${autoSegmentationEnabled ? 'bg-amber-500' : 'bg-slate-800'}`}>
+                                                 <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all ${autoSegmentationEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                             </button>
+                                         </div>
+
+                                         <div className="space-y-6 pt-6 border-t border-white/5">
+                                             <div className="flex items-center gap-2 px-2">
+                                                 <Edit3 size={16} className="text-sky-500" />
+                                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Custom Lesson Dictionary</span>
+                                             </div>
+                                             
+                                             <div className="bg-slate-900/60 rounded-[2.5rem] p-6 border border-white/5 space-y-4">
+                                                 <div className="flex items-center justify-between px-1">
+                                                     <label className="text-[9px] font-black uppercase text-slate-500">Language Pair</label>
+                                                     <select 
+                                                        value={customDictLang} 
+                                                        onChange={e => setCustomDictLang(e.target.value)}
+                                                        className="bg-slate-950 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-bold text-sky-400 outline-none"
+                                                     >
+                                                         <option value="ja-vi">JP → VI</option>
+                                                         <option value="ja-en">JP → EN</option>
+                                                         <option value="en-vi">EN → VI</option>
+                                                     </select>
+                                                 </div>
+
+                                                 <div className="relative">
+                                                     <textarea 
+                                                        value={customDictText}
+                                                        onChange={e => setCustomDictText(e.target.value)}
+                                                        placeholder="Mặt trước | Mặt sau&#10;Ví dụ:&#10;こんにちは | Xin chào&#10;世界 | Thế giới"
+                                                        className="w-full h-40 bg-slate-950 border border-white/10 rounded-2xl p-4 text-xs font-mono text-slate-400 outline-none resize-none focus:border-sky-500/50 transition-all"
+                                                     />
+                                                     {isFetchingCustomDict && (
+                                                         <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[1px] flex items-center justify-center rounded-2xl">
+                                                             <RefreshCw size={20} className="text-sky-500 animate-spin" />
+                                                         </div>
+                                                     )}
+                                                 </div>
+
+                                                 <button 
+                                                    onClick={handleSaveCustomDict}
+                                                    disabled={isSavingCustomDict || !customDictText.trim()}
+                                                    className={`w-full py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg active:scale-95 ${
+                                                        isSavingCustomDict ? 'bg-emerald-500 text-white' : 'bg-sky-500 text-slate-950 shadow-sky-500/20'
+                                                    }`}
+                                                 >
+                                                     {isSavingCustomDict ? 'DICT SAVED!' : 'SAVE CUSTOM DICT'}
+                                                 </button>
+
+                                                 <p className="text-[9px] text-slate-600 font-bold uppercase tracking-wider text-center px-4">
+                                                     Custom dict will be prioritized first during word analysis.
+                                                 </p>
+                                             </div>
+                                         </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>

@@ -53,24 +53,6 @@ export const SidebarContainer: React.FC = () => {
 
                 <div className="relative flex p-1.5 bg-slate-900/90 rounded-[22px] border border-white/10 backdrop-blur-2xl shadow-2xl overflow-hidden">
                     {/* Animated Glow Background for Active Tab */}
-                    <AnimatePresence>
-                        {mainTabs.map((tab) => {
-                             if (activeTab !== tab.id) return null;
-                             return (
-                                <motion.div 
-                                    key="tabGlow"
-                                    layoutId="activeTabPill"
-                                    className="absolute inset-y-1.5 bg-sky-500/15 rounded-[16px] border border-sky-500/30 shadow-[0_0_20px_rgba(14,165,233,0.15),inset_0_0_10px_rgba(255,255,255,0.05)]"
-                                    style={{ 
-                                        width: `calc(25% - 6px)`,
-                                        left: `${mainTabs.findIndex(t => t.id === activeTab) * 25.1 + 1.2}%`
-                                    }}
-                                    transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-                                />
-                             );
-                        })}
-                    </AnimatePresence>
-
                     {mainTabs.map((tab) => {
                         const isActive = activeTab === tab.id;
                         return (
@@ -81,8 +63,15 @@ export const SidebarContainer: React.FC = () => {
                                     isActive ? 'text-white' : 'text-slate-500 hover:text-slate-300'
                                 }`}
                             >
-                                <tab.icon size={16} className={`md:w-[20px] md:h-[20px] transition-all duration-500 ${isActive ? 'scale-125 text-sky-400 drop-shadow-[0_0_8px_rgba(14,165,233,0.5)]' : 'scale-100 opacity-50'}`} />
-                                <span className={`text-[9px] md:text-[9px] font-black uppercase tracking-[0.15em] md:tracking-widest transition-all duration-500 ${isActive ? 'opacity-100 scale-105' : 'opacity-40'}`}>
+                                {isActive && (
+                                    <motion.div 
+                                        layoutId="activeTabPill"
+                                        className="absolute inset-0 bg-sky-500/15 rounded-[16px] border border-sky-500/30 shadow-[0_0_20px_rgba(14,165,233,0.15),inset_0_0_10px_rgba(255,255,255,0.05)]"
+                                        transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                                    />
+                                )}
+                                <tab.icon size={16} className={`md:w-[20px] md:h-[20px] transition-all duration-500 relative z-10 ${isActive ? 'scale-125 text-sky-400 drop-shadow-[0_0_8px_rgba(14,165,233,0.5)]' : 'scale-100 opacity-50'}`} />
+                                <span className={`text-[9px] md:text-[9px] font-black uppercase tracking-[0.15em] md:tracking-widest transition-all duration-500 relative z-10 ${isActive ? 'opacity-100 scale-105' : 'opacity-40'}`}>
                                     {tab.label}
                                 </span>
                             </button>
@@ -91,7 +80,7 @@ export const SidebarContainer: React.FC = () => {
                 </div>
             </div>
             {/* ─── Sub-Tab Navigation (Dynamic) ─── */}
-            {activeTab !== 'Overview' && (
+            {(activeTab === 'TimeLine' || activeTab === 'Practice') && (
                 <div className="shrink-0 px-4 py-1.5 md:py-3">
                     <AnimatePresence mode="wait">
                         {activeTab === 'TimeLine' && (
@@ -108,9 +97,6 @@ export const SidebarContainer: React.FC = () => {
                                 <SubTabButton active={practiceSub === 'mastery'} onClick={() => setPracticeSub('mastery')} label="Mastery" icon={<Target size={12} />} color="amber" />
                                 <SubTabButton active={practiceSub === 'ai'} onClick={() => setPracticeSub('ai')} label="AI Insight" icon={<Sparkles size={12} />} color="purple" />
                             </motion.div>
-                        )}
-                        {activeTab === 'Vocab' && (
-                            <div className="h-6" />
                         )}
                     </AnimatePresence>
                 </div>

@@ -28,7 +28,11 @@ PodLearn/
 │   ├── admin.html              # Entry point cho Admin Studio
 │   ├── index.html              # Entry point cho Main App
 │   └── vite.config.ts          # Cấu hình Build & Output Path
-├── docs/                       # Tài liệu kỹ thuật chuyên sâu
+├── docs/                       # Tài liệu hướng dẫn & kỹ thuật
+│   ├── guides/                 # Hướng dẫn sử dụng (Sub, Custom Dict, Deploy)
+│   ├── technical/              # Đặc tả kỹ thuật (DB, API, Architecture)
+│   ├── features/               # Mô tả tính năng & các chế độ học
+│   └── agents/                 # Hướng dẫn & Prompts cho AI Agents
 ├── migrations/                 # Lịch sử phiên bản Database
 ├── Storage/                    # Dữ liệu cục bộ (SQLite, Media, Uploads)
 ├── run_podlearn.py             # Script khởi chạy Flask Server (Port 5020)

@@ -368,9 +368,9 @@ def list_lesson_vocab(lesson_id):
     return jsonify({
         "vocab": [{
             "id": v.id,
-            "word": v.term,
+            "front": v.front,
+            "back": v.back,
             "reading": v.reading,
-            "meaning": v.definition,
             "source": v.source
         } for v in items]
     })
@@ -381,25 +381,25 @@ def add_vocab():
     from app.modules.study.models import VideoGlossary
     data = request.get_json() or {}
     lesson_id = data.get('lesson_id')
-    term = data.get('word', '').strip()
+    front = data.get('word', '').strip()
     reading = data.get('reading', '').strip()
-    definition = data.get('meaning', '').strip()
+    back = data.get('meaning', '').strip()
     
-    if not term or not definition:
-        return jsonify({"error": "Word and meaning are required"}), 400
+    if not front or not back:
+        return jsonify({"error": "Front and back content are required"}), 400
 
     # Check if exists in this lesson context
-    existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
+    existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, front=front).first()
     if existing:
-        existing.definition = definition
+        existing.back = back
         existing.reading = reading
         existing.last_updated_by = current_user.id
     else:
         vocab = VideoGlossary(
             lesson_id=lesson_id,
-            term=term,
+            front=front,
             reading=reading,
-            definition=definition,
+            back=back,
             last_updated_by=current_user.id
         )
         db.session.add(vocab)
@@ -423,7 +423,11 @@ def update_vocab_item(item_id):
     if 'reading' in data:
         item.reading = data['reading'].strip()
     if 'meaning' in data:
-        item.definition = data['meaning'].strip()
+        item.back = data['meaning'].strip()
+    if 'front' in data:
+        item.front = data['front'].strip()
+    if 'back' in data:
+        item.back = data['back'].strip()
         
     item.last_updated_by = current_user.id
     db.session.commit()
@@ -435,9 +439,9 @@ def remove_vocab():
     from app.modules.study.models import VideoGlossary
     data = request.get_json() or {}
     lesson_id = data.get('lesson_id')
-    term = data.get('word', '').strip()
+    front = data.get('word', '').strip()
     
-    item = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first_or_404()
+    item = VideoGlossary.query.filter_by(lesson_id=lesson_id, front=front).first_or_404()
     db.session.delete(item)
     db.session.commit()
     return jsonify({"success": True})
@@ -668,9 +672,9 @@ def get_video_glossary(lesson_id):
     glossary = []
     for e in entries:
         glossary.append({
-            "term": e.term,
+            "front": e.front,
             "reading": e.reading,
-            "meaning": e.meaning,
+            "back": e.back,
             "extra_data": e.extra_data or {}
         })
     return jsonify({"glossary": glossary})
@@ -706,13 +710,13 @@ def sync_vocab_batch():
         for res in results:
             term = res['lemma']
             # Check if term mapping already exists in this lesson
-            existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, term=term).first()
+            existing = VideoGlossary.query.filter_by(lesson_id=lesson_id, front=term).first()
             if not existing:
                 item = VideoGlossary(
                     lesson_id=lesson_id,
                     video_id=video_id,
-                    term=term,
-                    definition="[LOOKUP_REQUIRED]", # Placeholder, meanings are fetched on-the-fly
+                    front=term,
+                    back="[LOOKUP_REQUIRED]", # Placeholder, meanings are fetched on-the-fly
                     source="offline"
                 )
                 db.session.add(item)
@@ -807,16 +811,16 @@ def import_dictionary(lesson_id):
             target_lang = item.get('target_lang', 'vi')
             
             # Check if exists in THIS dictionary
-            entry = VideoGlossary.query.filter_by(dictionary_id=v_dict.id, term=term).first()
+            entry = VideoGlossary.query.filter_by(dictionary_id=v_dict.id, front=term).first()
             if not entry:
-                entry = VideoGlossary(dictionary_id=v_dict.id, video_id=video_id, lesson_id=lesson_id, term=term)
+                entry = VideoGlossary(dictionary_id=v_dict.id, video_id=video_id, lesson_id=lesson_id, front=term)
                 db.session.add(entry)
                 added += 1
             else:
                 updated += 1
                 
             entry.reading = item.get('reading', entry.reading)
-            entry.definition = item.get('meaning', entry.definition or "")
+            entry.back = item.get('meaning', entry.back or "")
             entry.language_code = lang
             entry.target_language_code = target_lang
             entry.source = 'manual'
@@ -873,7 +877,7 @@ def analyze_vocab():
                 (VideoGlossary.dictionary_id.in_(dict_ids)) | 
                 ((VideoGlossary.lesson_id == lesson_id) & (VideoGlossary.dictionary_id == None))
             ).all()
-            user_map = {item.term: item.to_dict() for item in glossary_items}
+            user_map = {item.front: item.to_dict() for item in glossary_items}
 
         delimiters = ['|', '/', ' ']
         active_delimiter = next((d for d in delimiters if d in text), None)
@@ -914,7 +918,7 @@ def analyze_vocab():
                 # 2. Lesson Glossary
                 if not found and lemma in user_map:
                     u = user_map[lemma]
-                    results.append({"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": u.get('reading', ''), "meanings": [u.get('meaning', '')], "definition": u.get('meaning', ''), "source": "user_glossary"})
+                    results.append({"surface": surface, "lemma": lemma, "lemma_override": lemma, "word": lemma, "reading": u.get('reading', ''), "meanings": [u.get('back', '')], "definition": u.get('back', ''), "source": "user_glossary"})
                     found = True
 
                 # 3. General Offline
@@ -954,6 +958,87 @@ def analyze_vocab():
     except Exception as e:
         logger.error(f"[VOCAB ERROR] analyze_vocab failed: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+@study_api_bp.route('/vocab/import-custom-dict', methods=['POST'])
+@jwt_required()
+def import_custom_dict():
+    """Import a lesson-specific glossary from text format (Front | Back)."""
+    from app.modules.study.models import VideoDictionary, VideoGlossary
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    text = data.get('text', '').strip()
+    lang_tag = data.get('lang_tag', 'ja-vi') # Format: source-target
+    
+    if not lesson_id or not text:
+        return jsonify({"success": False, "error": "Missing lesson_id or text"}), 400
+        
+    src_lang, target_lang = 'ja', 'vi'
+    if '-' in lang_tag:
+        parts = lang_tag.split('-')
+        src_lang, target_lang = parts[0], parts[1]
+    
+    try:
+        # 1. Get or create the custom dictionary for this lesson
+        v_dict = VideoDictionary.query.filter_by(lesson_id=lesson_id, name="Lesson Custom").first()
+        if not v_dict:
+            v_dict = VideoDictionary(lesson_id=lesson_id, name="Lesson Custom", language_code=src_lang, target_language_code=target_lang)
+            db.session.add(v_dict)
+            db.session.flush() # Get ID
+        else:
+            v_dict.language_code = src_lang
+            v_dict.target_language_code = target_lang
+            # Clear old items for this specific custom dict
+            VideoGlossary.query.filter_by(dictionary_id=v_dict.id).delete()
+            
+        # 2. Parse and insert items
+        lines = text.split('\n')
+        added = 0
+        for line in lines:
+            if '|' not in line: continue
+            parts = [p.strip() for p in line.split('|', 1)]
+            if len(parts) < 2: continue
+            
+            front = parts[0]
+            back = parts[1]
+            if not front or not back: continue
+            
+            # Clean front (strip furigana for lookup key)
+            lookup_key = re.sub(r'\{[^\}]+\}', '', front).strip()
+            
+            item = VideoGlossary(
+                dictionary_id=v_dict.id,
+                lesson_id=lesson_id,
+                front=lookup_key,
+                back=back,
+                source='lesson_custom',
+                language_code=src_lang,
+                target_language_code=target_lang
+            )
+            db.session.add(item)
+            added += 1
+            
+        db.session.commit()
+        return jsonify({"success": True, "count": added})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Import custom dict failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@study_api_bp.route('/vocab/custom-dict/<int:lesson_id>', methods=['GET'])
+@jwt_required()
+def get_custom_dict(lesson_id):
+    """Retrieve the raw text of the custom dictionary for a lesson."""
+    from app.modules.study.models import VideoDictionary, VideoGlossary
+    v_dict = VideoDictionary.query.filter_by(lesson_id=lesson_id, name="Lesson Custom").first()
+    if not v_dict:
+        return jsonify({"success": True, "text": "", "lang_tag": "ja-vi"})
+        
+    items = VideoGlossary.query.filter_by(dictionary_id=v_dict.id).all()
+    text = "\n".join([f"{item.front} | {item.back}" for item in items])
+    lang_tag = f"{v_dict.language_code}-{v_dict.target_language_code}"
+    
+    return jsonify({"success": True, "text": text, "lang_tag": lang_tag})
 
 @study_api_bp.route('/video/analyze-sentence', methods=['POST'])
 @jwt_required()

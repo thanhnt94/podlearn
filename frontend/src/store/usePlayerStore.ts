@@ -242,8 +242,8 @@ interface PlayerState {
   completeLesson: () => Promise<void>;
   fetchNotes: () => Promise<void>;
   fetchVocab: () => Promise<void>;
-  addVocab: (word: string, reading: string, meaning: string) => Promise<void>;
-  updateVocab: (id: number, data: { reading?: string, meaning?: string, extra_data?: any }) => Promise<void>;
+  addVocab: (front: string, reading: string, back: string) => Promise<void>;
+  updateVocab: (id: number, data: { front?: string, back?: string, reading?: string, meaning?: string, extra_data?: any }) => Promise<void>;
   removeVocab: (word: string) => Promise<void>;
   fetchShadowingStats: () => Promise<void>;
   setAutoNext: (isAutoNext: boolean) => void;
@@ -937,19 +937,22 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         set({ savedVocab: res.data.vocab });
     } catch (e) {}
   },
-  addVocab: async (word: string, reading: string, meaning: string) => {
+  addVocab: async (front: string, reading: string, back: string) => {
     const { lessonId } = get();
     if (!lessonId) return;
     try {
-        await axios.post('/api/study/vocab/add', { lesson_id: lessonId, word, reading, meaning });
+        await axios.post('/api/study/vocab/add', { lesson_id: lessonId, word: front, reading, meaning: back });
         get().fetchVocab();
     } catch (e) {}
   },
-  updateVocab: async (id: number, data: { reading?: string, meaning?: string, extra_data?: any }) => {
+  updateVocab: async (id: number, data: { front?: string, back?: string, reading?: string, meaning?: string, extra_data?: any }) => {
     const { lessonId } = get();
     if (!lessonId) return;
     try {
-        await axios.patch(`/api/study/vocab/${id}`, data);
+        // Backend now supports 'front' and 'back' directly, but we map 'meaning' to 'back' for safety if passed
+        const payload = { ...data };
+        if (data.meaning) payload.back = data.meaning;
+        await axios.patch(`/api/study/vocab/${id}`, payload);
         get().fetchVocab();
     } catch (e) {}
   },

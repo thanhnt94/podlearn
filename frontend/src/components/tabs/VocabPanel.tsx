@@ -32,22 +32,12 @@ export const VocabPanel: React.FC = () => {
 
     const handleSaveToVocab = async (item: any) => {
         try {
-            const exampleText = (item.original || subtitles[activeLineIndex]?.text || '')
-                .replace(/\|/g, '')
-                .replace(/\s*\[[^\]]*\]/g, '');
-                
             const term = item.lemma || item.surface || item.term || item.word;
+            const meaning = Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning || '');
             
-            await axios.post(`/api/study/vocab/add`, {
-                lesson_id: lessonId,
-                word: term,
-                reading: item.reading,
-                meaning: Array.isArray(item.meanings) ? item.meanings.join(', ') : (item.meanings || item.definition || item.meaning || ''),
-                example: exampleText
-            });
+            await usePlayerStore.getState().addVocab(term, item.reading || '', meaning);
             
             setJustAdded(prev => new Set(prev).add(term + '-vocab'));
-            usePlayerStore.getState().fetchVocab();
         } catch (err) {}
     };
 

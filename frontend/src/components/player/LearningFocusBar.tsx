@@ -170,20 +170,12 @@ export const LearningFocusBar: React.FC = () => {
 
     const handleAddToVocab = async (word: any) => {
         if (!lessonId) return;
-        const currentLine = activeLineIndex !== -1 ? subtitles[activeLineIndex] : null;
         const termToSave = (word.lemma || word.surface).replace(/\{[^\}]+\}/g, '');
         try {
-            const exampleText = (currentLine ? currentLine.text : '').replace(/\|/g, '').replace(/\{[^\}]+\}/g, '');
-            await axios.post(`/api/study/vocab/add`, {
-                lesson_id: lessonId,
-                word: termToSave,
-                reading: word.reading,
-                meaning: Array.isArray(word.meanings) ? word.meanings.join(', ') : word.meanings,
-                example: exampleText
-            });
+            const meaning = Array.isArray(word.meanings) ? word.meanings.join(', ') : (word.meanings || '');
+            await usePlayerStore.getState().addVocab(termToSave, word.reading || '', meaning);
             
             soundEffects.vibrate(50);
-            usePlayerStore.getState().fetchVocab();
         } catch (err) {
             console.error("Save failed", err);
         }

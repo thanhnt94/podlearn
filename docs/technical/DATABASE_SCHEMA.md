@@ -42,7 +42,8 @@ erDiagram
 - **`sentences`**: Các câu mẫu quan trọng được người dùng lưu lại để ôn tập SRS.
 - **`sentence_tokens`**: Dữ liệu phân tách từ (segmentation) tùy chỉnh cho từng câu.
 - **`vocabulary` / `grammar`**: Kho lưu trữ các mục từ vựng và điểm ngữ pháp đã học.
-- **`glossaries`**: Wiki từ vựng cộng đồng cho từng video.
+- **`video_dictionaries`**: Quản lý các nhóm từ điển (Hệ thống hoặc riêng cho từng Bài học).
+- **`video_glossaries`**: Các mục từ vựng/thẻ nhớ với cấu trúc minimalist (Front/Back) cho việc học tương tác.
 
 ### 3. Study & Progress (Học tập & Tiến độ)
 - **`notes`**: Ghi chú văn bản gắn liền với timestamp trong trình phát video.

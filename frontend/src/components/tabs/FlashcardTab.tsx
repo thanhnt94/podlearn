@@ -12,7 +12,7 @@ export const FlashcardTab: React.FC = () => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [editData, setEditData] = useState({ word: '', reading: '', meaning: '' });
+    const [editData, setEditData] = useState({ front: '', reading: '', back: '' });
     
     // Shuffle logic
     const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
@@ -72,18 +72,18 @@ export const FlashcardTab: React.FC = () => {
         if (!currentItem) return;
         setEditingId(currentItem.id);
         setEditData({ 
-            word: currentItem.word || '',
+            front: currentItem.front || '',
             reading: currentItem.reading || '', 
-            meaning: currentItem.meaning || '' 
+            back: currentItem.back || '' 
         });
     };
 
     const handleSaveEdit = async () => {
         if (!currentItem) return;
-        // The backend expects 'word' and 'meaning' (definition)
         await updateVocab(currentItem.id, {
-            ...editData,
-            meaning: editData.meaning // mapped correctly in updateVocab
+            front: editData.front,
+            reading: editData.reading,
+            back: editData.back
         });
         setEditingId(null);
     };
@@ -146,7 +146,7 @@ export const FlashcardTab: React.FC = () => {
                             {!isFlipped ? (
                                 <div className="text-center space-y-6">
                                     <span className="text-5xl md:text-6xl font-black text-white tracking-tighter leading-none block">
-                                        {currentItem.word}
+                                        {currentItem.front}
                                     </span>
                                     <div className="flex items-center justify-center gap-2">
                                         <span className="text-[10px] text-sky-400 font-black tracking-[0.2em] uppercase bg-sky-400/10 px-4 py-1.5 rounded-full border border-sky-400/20">
@@ -163,7 +163,7 @@ export const FlashcardTab: React.FC = () => {
                                             </span>
                                         )}
                                         <p className="text-2xl font-medium text-slate-100 leading-relaxed px-4">
-                                            {currentItem.meaning}
+                                            {currentItem.back}
                                         </p>
                                     </div>
                                     <div className="flex items-center justify-center gap-2">
@@ -204,8 +204,8 @@ export const FlashcardTab: React.FC = () => {
                                         <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Mặt trước (Front)</label>
                                     </div>
                                     <input 
-                                        value={editData.word}
-                                        onChange={(e) => setEditData({ ...editData, word: e.target.value })}
+                                        value={editData.front}
+                                        onChange={(e) => setEditData({ ...editData, front: e.target.value })}
                                         className="w-full px-6 py-4 bg-slate-900/50 rounded-2xl border border-white/5 focus:border-sky-500/50 outline-none text-white transition-all font-black text-2xl tracking-tighter"
                                         placeholder="Nhập từ..."
                                     />
@@ -229,8 +229,8 @@ export const FlashcardTab: React.FC = () => {
                                         </div>
                                         <div className="relative">
                                             <textarea 
-                                                value={editData.meaning}
-                                                onChange={(e) => setEditData({ ...editData, meaning: e.target.value })}
+                                                value={editData.back}
+                                                onChange={(e) => setEditData({ ...editData, back: e.target.value })}
                                                 className="w-full px-6 py-4 bg-slate-900/50 rounded-2xl border border-white/5 focus:border-amber-500/50 outline-none text-white transition-all font-medium resize-none text-base min-h-[120px]"
                                                 placeholder="Ý nghĩa (Meaning)..."
                                             />
@@ -292,7 +292,7 @@ export const FlashcardTab: React.FC = () => {
                     </button>
                     <div className="w-px h-3 bg-white/5" />
                     <button 
-                        onClick={() => removeVocab(currentItem.word)}
+                        onClick={() => removeVocab(currentItem.front)}
                         className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-rose-500 transition-colors"
                     >
                         <Trash2 size={14} /> Remove
