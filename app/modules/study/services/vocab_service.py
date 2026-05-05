@@ -186,6 +186,16 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
     if re.match(r'^[0-9\s.,!?;:()\[\]"\'\-+*/=<>]+$', text):
         return []
 
+    # Fetch lesson-specific word overrides
+    status_map = {}
+    if lesson_id:
+        try:
+            from app.modules.study.models import LessonWordStatus
+            overrides = LessonWordStatus.query.filter_by(lesson_id=lesson_id).all()
+            status_map = {o.lemma: o.status for o in overrides}
+        except Exception as e:
+            logger.error(f"Failed to fetch word status overrides: {e}")
+
     all_dicts = get_all_available_dicts(src_lang, target_lang, lesson_id)
 
     i = 0
@@ -253,13 +263,20 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
                     if t['start'] == start: best_lemma = t['lemma']
             
             is_polite = surface in SKIP_WORDS or best_pos in SKIP_POS
+            
+            # Global Override
+            if best_lemma in status_map:
+                is_skip = (status_map[best_lemma] == 'skip')
+            else:
+                is_skip = is_polite
+
             final_results.append({
-                'surface': surface, 'original': surface, 'lemma': '-' if is_polite else best_lemma,
-                'word': '-' if is_polite else best_lemma, 'reading': best_reading,
+                'surface': surface, 'original': surface, 'lemma': '-' if is_skip else best_lemma,
+                'word': '-' if is_skip else best_lemma, 'reading': best_reading,
                 'furigana': best_reading if best_reading and best_reading != surface else None,
-                'pos': '助詞' if is_polite else best_pos, 'meanings': [] if is_polite else res.get('meanings', []),
-                'definition': "" if is_polite else "\n".join(res.get('meanings', [])),
-                'source': 'none' if is_polite else dict_name
+                'pos': '助詞' if is_skip else best_pos, 'meanings': [] if is_skip else res.get('meanings', []),
+                'definition': "" if is_skip else "\n".join(res.get('meanings', [])),
+                'source': 'none' if is_skip else dict_name
             })
             curr_idx = end
         else:
@@ -267,13 +284,20 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
             for t in token_pos_map:
                 if t['start'] == curr_idx:
                     is_meaningless = t['pos'] in SKIP_POS or t['surface'] in SKIP_WORDS or t['lemma'] in SKIP_WORDS
-                    if include_all or not is_meaningless:
+                    
+                    # Global Override
+                    if t['lemma'] in status_map:
+                        is_skip = (status_map[t['lemma'] ] == 'skip')
+                    else:
+                        is_skip = is_meaningless
+
+                    if include_all or not is_skip:
                         final_results.append({
                             'surface': t['surface'], 'original': t['surface'], 
-                            'lemma': '-' if is_meaningless else t['lemma'],
-                            'word': '-' if is_meaningless else t['lemma'], 'reading': t['reading'],
+                            'lemma': '-' if is_skip else t['lemma'],
+                            'word': '-' if is_skip else t['lemma'], 'reading': t['reading'],
                             'furigana': t['reading'] if t['reading'] and t['reading'] != t['surface'] else None,
-                            'pos': '助詞' if is_meaningless else t['pos'], 'meanings': [], 'definition': "", 'source': 'none'
+                            'pos': '助詞' if is_skip else t['pos'], 'meanings': [], 'definition': "", 'source': 'none'
                         })
                     curr_idx = t['end']
                     token_found = True

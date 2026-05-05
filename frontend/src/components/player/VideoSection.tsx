@@ -91,9 +91,18 @@ export const VideoSection: React.FC = () => {
               }
               setPlaying(true);
               startPolling();
-            } else if (state === window.YT.PlayerState.PAUSED || state === window.YT.PlayerState.ENDED) {
+            } else if (state === window.YT.PlayerState.PAUSED) {
               setPlaying(false);
               stopPolling();
+            } else if (state === window.YT.PlayerState.ENDED) {
+              const { isVideoLooping, requestSeek, setPlaying: sp } = usePlayerStore.getState();
+              if (isVideoLooping) {
+                requestSeek(0);
+                setTimeout(() => sp(true), 100);
+              } else {
+                setPlaying(false);
+                stopPolling();
+              }
             }
           },
           onError: (e: any) => {

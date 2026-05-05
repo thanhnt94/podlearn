@@ -436,3 +436,25 @@ class Note(db.Model):
     def __repr__(self) -> str:
         return f'<Note @{self.timestamp}s lesson={self.lesson_id}>'
 
+class LessonWordStatus(db.Model):
+    """
+    Tracks word-specific settings (skip/use) at the lesson level.
+    Ensures global synchronization for a lemma across all instances in a lesson.
+    """
+    __tablename__ = 'lesson_word_statuses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    lesson_id = db.Column(db.Integer, db.ForeignKey('lessons.id', ondelete='CASCADE'), nullable=False, index=True)
+    lemma = db.Column(db.String(255), nullable=False, index=True)
+    status = db.Column(db.String(20), default='use') # 'use', 'skip'
+    
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        db.UniqueConstraint('lesson_id', 'lemma', name='_lesson_lemma_status_uc'),
+    )
+
+    def __repr__(self) -> str:
+        return f'<LessonWordStatus {self.lemma} for lesson={self.lesson_id}: {self.status}>'
+

@@ -33,7 +33,7 @@ Copy dòng dưới đây vào hệ thống để xem kết quả:
 Bạn có thể dùng prompt này để AI tự động liệt kê toàn bộ từ vựng trong bài.
 
 ```text
-Dựa vào nội dung bài học dưới đây, hãy liệt kê TOÀN BỘ các từ vựng xuất hiện trong bài (ngoại trừ các trợ từ, từ đệm vô nghĩa, và dấu câu).
+Dựa vào nội dung sub vừa phân tích từ, hãy liệt kê TOÀN BỘ các từ vựng xuất hiện trong bài (ngoại trừ các trợ từ, từ đệm vô nghĩa, và dấu câu).
 
 Yêu cầu định dạng kết quả trả về là một CODE BLOCK Markdown chứa danh sách văn bản thuần túy, mỗi từ một dòng:
 [Từ vựng] | [Nội dung chi tiết]

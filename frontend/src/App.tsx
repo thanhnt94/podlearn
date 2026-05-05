@@ -48,7 +48,7 @@ const SetsWrapper: React.FC = () => {
   return <SetListView onSelect={(id) => setSelectedSetId(id)} />;
 };
 
-const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' }> = ({ mode = 'player' }) => {
+const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' | 'vocab' }> = ({ mode = 'player' }) => {
   const { id } = useParams<{ id: string }>();
   const { fetchLessonData, lessonId } = usePlayerStore();
 
@@ -62,7 +62,7 @@ const PlayerRouteWrapper: React.FC<{ mode?: 'player' | 'studio' }> = ({ mode = '
 
   return (
     <PlayerErrorBoundary key={id}>
-        <PlayerView initialStudioMode={mode === 'studio'} />
+        <PlayerView initialStudioMode={mode === 'studio'} initialVocabMode={mode === 'vocab'} />
     </PlayerErrorBoundary>
   );
 };
@@ -113,6 +113,7 @@ const App: React.FC = () => {
           <Route path="/import" element={<ImportView />} />
           <Route path="/practice/sentence/:setId" element={<FlashcardReview />} />
           <Route path="/player/lesson/:id" element={<PlayerRouteWrapper mode="player" />} />
+          <Route path="/player/lesson/:id/vocab" element={<PlayerRouteWrapper mode="vocab" />} />
           <Route path="/player/lesson/syncstudio/:id" element={<PlayerRouteWrapper mode="studio" />} />
           <Route path="*" element={<DashboardView />} />
         </Routes>

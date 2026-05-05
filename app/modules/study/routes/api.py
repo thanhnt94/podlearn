@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timezone, date, timedelta
 from werkzeug.utils import secure_filename
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, current_user
 from app.core.extensions import db
 
@@ -450,25 +450,40 @@ def remove_vocab():
 @study_api_bp.route('/vocab/tokens/save', methods=['POST'])
 @jwt_required()
 def save_vocab_tokens():
-    from app.modules.study.models import SentenceToken
+    from app.modules.study.models import SentenceToken, LessonWordStatus
     data = request.get_json() or {}
     lesson_id = data.get('lesson_id')
     line_index = data.get('line_index')
     tokens = data.get('tokens', [])
+    sync_global = data.get('sync_global', True)
     
     # Simple clear and replace for the line
     SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=line_index).delete()
     
     for idx, t in enumerate(tokens):
+        surface = t.get('surface', t.get('token'))
+        lemma = t.get('lemma')
+        is_skipped = t.get('is_skipped', False)
+        
         token = SentenceToken(
             lesson_id=lesson_id,
             line_index=line_index,
-            token=t.get('surface', t.get('token')),
-            lemma_override=t.get('lemma'),
+            token=surface,
+            lemma_override=lemma,
             pos=t.get('pos'),
             order_index=idx
         )
         db.session.add(token)
+        
+        # Sync Global Lemma/Skip status
+        if sync_global and lemma:
+            status = 'skip' if is_skipped else 'use'
+            ws = LessonWordStatus.query.filter_by(lesson_id=lesson_id, lemma=lemma).first()
+            if ws:
+                ws.status = status
+            else:
+                ws = LessonWordStatus(lesson_id=lesson_id, lemma=lemma, status=status)
+                db.session.add(ws)
     
     db.session.commit()
     return jsonify({"success": True})
@@ -498,6 +513,78 @@ def clear_all_vocab_tokens():
     SentenceToken.query.filter_by(lesson_id=lesson_id).delete()
     db.session.commit()
     return jsonify({"success": True})
+
+@study_api_bp.route('/vocab/propagate', methods=['POST'])
+@jwt_required()
+def propagate_vocab_change():
+    """
+    Update all lines in a subtitle track to reflect a global vocab change.
+    Useful for Sub Mode to sync lemma/skip status across the whole video.
+    """
+    from app.modules.content.models import SubtitleTrack
+    from app.modules.study.models import Lesson
+    
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    lemma = data.get('lemma')
+    new_lemma = data.get('new_lemma')
+    status = data.get('status') # 'use' or 'skip'
+    
+    if not lesson_id or not lemma:
+        return jsonify({"error": "lesson_id and lemma required"}), 400
+        
+    lesson = Lesson.query.get_or_404(lesson_id)
+    # We update the primary track (S1) as it's the one edited in Vocab Studio
+    track_id = lesson.s1_track_id
+    if not track_id:
+        return jsonify({"error": "No primary track (S1) found for this lesson"}), 400
+        
+    track = SubtitleTrack.query.get(track_id)
+    if not track or not track.content_json:
+        return jsonify({"error": "Track content missing"}), 400
+        
+    content = track.content_json
+    changed_count = 0
+    
+    # Regex to find | surface [lemma] | or | surface |
+    # We want to catch segments that match the target lemma
+    pattern = re.compile(r'\|([^\|\]]+)(?:\[([^\|\]]+)\])?\|')
+    
+    for line in content:
+        text = line.get('text', '')
+        if '|' not in text: continue
+        
+        def replacer(match):
+            nonlocal changed_count
+            surface = match.group(1).strip()
+            current_lemma = match.group(2).strip() if match.group(2) else surface
+            
+            # If this segment matches our target lemma
+            if current_lemma == lemma:
+                changed_count += 1
+                target_lemma = new_lemma if new_lemma else lemma
+                
+                if status == 'skip':
+                    # Add skip marker if not present
+                    if not target_lemma.startswith('-'):
+                        target_lemma = '-' + target_lemma
+                elif status == 'use':
+                    # Remove skip marker if present
+                    if target_lemma.startswith('-'):
+                        target_lemma = target_lemma[1:]
+                
+                return f"| {surface} [{target_lemma}] |"
+            return match.group(0)
+            
+        new_text = pattern.sub(replacer, text)
+        if new_text != text:
+            line['text'] = new_text
+            
+    if changed_count > 0:
+        track.content_json = content
+        db.session.commit()
+        
+    return jsonify({"success": True, "changed_count": changed_count})
 
 @study_api_bp.route('/vocab/lesson/<int:lesson_id>/analysis', methods=['GET'])
 @jwt_required()
@@ -999,42 +1086,152 @@ def import_custom_dict():
             
         # 2. Parse and insert items
         lines = text.split('\n')
-        # Clear old items in this SPECIFIC custom dict to avoid duplication
-        VideoGlossary.query.filter_by(dictionary_id=v_dict.id).delete()
-
         added = 0
         for line in lines:
             if '|' not in line: continue
-            parts = [p.strip() for p in line.split('|', 1)]
-            if len(parts) < 2: continue
+            parts = line.split('|')
+            front = parts[0].strip()
+            back = parts[1].strip()
             
-            original_front = parts[0]
-            back = parts[1]
-            if not original_front or not back: continue
-            
-            # Clean front (strip furigana for lookup key)
-            lookup_key = re.sub(r'\{[^\}]+\}', '', original_front).strip()
-            
-            item = VideoGlossary(
-                dictionary_id=v_dict.id,
-                lesson_id=lesson_id,
-                front=lookup_key,
-                back=back,
-                reading=original_front if '{' in original_front else None, # Store original markup here
-                source='lesson_custom',
-                language_code=src_lang,
-                target_language_code=target_lang
-            )
-            db.session.add(item)
+            # Check if exists
+            item = VideoGlossary.query.filter_by(dictionary_id=v_dict.id, front=front).first()
+            if not item:
+                item = VideoGlossary(dictionary_id=v_dict.id, front=front, back=back, lesson_id=lesson_id, language_code=src_lang, target_language_code=target_lang)
+                db.session.add(item)
+            else:
+                item.back = back
             added += 1
             
         db.session.commit()
-        return jsonify({"success": True, "count": added})
-        
+        return jsonify({"success": True, "added": added})
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"Import custom dict failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@study_api_bp.route('/vocab/word-map/<int:lesson_id>', methods=['GET'])
+@study_api_bp.route('/vocab/word-map/<int:lesson_id>/<int:track_id>', methods=['GET'])
+@jwt_required()
+def get_lesson_word_map(lesson_id, track_id=None):
+    """Scan all sentences in a lesson (or specific track) and return unique words with status."""
+    from app.modules.study.models import Lesson, LessonWordStatus, SentenceToken
+    from app.modules.content.models import SubtitleTrack
+    from app.modules.study.services.vocab_service import analyze_japanese_text
+    
+    lesson = Lesson.query.get_or_404(lesson_id)
+    
+    # Use provided track_id or fallback to primary track
+    target_track_id = track_id if track_id else lesson.s1_track_id
+    if not target_track_id:
+        return jsonify({"error": "No subtitle track found"}), 400
+        
+    track = SubtitleTrack.query.get(target_track_id)
+    if not track or not track.content_json:
+        return jsonify({"error": "Subtitle content empty"}), 400
+        
+    # 1. Get all unique words (lemmas) via auto-analysis
+    try:
+        unique_words = {} # lemma -> {surface, frequency, pos, reading, status}
+        
+        # Check overrides
+        overrides = LessonWordStatus.query.filter_by(lesson_id=lesson_id).all()
+        override_map = {o.lemma: o.status for o in overrides}
+        
+        # Robustly get lines from content_json (can be list or dict)
+        raw_content = track.content_json
+        if isinstance(raw_content, dict):
+            lines = raw_content.get('content') or raw_content.get('lines') or []
+        elif isinstance(raw_content, list):
+            lines = raw_content
+        else:
+            lines = []
+            
+        # Limit scan to prevent timeout/memory issues on very long tracks
+        lines_to_scan = lines[:1000] if isinstance(lines, list) else []
+        
+        for line in lines_to_scan:
+            if not line or not isinstance(line, dict): continue
+            text = line.get('text', '')
+            if not text: continue
+            
+            words = analyze_japanese_text(text, lesson_id=lesson_id, include_all=True)
+            for w in words:
+                if not isinstance(w, dict): continue
+                lemma = w.get('lemma')
+                if not lemma or lemma == '-': continue
+                
+                if lemma not in unique_words:
+                    unique_words[lemma] = {
+                        "lemma": lemma,
+                        "surface": w.get('surface'),
+                        "pos": w.get('pos'),
+                        "reading": w.get('reading'),
+                        "frequency": 1,
+                        "status": override_map.get(lemma, 'use'),
+                        "source": w.get('source') or 'auto'
+                    }
+                else:
+                    unique_words[lemma]["frequency"] += 1
+                    
+        # Also check SentenceToken for manual link overrides
+        manual_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id).all()
+        for mt in manual_tokens:
+            lemma = mt.lemma_override
+            if lemma and lemma != '-':
+                if lemma not in unique_words:
+                    unique_words[lemma] = {
+                        "lemma": lemma,
+                        "surface": mt.token,
+                        "pos": mt.pos or 'manual',
+                        "reading": mt.reading or '',
+                        "frequency": 1,
+                        "status": override_map.get(lemma, 'use'),
+                        "source": 'manual'
+                    }
+                else:
+                    if lemma not in override_map:
+                        unique_words[lemma]["status"] = 'use'
+                        
+        return jsonify({
+            "success": True, 
+            "words": sorted(list(unique_words.values()), key=lambda x: x['frequency'], reverse=True)
+        })
+    except Exception as e:
+        import traceback
+        error_msg = f"Word Map scan failed: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        return jsonify({"error": str(e), "trace": traceback.format_exc() if current_app.debug else None}), 500
+
+@study_api_bp.route('/vocab/word-map/update-status', methods=['POST'])
+@jwt_required()
+def update_word_status():
+    """Toggle skip/use for a lemma across the whole lesson."""
+    from app.modules.study.models import LessonWordStatus, SentenceToken
+    data = request.get_json() or {}
+    lesson_id = data.get('lesson_id')
+    lemma = data.get('lemma')
+    status = data.get('status') # 'use' or 'skip'
+    
+    if not lesson_id or not lemma or not status:
+        return jsonify({"error": "Missing parameters"}), 400
+        
+    # 1. Update or Create Override
+    override = LessonWordStatus.query.filter_by(lesson_id=lesson_id, lemma=lemma).first()
+    if not override:
+        override = LessonWordStatus(lesson_id=lesson_id, lemma=lemma, status=status)
+        db.session.add(override)
+    else:
+        override.status = status
+        
+    # 2. Synchronize with SentenceToken (Manual Edits)
+    # If a user manually segmented a word and linked it to this lemma, update that too.
+    # Note: We don't overwrite manual surface forms, just the linkage/behavior.
+    # If status is 'skip', we might want to set lemma_override to 'skip'?
+    # The user said: "nếu tôi bật 1 từ link đến iku là sử dụng, thì các từ còn lại cũng sẽ đc chuyển thành sử dụng"
+    # This is handled by the analyzer check in vocab_service, but for manual tokens:
+    tokens_to_sync = SentenceToken.query.filter_by(lesson_id=lesson_id, lemma_override=lemma).all()
+    # Actually, the analyzer already checks the override table, so as long as lemma_override matches, it works.
+    
+    db.session.commit()
+    return jsonify({"success": True})
 
 @study_api_bp.route('/vocab/custom-dict/<int:lesson_id>', methods=['GET'])
 @jwt_required()
@@ -1074,18 +1271,58 @@ def analyze_sentence_full():
     text = data.get('text', '').strip()
     lesson_id = data.get('lesson_id')
     active_line_index = data.get('active_line_index')
+    mode = data.get('mode', 'auto') # 'db', 'sub', 'auto'
     
     if not text:
         return jsonify({'words': []})
         
     db_tokens = []
-    if lesson_id and active_line_index is not None:
+    if lesson_id and active_line_index is not None and mode != 'sub':
         db_tokens = SentenceToken.query.filter_by(lesson_id=lesson_id, line_index=active_line_index).order_by(SentenceToken.order_index.asc()).all()
         
-    if db_tokens:
+    # 1. Delimiter-based parsing (SRT format with markup)
+    if mode != 'db' and '|' in text:
+        raw_segments = [s.strip() for s in text.split('|') if s.strip()]
+        lookup_terms = []
+        token_metas = [] # list of (surface, lemma_override)
+
+        for seg in raw_segments:
+            match = re.search(r'(.+?)\[(.+?)\]', seg)
+            if match:
+                surface = match.group(1).strip()
+                lemma = match.group(2).strip().replace('{', '').replace('}', '')
+            else:
+                surface = seg.strip()
+                lemma = re.sub(r'\{[^\}]+\}', '', surface).strip()
+            
+            lookup_terms.append(lemma)
+            token_metas.append((surface, lemma if lemma != surface else None))
+
+        original_lang = data.get('original_lang', 'ja')
+        target_lang = data.get('target_lang', 'vi')
+        from app.modules.study.services.vocab_service import get_definitions_for_terms
+        results = get_definitions_for_terms(lookup_terms, src_lang=original_lang, target_lang=target_lang, lesson_id=lesson_id)
+        
+        formatted = []
+        for i, r in enumerate(results):
+            surface, lemma_override = token_metas[i]
+            formatted.append({
+                "surface": surface,
+                "lemma": lookup_terms[i],
+                "lemma_override": lemma_override,
+                "reading": r.get('reading', ''),
+                "pos": 'manual',
+                "meanings": r.get('meanings', []) if isinstance(r.get('meanings'), list) else [r.get('definition', '')],
+                "source": r.get('source', 'none')
+            })
+        return jsonify({'words': formatted, 'is_manual': True, 'mode_used': 'sub'})
+
+    # 2. Database Tokens check (Manual Studio Saves)
+    if db_tokens and mode != 'sub':
         lookup_terms = [t.lemma_override or t.token for t in db_tokens]
         original_lang = data.get('original_lang', 'ja')
         target_lang = data.get('target_lang', 'vi')
+        from app.modules.study.services.vocab_service import get_definitions_for_terms
         results = get_definitions_for_terms(lookup_terms, src_lang=original_lang, target_lang=target_lang, lesson_id=lesson_id)
         formatted = []
         for i, r in enumerate(results):
@@ -1099,11 +1336,12 @@ def analyze_sentence_full():
                 "meanings": r.get('meanings', []) if isinstance(r.get('meanings'), list) else [r.get('definition', '')],
                 "source": r.get('source', 'none')
             })
-        return jsonify({'words': formatted, 'is_manual': True})
+        return jsonify({'words': formatted, 'is_manual': True, 'mode_used': 'db'})
 
-    # Auto analysis
-    words = analyze_japanese_text(text, priority='mazii_offline', include_all=True)
-    return jsonify({'words': words, 'is_manual': False})
+    # 3. Auto analysis
+    from app.modules.study.services.vocab_service import analyze_japanese_text
+    words = analyze_japanese_text(text, lesson_id=lesson_id, include_all=True)
+    return jsonify({'words': words, 'is_manual': False, 'mode_used': 'auto'})
 
 @study_api_bp.route('/vocab/generate-all', methods=['POST'])
 @jwt_required()

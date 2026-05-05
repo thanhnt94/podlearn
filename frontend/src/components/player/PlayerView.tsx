@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     ArrowLeft, Lock, CreditCard, RefreshCw, Settings, MoveHorizontal, Scissors, Edit2, Save, X, Zap
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoSection } from './VideoSection';
 import { HandsFreeEngine } from './HandsFreeEngine';
@@ -23,10 +23,12 @@ import { useSwipe } from '../../hooks/useSwipe';
 
 interface PlayerViewProps {
   initialStudioMode?: boolean;
+  initialVocabMode?: boolean;
 }
 
-export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false }) => {
+export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false, initialVocabMode = false }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const isSyncStudioOpen = initialStudioMode;
@@ -79,12 +81,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
   // Expose control to window for child components (e.g. TranscriptBody empty state)
   useEffect(() => {
+    setVocabStudioOpen(initialVocabMode);
+    if (initialVocabMode) {
+        // Ensure settings are closed if studio is open
+        setIsSettingsOpen(false);
+    }
     (window as any).openSettings = () => {
         setSettingsTab('hub');
         setIsSettingsOpen(true);
     };
     return () => { delete (window as any).openSettings; };
-  }, []);
+  }, [initialVocabMode, setVocabStudioOpen, setIsSettingsOpen]);
 
   const progressLine = activeLineIndex !== -1 ? activeLineIndex + 1 : 0;
   const totalLines = subtitles.length;
@@ -291,13 +298,16 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                   >
                       <MoveHorizontal size={20} />
                   </button>
-                  <button 
-                    onClick={() => setVocabStudioOpen(true)} 
-                    className="hidden md:block p-2 text-slate-400 hover:text-amber-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
+                  <Link 
+                    to={location.pathname.includes('/vocab') 
+                        ? `/player/lesson/${lessonId}` 
+                        : `/player/lesson/${lessonId}/vocab`
+                    }
+                    className={`hidden md:block p-2 transition-colors bg-slate-900 border border-white/5 rounded-lg ${isVocabStudioOpen ? 'text-amber-400' : 'text-slate-400 hover:text-amber-400'}`}
                     title="Open Vocab Studio"
                   >
                       <Scissors size={20} />
-                  </button>
+                  </Link>
 
                   {/* Analysis Bar Toggle (Mobile Only) */}
                   <button 
@@ -490,7 +500,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
       </div>
 
       <HandsFreeEngine />
-      <VocabStudio isOpen={isVocabStudioOpen} onClose={() => setVocabStudioOpen(false)} />
+      <VocabStudio 
+        isOpen={isVocabStudioOpen} 
+        onClose={() => {
+            setVocabStudioOpen(false);
+            if (window.location.pathname.includes('/vocab')) {
+                navigate(`/player/lesson/${lessonId}`);
+            }
+        }} 
+      />
       <SettingsDrawer />
       <DictManagerStudio isOpen={showDictManager} onClose={() => setShowDictManager(false)} />
       <AnimatePresence>
