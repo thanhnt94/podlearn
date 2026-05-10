@@ -13,6 +13,17 @@ if db_url.startswith("sqlite:///"):
         db_url = f"sqlite:///{abs_path}"
 
 engine = create_engine(db_url, connect_args={"check_same_thread": False} if "sqlite" in db_url else {})
+
+# Enable WAL mode for SQLite to improve concurrency
+if "sqlite" in db_url:
+    from sqlalchemy import event
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 naming_convention = {

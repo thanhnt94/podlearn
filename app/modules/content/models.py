@@ -58,6 +58,11 @@ class Video(Base):
     
     # Dynamic sections: [{"id": "...", "title": "...", "content": "..."}, ...]
     curated_sections = Column(JSON, nullable=True)
+    
+    @property
+    def available_languages(self):
+        """Helper for DTOs and Pydantic schemas."""
+        return sorted(list(set([t.language_code.upper() for t in self.subtitle_tracks])))
 
     owner = relationship('User', backref='uploaded_videos')
     playlists = relationship('Playlist', secondary=playlist_items, back_populates='videos')

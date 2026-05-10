@@ -97,9 +97,21 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                     )}
                 </div>
 
-                {/* Duration Badge */}
-                <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] font-black text-white/80 tabular-nums">
-                    {formatDuration(video.duration_seconds)}
+                {/* Language & Duration Badges */}
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                        {video.available_languages?.map((lang: string) => (
+                            <div 
+                                key={lang} 
+                                className="bg-sky-500/40 border border-sky-400/30 backdrop-blur-md px-1.5 py-1 rounded-lg text-[9px] font-black text-white shadow-lg uppercase tracking-wider"
+                            >
+                                {lang}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] font-black text-white/80 tabular-nums">
+                        {formatDuration(video.duration_seconds)}
+                    </div>
                 </div>
 
                 {/* Neon Progress Bar */}

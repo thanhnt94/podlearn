@@ -10,6 +10,7 @@ class VideoPlayerInfo(BaseModel):
     duration_seconds: int
     owner_name: str
     visibility: str
+    available_languages: List[str] = []
 
 class LessonDashboardInfo(BaseModel):
     id: int

@@ -61,6 +61,7 @@ class VideoAdminInfo(BaseModel):
     id: int
     title: str
     visibility: str
+    available_languages: List[str] = []
     created_at: Optional[datetime] = None
     owner_id: Optional[int] = None
 

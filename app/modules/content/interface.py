@@ -17,7 +17,8 @@ def get_video_dto(video_id: int) -> Optional[Dict[str, Any]]:
             "owner_name": video.owner.username if video.owner else "System",
             "owner_id": video.owner_id,
             "visibility": video.visibility,
-            "youtube_id": video.youtube_id
+            "youtube_id": video.youtube_id,
+            "available_languages": [t.language_code.upper() for t in video.subtitle_tracks]
         }
 
 def get_video_by_youtube_id_dto(youtube_id: str, owner_id: int) -> Optional[Dict[str, Any]]:
