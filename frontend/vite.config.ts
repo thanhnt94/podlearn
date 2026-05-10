@@ -21,9 +21,9 @@ export default defineConfig({
         admin: path.resolve(__dirname, 'admin.html'),
       },
       output: {
-        entryFileNames: `assets/[name]-v24.js`,
-        chunkFileNames: `assets/[name]-v24.js`,
-        assetFileNames: `assets/[name]-v24.[ext]`
+        entryFileNames: `assets/[name]-v26.js`,
+        chunkFileNames: `assets/[name]-v26.js`,
+        assetFileNames: `assets/[name]-v26.[ext]`
       }
     },
   },

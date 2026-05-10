@@ -67,14 +67,33 @@ export const VideoSection: React.FC = () => {
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
-          controls: 0, // We will build custom controls
-          cc_load_policy: 0, // Prevent forced captions
-          iv_load_policy: 3, // Disable annotations
+          controls: 0, 
+          cc_load_policy: 0,
+          iv_load_policy: 3,
+          disablekb: 1,
         },
         events: {
           onReady: (event: any) => {
             if (ytPlayer.current) {
                 setDuration(event.target.getDuration());
+                
+                // FORCE DISABLE NATIVE CAPTIONS
+                try {
+                  if (event.target.unloadModule) {
+                    event.target.unloadModule("captions");
+                  }
+                  if (event.target.setOption) {
+                    event.target.setOption("captions", "track", {});
+                    // Make them invisible as a fallback
+                    event.target.setOption("captions", "displaySettings", {
+                        "backgroundOpacity": 0,
+                        "windowOpacity": 0,
+                        "textOpacity": 0,
+                        "fontSize": -2
+                    });
+                  }
+                } catch (e) {}
+                
                 setIsReady(true); // MARK AS READY
             }
           },
@@ -91,6 +110,13 @@ export const VideoSection: React.FC = () => {
               }
               setPlaying(true);
               startPolling();
+              
+              // Re-ensure native captions stay hidden
+              try {
+                if (event.target.unloadModule && !usePlayerStore.getState().isNativeCCOn) {
+                  event.target.unloadModule("captions");
+                }
+              } catch (e) {}
             } else if (state === window.YT.PlayerState.PAUSED) {
               setPlaying(false);
               stopPolling();
