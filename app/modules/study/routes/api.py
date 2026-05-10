@@ -79,7 +79,7 @@ def get_dashboard_init(current_user: User = Depends(get_current_user), db: Sessi
                 'duration_seconds': l.video.duration_seconds or 1,
                 'owner_name': l.video.owner.username if l.video.owner else "System",
                 'visibility': l.video.visibility,
-                'available_languages': [t.language_code.upper() for t in l.video.subtitle_tracks]
+                'available_languages': l.video.available_languages
             }
         })
 

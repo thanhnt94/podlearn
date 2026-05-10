@@ -41,8 +41,8 @@ Bạn là một chuyên gia Ngôn ngữ học tiếng Nhật. Hãy xử lý nộ
    - CHỈ thêm Furigana cho phần chữ Hán (Kanji). 
    - Đặt dấu { } ngay sau chữ Hán đó. 
    - TUYỆT ĐỐI không bao gồm phần chữ mềm Hiragana đi kèm (Okurigana) vào trong dấu { }.
-   - Ví dụ ĐÚNG: 聞{き}きたくて, 食べ{た}べました.
-   - Ví dụ SAI: 聞きたくて{ききたくて}, 食べました{たべました}.
+   - Ví dụ ĐÚNG: 聞{き}きたくて, 食べ{た}べました, 日{に}本{ほん}語{ご}
+   - Ví dụ SAI: 聞きたくて{ききたくて}, 食べました{たべました}, 日本語{日本語}
 4. Furigana cho Katakana:
    - Nếu là từ mượn: Thêm từ gốc ngoại ngữ (viết thường) vào { }. Ví dụ: ポッドキャスト{podcast}.
    - Nếu là từ thuần Nhật/Tượng thanh: Thêm Hiragana vào { }. Ví dụ: コロコロ{ころころ}.
