@@ -1139,6 +1139,47 @@ def get_notifications(current_user: User = Depends(get_current_user)):
 
 # --- Subtitles ---
 
+@router.post('/subtitles/upload-text/{lesson_id}')
+async def upload_subtitle_text(
+    lesson_id: int, 
+    data: Dict[str, Any],
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Import subtitle track from pasted SRT/VTT text."""
+    lesson = db.query(Lesson).filter_by(id=lesson_id, user_id=current_user.id).first()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+        
+    text = data.get('text', '').strip()
+    language_code = data.get('language_code', 'en')
+    name = data.get('name')
+    
+    if not text:
+        raise HTTPException(status_code=400, detail="Text content is required")
+        
+    res = subtitle_service.parse_subtitle_text(text)
+    if res.get('error'):
+        raise HTTPException(status_code=400, detail=res.get('message'))
+        
+    track = SubtitleTrack(
+        video_id=lesson.video_id,
+        language_code=language_code,
+        name=name or f"Pasted_{language_code.upper()}",
+        content_json=res['lines'],
+        is_auto_generated=False,
+        is_original=False,
+        uploader_id=current_user.id,
+        uploader_name=current_user.username,
+        status='completed',
+        fetched_at=datetime.now(timezone.utc)
+    )
+    db.add(track)
+    db.commit()
+    db.refresh(track)
+    
+    return {"success": True, "track_id": track.id, "line_count": len(res['lines'])}
+
 @router.post('/subtitles/upload/{lesson_id}')
 async def upload_subtitle(lesson_id: int, file: UploadFile = File(...), language_code: str = Form(...), name: Optional[str] = Form(None), note: Optional[str] = Form(None), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     lesson = db.query(Lesson).filter_by(id=lesson_id, user_id=current_user.id).first()
