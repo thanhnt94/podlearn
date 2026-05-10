@@ -1291,11 +1291,32 @@ def update_lesson_settings_api(lesson_id: int, data: Dict[str, Any], current_use
     lesson = db.query(Lesson).filter_by(id=lesson_id, user_id=current_user.id).first()
     if not lesson: raise HTTPException(status_code=404)
     prefs = json.loads(lesson.settings_json or '{}')
-    prefs.update(data)
+    
+    # If frontend sends stringified settings_json, parse and merge
+    if 'settings_json' in data:
+        try:
+            s_data = data['settings_json']
+            if isinstance(s_data, str):
+                new_settings = json.loads(s_data)
+                prefs.update(new_settings)
+            else:
+                prefs.update(s_data)
+        except Exception as e:
+            logger.error(f"Failed to parse settings_json: {e}")
+    
+    # Merge other flat fields (like track IDs)
+    for k, v in data.items():
+        if k != 'settings_json':
+            prefs[k] = v
+
     lesson.settings_json = json.dumps(prefs)
-    if 's1_track_id' in data: lesson.s1_track_id = data['s1_track_id']
-    if 's2_track_id' in data: lesson.s2_track_id = data['s2_track_id']
-    if 's3_track_id' in data: lesson.s3_track_id = data['s3_track_id']
+    
+    # Sync specific columns if they exist in prefs
+    if 's1_track_id' in prefs: lesson.s1_track_id = prefs['s1_track_id']
+    if 's2_track_id' in prefs: lesson.s2_track_id = prefs['s2_track_id']
+    if 's3_track_id' in prefs: lesson.s3_track_id = prefs['s3_track_id']
+    if 'sourceTrackId' in prefs: lesson.s1_track_id = prefs['sourceTrackId']
+
     db.commit()
     return {'success': True, 'settings': prefs}
 
