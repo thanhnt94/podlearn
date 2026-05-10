@@ -1,5 +1,5 @@
 import json
-from app.core.extensions import db
+from app.core.database import SessionLocal
 from app.modules.study.models import Sentence
 
 def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=None, track_mode='mastery_sentence'):
@@ -14,42 +14,43 @@ def import_sentence_from_raw_json(json_string, user_id, set_id, source_video_id=
     except json.JSONDecodeError as e:
         return {'success': False, 'error': f"Invalid JSON format: {str(e)}"}
 
-    # Handle Case if data is a list (Batch Import)
-    if isinstance(data, list):
-        if not data:
-            return {'success': False, 'error': "JSON array is empty."}
-        
-        success_count = 0
-        sentence_ids = []
-        errors = []
-        
-        for index, item in enumerate(data):
-            res = _import_single_item(item, user_id, set_id, source_video_id, track_mode)
-            if res.get('success'):
-                success_count += 1
-                sentence_ids.append(res.get('sentence_id'))
+    with SessionLocal() as db:
+        # Handle Case if data is a list (Batch Import)
+        if isinstance(data, list):
+            if not data:
+                return {'success': False, 'error': "JSON array is empty."}
+            
+            success_count = 0
+            sentence_ids = []
+            errors = []
+            
+            for index, item in enumerate(data):
+                res = _import_single_item(db, item, user_id, set_id, source_video_id, track_mode)
+                if res.get('success'):
+                    success_count += 1
+                    sentence_ids.append(res.get('sentence_id'))
+                else:
+                    errors.append(f"Item #{index+1}: {res.get('error')}")
+            
+            if success_count > 0:
+                db.commit()
+                return {
+                    'success': True, 
+                    'message': f"Imported {success_count} item(s) successfully!",
+                    'count': success_count,
+                    'sentence_ids': sentence_ids,
+                    'errors': errors
+                }
             else:
-                errors.append(f"Item #{index+1}: {res.get('error')}")
-        
-        if success_count > 0:
-            db.session.commit()
-            return {
-                'success': True, 
-                'message': f"Imported {success_count} item(s) successfully!",
-                'count': success_count,
-                'sentence_ids': sentence_ids,
-                'errors': errors
-            }
-        else:
-            return {'success': False, 'error': "Batch import failed.", 'detailed_errors': errors}
+                return {'success': False, 'error': "Batch import failed.", 'detailed_errors': errors}
 
-    # Handle single item
-    result = _import_single_item(data, user_id, set_id, source_video_id, track_mode)
-    if result.get('success'):
-        db.session.commit()
-    return result
+        # Handle single item
+        result = _import_single_item(db, data, user_id, set_id, source_video_id, track_mode)
+        if result.get('success'):
+            db.commit()
+        return result
 
-def _import_single_item(data, user_id, set_id, source_video_id, track_mode):
+def _import_single_item(db, data, user_id, set_id, source_video_id, track_mode):
     """Internal helper to process a single JSON object."""
     if not data or not isinstance(data, dict):
         return {'success': False, 'error': "Item is not a valid JSON object."}
@@ -88,12 +89,11 @@ def _import_single_item(data, user_id, set_id, source_video_id, track_mode):
         source_video_id=source_video_id
     )
 
-    db.session.add(new_sentence)
-    db.session.flush() # Get the ID without committing yet
+    db.add(new_sentence)
+    db.flush() # Get the ID without committing yet
 
     return {
         'success': True,
         'message': 'Sentence pattern imported successfully!',
         'sentence_id': new_sentence.id
     }
-

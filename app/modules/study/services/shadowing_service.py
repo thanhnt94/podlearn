@@ -1,7 +1,7 @@
 import re
 import difflib
 import pykakasi
-from app.core.extensions import db
+from app.core.database import SessionLocal
 from app.modules.study.models import Lesson, Sentence
 from app.modules.study.signals import shadowing_completed
 
@@ -85,15 +85,17 @@ def evaluate_pronunciation(user_id, lesson_id, original_text, spoken_text, lang,
         l_id = None
         
         if sentence_id:
-            sentence = Sentence.query.get(int(sentence_id))
-            if sentence:
-                s_id = sentence.id
-                video_id = getattr(sentence, 'source_video_id', None)
+            with SessionLocal() as db:
+                sentence = db.get(Sentence, int(sentence_id))
+                if sentence:
+                    s_id = sentence.id
+                    video_id = getattr(sentence, 'source_video_id', None)
         elif lesson_id:
-            lesson = Lesson.query.get(int(lesson_id))
-            if lesson and lesson.user_id == user_id:
-                l_id = lesson.id
-                video_id = lesson.video_id
+            with SessionLocal() as db:
+                lesson = db.get(Lesson, int(lesson_id))
+                if lesson and lesson.user_id == user_id:
+                    l_id = lesson.id
+                    video_id = lesson.video_id
         
         shadowing_completed.send('shadowing_service',
             user_id=user_id,

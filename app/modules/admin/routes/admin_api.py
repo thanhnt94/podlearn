@@ -61,7 +61,7 @@ def create_user(data: UserCreateAdmin, db: Session = Depends(get_db), current_us
 @router.patch('/users/{user_id}')
 def update_user(user_id: int, data: UserUpdateAdmin, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """Full update for a user's profile."""
-    user = db.query(User).get(user_id)
+    user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -95,7 +95,7 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
         
-    user = db.query(User).get(user_id)
+    user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     db.delete(user)
@@ -241,7 +241,7 @@ def pending_videos(db: Session = Depends(get_db), current_user: User = Depends(r
 
 @router.post('/video/{video_id}/approve-public')
 def approve_public_video(video_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    video = db.query(Video).get(video_id)
+    video = db.get(Video, video_id)
     if not video: raise HTTPException(status_code=404)
     video.visibility = 'public'
     db.commit()
@@ -249,7 +249,7 @@ def approve_public_video(video_id: int, db: Session = Depends(get_db), current_u
 
 @router.post('/video/{video_id}/reject-public')
 def reject_public_video(video_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
-    video = db.query(Video).get(video_id)
+    video = db.get(Video, video_id)
     if not video: raise HTTPException(status_code=404)
     video.visibility = 'private'
     db.commit()
@@ -260,11 +260,8 @@ def set_video_visibility(video_id: int, data: Dict[str, str], db: Session = Depe
     visibility = data.get('visibility')
     if visibility not in ['private', 'public', 'pending_public']:
         raise HTTPException(status_code=400, detail="Invalid visibility status")
-    video = db.query(Video).get(video_id)
+    video = db.get(Video, video_id)
     if not video: raise HTTPException(status_code=404)
     video.visibility = visibility
     db.commit()
     return {'success': True, 'visibility': video.visibility}
-
-
-

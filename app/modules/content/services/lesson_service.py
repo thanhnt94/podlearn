@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, date, timedelta
-from app.core.extensions import db
+from app.core.database import SessionLocal
 
-def update_study_progress_and_streak(user, lesson, seconds_added):
+def update_study_progress_and_streak(db, user, lesson, seconds_added):
     """
     Update time spent on a lesson and handle Streak logic for the user.
     """
@@ -36,7 +36,7 @@ def update_study_progress_and_streak(user, lesson, seconds_added):
         if cur > lng:
             user.longest_streak = cur
 
-    db.session.commit()
+    db.commit()
     return {
         'current_streak': user.current_streak or 0,
         'longest_streak': user.longest_streak or 0
@@ -48,17 +48,18 @@ def get_user_stats(user_id):
     """
     from app.modules.identity.models import User
     from app.modules.study.models import Lesson
-    user = User.query.get(user_id)
-    if not user:
-        return {}
     
-    completed_count = Lesson.query.filter_by(user_id=user_id, is_completed=True).count()
-    total_lessons = Lesson.query.filter_by(user_id=user_id).count()
-    
-    return {
-        'current_streak': user.current_streak or 0,
-        'longest_streak': user.longest_streak or 0,
-        'completed_count': completed_count,
-        'total_lessons': total_lessons
-    }
-
+    with SessionLocal() as db:
+        user = db.get(User, user_id)
+        if not user:
+            return {}
+        
+        completed_count = db.query(Lesson).filter_by(user_id=user_id, is_completed=True).count()
+        total_lessons = db.query(Lesson).filter_by(user_id=user_id).count()
+        
+        return {
+            'current_streak': user.current_streak or 0,
+            'longest_streak': user.longest_streak or 0,
+            'completed_count': completed_count,
+            'total_lessons': total_lessons
+        }

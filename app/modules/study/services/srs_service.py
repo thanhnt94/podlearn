@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import json
-from app.core.extensions import db, redis_client
+from app.core.database import SessionLocal
+from app.core.redis_client import redis_client
 from ..models import Sentence
 
 def calculate_next_review(current_level, current_interval, current_ease, quality):
@@ -46,10 +47,11 @@ def get_due_sentences(user_id):
             return json.loads(cached_data)
 
     now = datetime.now(timezone.utc)
-    due_sentences = Sentence.query.filter(
-        Sentence.user_id == user_id,
-        Sentence.next_review_at <= now
-    ).all()
+    with SessionLocal() as db:
+        due_sentences = db.query(Sentence).filter(
+            Sentence.user_id == user_id,
+            Sentence.next_review_at <= now
+        ).all()
     
     result = [s.id for s in due_sentences]
     

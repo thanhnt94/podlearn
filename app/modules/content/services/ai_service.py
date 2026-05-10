@@ -1,13 +1,11 @@
 import os
 import json
 import logging
-import threading
-import time
 import google.generativeai as genai
 from app.modules.engagement.models import AppSetting
 from app.modules.study.models import AIInsightTrack, AIInsightItem
 from app.modules.content.models import SubtitleTrack, Video
-from app.core.extensions import db
+from app.core.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -83,15 +81,16 @@ class AIService:
                 analysis = json.loads(match.group()) if match else {}
 
             # Save to DB
-            item = AIInsightItem.query.filter_by(track_id=track_id, subtitle_index=subtitle_index).first()
-            if not item:
-                item = AIInsightItem(track_id=track_id, subtitle_index=subtitle_index, start_time=start_time, end_time=end_time)
-                db.session.add(item)
-            
-            item.short_explanation = analysis.get('short_explanation', '')
-            item.grammar_analysis = analysis.get('grammar_analysis', '')
-            item.data_json = analysis
-            db.session.commit()
+            with SessionLocal() as db:
+                item = db.query(AIInsightItem).filter_by(track_id=track_id, subtitle_index=subtitle_index).first()
+                if not item:
+                    item = AIInsightItem(track_id=track_id, subtitle_index=subtitle_index, start_time=start_time, end_time=end_time)
+                    db.add(item)
+                
+                item.short_explanation = analysis.get('short_explanation', '')
+                item.grammar_analysis = analysis.get('grammar_analysis', '')
+                item.data_json = analysis
+                db.commit()
             return analysis
         except Exception as e:
             logger.error(f"Gemini single-line analysis failed: {e}")
@@ -100,37 +99,38 @@ class AIService:
     @staticmethod
     def generate_insights(track_id):
         """Used by Celery to process a pending track."""
-        track = AIInsightTrack.query.get(track_id)
-        if not track: return
-        
-        track.status = 'processing'
-        db.session.commit()
-        
-        try:
-            video = Video.query.get(track.video_id)
-            source_sub = SubtitleTrack.query.filter_by(video_id=video.id, is_original=True).first() or \
-                         SubtitleTrack.query.filter_by(video_id=video.id).first()
+        with SessionLocal() as db:
+            track = db.get(AIInsightTrack, track_id)
+            if not track: return
             
-            if not source_sub or not source_sub.content_json:
-                track.status = 'failed'
-                db.session.commit()
-                return
+            track.status = 'processing'
+            db.commit()
+            
+            try:
+                video = db.get(Video, track.video_id)
+                source_sub = db.query(SubtitleTrack).filter_by(video_id=video.id, is_original=True).first() or \
+                             db.query(SubtitleTrack).filter_by(video_id=video.id).first()
+                
+                if not source_sub or not source_sub.content_json:
+                    track.status = 'failed'
+                    db.commit()
+                    return
 
-            transcript_lines = source_sub.content_json
-            full_text = " ".join([l.get('text', '') for l in transcript_lines])
-            
-            # Summary
-            summary = AIService.generate_video_summary(full_text, target_lang=track.language_code)
-            if summary:
-                track.overall_summary = summary
-            
-            track.total_lines = len(transcript_lines)
-            track.status = 'completed'
-            db.session.commit()
-        except Exception as e:
-            logger.error(f"Batch generation failed for track {track_id}: {e}")
-            track.status = 'failed'
-            db.session.commit()
+                transcript_lines = source_sub.content_json
+                full_text = " ".join([l.get('text', '') for l in transcript_lines])
+                
+                # Summary
+                summary = AIService.generate_video_summary(full_text, target_lang=track.language_code)
+                if summary:
+                    track.overall_summary = summary
+                
+                track.total_lines = len(transcript_lines)
+                track.status = 'completed'
+                db.commit()
+            except Exception as e:
+                logger.error(f"Batch generation failed for track {track_id}: {e}")
+                track.status = 'failed'
+                db.commit()
 
 # Compatibility wrappers
 def generate_video_summary(*args, **kwargs): return AIService.generate_video_summary(*args, **kwargs)
@@ -138,4 +138,3 @@ def analyze_single_line(*args, **kwargs): return AIService.analyze_single_line(*
 def start_background_analysis(app, video_id, transcript_lines, lang='vi'):
     # Spawns a background thread if needed
     pass
-

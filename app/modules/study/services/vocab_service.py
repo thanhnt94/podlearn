@@ -5,8 +5,8 @@ import logging
 import re
 import threading
 from collections import Counter
-from flask import current_app
 from sudachipy import dictionary, tokenizer
+from app.core.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -145,23 +145,24 @@ def get_all_available_dicts(src_lang='ja', target_lang='vi', lesson_id=None):
     """Returns a sorted list of all available dictionaries (DB + Offline)."""
     from app.modules.study.models import VideoDictionary
     
-    # 1. Fetch DB-based dictionaries
-    db_dicts = VideoDictionary.query.filter(
-        VideoDictionary.language_code == src_lang,
-        ((VideoDictionary.lesson_id == None) | (VideoDictionary.lesson_id == lesson_id))
-    ).order_by(VideoDictionary.name.asc()).all()
+    with SessionLocal() as db:
+        # 1. Fetch DB-based dictionaries
+        db_dicts = db.query(VideoDictionary).filter(
+            VideoDictionary.language_code == src_lang,
+            ((VideoDictionary.lesson_id == None) | (VideoDictionary.lesson_id == lesson_id))
+        ).order_by(VideoDictionary.name.asc()).all()
 
-    primary_db = [d for d in db_dicts if d.target_language_code == target_lang]
-    secondary_db = [d for d in db_dicts if d.target_language_code != target_lang]
-    
-    db_list = []
-    # Force 'Lesson Custom' to the top if it exists
-    primary_db = sorted(primary_db, key=lambda x: x.name != 'Lesson Custom')
-    
-    for d in primary_db + secondary_db:
-        db_list.append({
-            'type': 'db', 'id': d.id, 'name': d.name, 'src': d.language_code, 'target': d.target_language_code
-        })
+        primary_db = [d for d in db_dicts if d.target_language_code == target_lang]
+        secondary_db = [d for d in db_dicts if d.target_language_code != target_lang]
+        
+        db_list = []
+        # Force 'Lesson Custom' to the top if it exists
+        primary_db = sorted(primary_db, key=lambda x: x.name != 'Lesson Custom')
+        
+        for d in primary_db + secondary_db:
+            db_list.append({
+                'type': 'db', 'id': d.id, 'name': d.name, 'src': d.language_code, 'target': d.target_language_code
+            })
 
     # 2. Fetch Offline File-based dictionaries
     dicts_meta, _ = get_dict_paths()
@@ -191,8 +192,9 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
     if lesson_id:
         try:
             from app.modules.study.models import LessonWordStatus
-            overrides = LessonWordStatus.query.filter_by(lesson_id=lesson_id).all()
-            status_map = {o.lemma: o.status for o in overrides}
+            with SessionLocal() as db:
+                overrides = db.query(LessonWordStatus).filter_by(lesson_id=lesson_id).all()
+                status_map = {o.lemma: o.status for o in overrides}
         except Exception as e:
             logger.error(f"Failed to fetch word status overrides: {e}")
 
@@ -209,9 +211,10 @@ def analyze_japanese_text(text, src_lang='ja', target_lang='vi', lesson_id=None,
                 res = None
                 if d['type'] == 'db':
                     from app.modules.study.models import VideoGlossary
-                    g = VideoGlossary.query.filter_by(dictionary_id=d['id'], front=chunk).first()
-                    if g:
-                        res = {'reading': g.reading, 'meanings': [g.back] if g.back else []}
+                    with SessionLocal() as db:
+                        g = db.query(VideoGlossary).filter_by(dictionary_id=d['id'], front=chunk).first()
+                        if g:
+                            res = {'reading': g.reading, 'meanings': [g.back] if g.back else []}
                 else:
                     res = query_offline_dict(d['path'], chunk)
                 
@@ -322,30 +325,31 @@ def get_definitions_for_terms(terms, src_lang='ja', target_lang='vi', lesson_id=
     all_dicts = get_all_available_dicts(src_lang, target_lang, lesson_id)
     
     results = []
-    for term in terms:
-        if not term: continue
-        item_res, source = None, 'none'
-        for d in all_dicts:
-            if d['type'] == 'db':
-                g = VideoGlossary.query.filter_by(dictionary_id=d['id'], front=term).first()
-                if g:
-                    item_res = {'reading': g.reading, 'meanings': [g.back] if g.back else []}
-                    source = d['name']
-                    break
+    with SessionLocal() as db:
+        for term in terms:
+            if not term: continue
+            item_res, source = None, 'none'
+            for d in all_dicts:
+                if d['type'] == 'db':
+                    g = db.query(VideoGlossary).filter_by(dictionary_id=d['id'], front=term).first()
+                    if g:
+                        item_res = {'reading': g.reading, 'meanings': [g.back] if g.back else []}
+                        source = d['name']
+                        break
+                else:
+                    item_res = query_offline_dict(d['path'], term)
+                    if item_res:
+                        source = d['name']
+                        break
+            
+            if item_res:
+                means = item_res.get('meanings', [])
+                results.append({
+                    'word': term, 'reading': item_res.get('reading', ''), 'meanings': means,
+                    'definition': ', '.join(means) if means else 'No definition found.', 'source': source
+                })
             else:
-                item_res = query_offline_dict(d['path'], term)
-                if item_res:
-                    source = d['name']
-                    break
-        
-        if item_res:
-            means = item_res.get('meanings', [])
-            results.append({
-                'word': term, 'reading': item_res.get('reading', ''), 'meanings': means,
-                'definition': ', '.join(means) if means else 'No definition found.', 'source': source
-            })
-        else:
-            results.append({'word': term, 'reading': '', 'meanings': [], 'definition': 'No definition found.', 'source': 'none'})
+                results.append({'word': term, 'reading': '', 'meanings': [], 'definition': 'No definition found.', 'source': 'none'})
     return results
 
 def analyze_batch_japanese(texts):
