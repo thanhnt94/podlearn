@@ -1,51 +1,59 @@
 from datetime import datetime, date, timezone, timedelta
-from app.core.extensions import db
-from app.modules.engagement.models import Badge, UserBadge
-from app.modules.engagement.models import Notification
+from typing import List, Any
+from sqlalchemy.orm import Session
+from app.core.database import SessionLocal
+from app.modules.engagement.models import Badge, UserBadge, Notification, ActivityLog
 from app.modules.identity.models import User
-from app.modules.engagement.models import ActivityLog
+import logging
+
+logger = logging.getLogger(__name__)
 
 class GamificationService:
     @staticmethod
     def seed_default_badges():
         """Initialize standard badges if they don't exist."""
         defaults = [
-            # Streak Badges
             {'name': 'Early Bird', 'desc': 'Completed your first lesson.', 'icon': 'Bird', 'type': 'total_lessons', 'thresh': 1, 'cat': 'streak'},
             {'name': 'Consistent Learner', 'desc': 'Maintained a 3-day streak.', 'icon': 'Flame', 'type': 'streak_days', 'thresh': 3, 'cat': 'streak'},
             {'name': 'Streak Warrior', 'desc': 'Maintained a 7-day streak.', 'icon': 'ShieldCheck', 'type': 'streak_days', 'thresh': 7, 'cat': 'streak'},
             {'name': 'Unstoppable', 'desc': 'Maintained a 30-day streak.', 'icon': 'Trophy', 'type': 'streak_days', 'thresh': 30, 'cat': 'streak'},
-            
-            # Shadowing Badges
             {'name': 'Echo Novice', 'desc': 'Shadowed 50 sentences.', 'icon': 'Mic2', 'type': 'shadow_count', 'thresh': 50, 'cat': 'shadowing'},
             {'name': 'Speak Like a Native', 'desc': 'Shadowed 500 sentences.', 'icon': 'Zap', 'type': 'shadow_count', 'thresh': 500, 'cat': 'shadowing'},
-            
-            # Time Badges
             {'name': 'Dedicated', 'desc': 'Spent 5 hours listening.', 'icon': 'Clock', 'type': 'total_hours', 'thresh': 5, 'cat': 'time'},
             {'name': 'Immersion Master', 'desc': 'Spent 50 hours listening.', 'icon': 'Crown', 'type': 'total_hours', 'thresh': 50, 'cat': 'time'},
         ]
         
-        for b in defaults:
-            try:
-                exists = Badge.query.filter_by(name=b['name']).first()
-                if not exists:
-                    badge = Badge(
-                        name=b['name'],
-                        description=b['desc'],
-                        icon_name=b['icon'],
-                        requirement_type=b['type'],
-                        threshold=b['thresh'],
-                        category=b['cat']
-                    )
-                    db.session.add(badge)
-                    db.session.commit()
-            except Exception:
-                db.session.rollback()
+        with SessionLocal() as db:
+            for b in defaults:
+                try:
+                    exists = db.query(Badge).filter_by(name=b['name']).first()
+                    if not exists:
+                        badge = Badge(
+                            name=b['name'],
+                            description=b['desc'],
+                            icon_name=b['icon'],
+                            requirement_type=b['type'],
+                            threshold=b['thresh'],
+                            category=b['cat']
+                        )
+                        db.add(badge)
+                        db.commit()
+                except Exception as e:
+                    db.rollback()
+                    logger.error(f"Failed to seed badge {b['name']}: {e}")
 
     @staticmethod
-    def check_and_award_badges(user):
+    def check_and_award_badges(user: User, db: Session = None):
         """Check user progress and award missing badges."""
-        available_badges = Badge.query.all()
+        if db is None:
+            with SessionLocal() as session:
+                return GamificationService._check_internal(user, session)
+        return GamificationService._check_internal(user, db)
+
+    @staticmethod
+    def _check_internal(user: User, db: Session):
+        from app.modules.study.models import Lesson
+        available_badges = db.query(Badge).all()
         earned_badge_ids = {ub.badge_id for ub in user.badges_earned}
         
         new_badges = []
@@ -55,7 +63,7 @@ class GamificationService:
             'streak_days': user.current_streak or 0,
             'shadow_count': user.total_shadowing_count or 0,
             'total_hours': (user.total_listening_seconds or 0) / 3600,
-            'total_lessons': user.lessons.filter_by(is_completed=True).count()
+            'total_lessons': db.query(Lesson).filter_by(user_id=user.id, is_completed=True).count()
         }
         
         for badge in available_badges:
@@ -66,7 +74,7 @@ class GamificationService:
             if current_val >= badge.threshold:
                 # Award badge!
                 ub = UserBadge(user_id=user.id, badge_id=badge.id)
-                db.session.add(ub)
+                db.add(ub)
                 
                 # Create Notification
                 notif = Notification(
@@ -76,47 +84,45 @@ class GamificationService:
                     message=f'Chúc mừng! Bạn đã đạt được danh hiệu "{badge.name}": {badge.description}',
                     link_url='/achievements'
                 )
-                db.session.add(notif)
+                db.add(notif)
                 new_badges.append(badge)
         
         if new_badges:
-            db.session.commit()
+            db.commit()
             
         return new_badges
 
     @staticmethod
     def generate_streak_reminders():
         """Find users whose streak is about to expire and notify them."""
-        # Find users who haven't studied today and have a streak > 0
         today = date.today()
-        # Users who studied yesterday but not today
         yesterday = today - timedelta(days=1)
         
-        users_at_risk = User.query.filter(
-            User.current_streak > 0,
-            (User.last_study_date == yesterday) | (User.last_study_date == None)
-        ).all()
-        
-        reminders_sent = 0
-        for user in users_at_risk:
-            # Check if reminder already sent today
-            exists = Notification.query.filter(
-                Notification.user_id == user.id,
-                Notification.type == 'STREAK_REMINDER',
-                db.func.date(Notification.created_at) == today
-            ).first()
+        with SessionLocal() as db:
+            from sqlalchemy import func
+            users_at_risk = db.query(User).filter(
+                User.current_streak > 0,
+                (User.last_study_date == yesterday) | (User.last_study_date == None)
+            ).all()
             
-            if not exists:
-                notif = Notification(
-                    user_id=user.id,
-                    type='STREAK_REMINDER',
-                    title='🔥 Giữ vững ngọn lửa!',
-                    message=f'Đừng để chuỗi {user.current_streak} ngày học của bạn biến mất. Hãy dành 5 phút luyện tập hôm nay nhé!',
-                    link_url='/dashboard'
-                )
-                db.session.add(notif)
-                reminders_sent += 1
-        
-        db.session.commit()
-        return reminders_sent
-
+            reminders_sent = 0
+            for user in users_at_risk:
+                exists = db.query(Notification).filter(
+                    Notification.user_id == user.id,
+                    Notification.type == 'STREAK_REMINDER',
+                    func.date(Notification.created_at) == today
+                ).first()
+                
+                if not exists:
+                    notif = Notification(
+                        user_id=user.id,
+                        type='STREAK_REMINDER',
+                        title='🔥 Giữ vững ngọn lửa!',
+                        message=f'Đừng để chuỗi {user.current_streak} ngày học của bạn biến mất. Hãy dành 5 phút luyện tập hôm nay nhé!',
+                        link_url='/dashboard'
+                    )
+                    db.add(notif)
+                    reminders_sent += 1
+            
+            db.commit()
+            return reminders_sent

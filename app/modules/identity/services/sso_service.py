@@ -1,8 +1,7 @@
-from flask import current_app, session
-from app.core.extensions import db
+from sqlalchemy.orm import Session
 from app.modules.identity.models import User
 from app.modules.engagement.models import AppSetting
-from app.core.utils.sso_helper import EcosystemAuth
+from app.core.database import SessionLocal
 
 class SSOService:
     """
@@ -10,16 +9,22 @@ class SSOService:
     """
 
     @staticmethod
-    def get_modular_bp(app, provision_callback, success_callback):
+    def get_modular_router(provision_callback, success_callback):
         # Import directly from the local project utility
-        from app.core.utils.ecosystem_sso import create_sso_blueprint
+        from app.core.utils.ecosystem_sso import create_sso_router
         
-        with app.app_context():
-            server_url = AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', 'http://127.0.0.1:5000')
-            client_id = AppSetting.get('CENTRAL_AUTH_CLIENT_ID', 'podlearn-v1')
-            client_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', 'podlearn_secret_123')
+        # We need a db session to get settings
+        with SessionLocal() as db:
+            server_url = db.query(AppSetting).filter_by(key='CENTRAL_AUTH_SERVER_ADDRESS').first()
+            server_url = server_url.value if server_url else 'http://127.0.0.1:5000'
+            
+            client_id = db.query(AppSetting).filter_by(key='CENTRAL_AUTH_CLIENT_ID').first()
+            client_id = client_id.value if client_id else 'podlearn-v1'
+            
+            client_secret = db.query(AppSetting).filter_by(key='CENTRAL_AUTH_CLIENT_SECRET').first()
+            client_secret = client_secret.value if client_secret else 'podlearn_secret_123'
         
-        return create_sso_blueprint(
+        return create_sso_router(
             server_url=server_url,
             client_id=client_id,
             client_secret=client_secret,
@@ -28,64 +33,60 @@ class SSOService:
         )
 
     @staticmethod
-    def provision_user(user_payload):
+    async def provision_user(user_payload: dict) -> User:
         """
         Standardized JIT Provisioning.
-        Uses the Central Auth 'id' (UUID) mapped to local 'central_auth_id'.
         """
-        central_id = user_payload.get('id') # This is the standardized UUID
+        central_id = user_payload.get('id')
         email = user_payload.get('email')
         username = user_payload.get('username') or email.split('@')[0]
         full_name = user_payload.get('full_name', username)
         
-        # 1. Lookup by central_auth_id (Best Practice for Ecosystem consistency)
-        user = User.query.filter_by(central_auth_id=central_id).first()
-        
-        # 2. Fallback to Email (for migrating existing local users)
-        if not user:
-            user = User.query.filter_by(email=email).first()
-            if user:
-                # Link this local user to the Central Auth identity
-                user.central_auth_id = central_id
-        
-        # 3. Fallback to Username (To prevent UNIQUE constraint errors)
-        if not user:
-            user = User.query.filter_by(username=username).first()
-            if user:
-                # Link this local user to the Central Auth identity
-                user.central_auth_id = central_id
-                # Also sync email if the local one was different/placeholder
-                if not user.email or '@' not in user.email:
-                    user.email = email
-        
-        if user:
-            # Sync Profile Info
-            user.email = email
-            user.username = username
-            user.full_name = full_name
-            # Sync password hash to allow local login fallback
-            if user_payload.get('password_hash'):
-                user.password_hash = user_payload.get('password_hash')
-            db.session.commit()
-            return user
-        else:
-            # Create new Shadow Record
-            user = User(
-                central_auth_id=central_id, # Link UUID
-                username=username,
-                email=email,
-                full_name=full_name,
-                role='user' # Default role in PodLearn
-            )
-            # Sync password hash from SSO if available
-            if user_payload.get('password_hash'):
-                user.password_hash = user_payload.get('password_hash')
-            else:
-                # Set a random password for local record safety as fallback
-                import uuid
-                user.set_password(str(uuid.uuid4()))
+        with SessionLocal() as db:
+            # 1. Lookup by central_auth_id
+            user = db.query(User).filter_by(central_auth_id=central_id).first()
             
-            db.session.add(user)
-            db.session.commit()
-            return user
+            # 2. Fallback to Email
+            if not user:
+                user = db.query(User).filter_by(email=email).first()
+                if user:
+                    user.central_auth_id = central_id
+            
+            # 3. Fallback to Username
+            if not user:
+                user = db.query(User).filter_by(username=username).first()
+                if user:
+                    user.central_auth_id = central_id
+                    if not user.email or '@' not in user.email:
+                        user.email = email
+            
+            if user:
+                # Sync Profile Info
+                user.email = email
+                user.username = username
+                user.full_name = full_name
+                if user_payload.get('password_hash'):
+                    user.password_hash = user_payload.get('password_hash')
+                db.commit()
+                db.refresh(user)
+                return user
+            else:
+                # Create new Shadow Record
+                user = User(
+                    central_auth_id=central_id,
+                    username=username,
+                    email=email,
+                    full_name=full_name,
+                    role='user'
+                )
+                if user_payload.get('password_hash'):
+                    user.password_hash = user_payload.get('password_hash')
+                else:
+                    import uuid
+                    user.set_password(str(uuid.uuid4()))
+                
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                return user
 

@@ -85,6 +85,7 @@ npm run dev
 - [Tài liệu Kiến trúc (MODULE_ARCHITECTURE.md)](./docs/MODULE_ARCHITECTURE.md)
 - [Cấu trúc Công nghệ (TECH_STACK.md)](./docs/TECH_STACK.md)
 - [Hướng dẫn API (API_AND_ROUTES.md)](./docs/API_AND_ROUTES.md)
+- [Cấu hình Proxy & Vượt chặn YouTube (PROXY_SETUP.md)](./docs/deployment/PROXY_SETUP.md)
 - [Quy tắc phát triển với AI (AI_GUIDELINES.md)](./docs/AI_GUIDELINES.md)
 
 ---

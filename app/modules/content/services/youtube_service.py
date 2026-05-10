@@ -60,6 +60,28 @@ def fetch_video_info(youtube_id: str) -> VideoInfo | None:
             })
 
         if not info:
+            print(f">>> [YT-METADATA] PHASE 3: Fallback to NoEmbed (Public API)... <<<")
+            import requests
+            from app.modules.engagement.models import AppSetting
+            proxy_url = AppSetting.get('YOUTUBE_PROXY_URL')
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+            try:
+                ne_res = requests.get(f"https://noembed.com/embed?url=https://www.youtube.com/watch?v={youtube_id}", proxies=proxies, timeout=5)
+                if ne_res.status_code == 200:
+                    ne_data = ne_res.json()
+                    if 'title' in ne_data:
+                        info = {
+                            'title': ne_data.get('title'),
+                            'thumbnail': ne_data.get('thumbnail_url'),
+                            'uploader': ne_data.get('author_name'),
+                            'channel_id': ne_data.get('author_url'),
+                            'duration': 0 # NoEmbed doesn't provide duration
+                        }
+                        print(f">>> [YT-METADATA] SUCCESS: Metadata retrieved via NoEmbed. <<<")
+            except Exception as ne_e:
+                print(f">>> [YT-METADATA] NoEmbed failed: {ne_e} <<<")
+
+        if not info:
             print(f">>> [YT-METADATA] FATAL: No metadata found for {youtube_id} <<<")
             return None
 

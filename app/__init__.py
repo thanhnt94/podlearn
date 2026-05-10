@@ -1,124 +1,104 @@
-"""AuraFlow — Flask Application Factory (Pure Headless API)."""
-
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import os
-from flask import Flask, jsonify, send_from_directory, request
-from flask_cors import CORS
-from flask_jwt_extended import JWTManager
-from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
-from .core.config import config_by_name
-from .core.extensions import db, migrate # Removed csrf
+from .core.config import settings
+from .core.database import engine, Base
 
-def create_app(config_name: str | None = None) -> Flask:
-    """Create and configure the Flask application."""
-    load_dotenv()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    # In a real app, you might want to run migrations here or check DB connection
+    yield
+    # Shutdown logic
 
-    if config_name is None:
-        config_name = os.environ.get('FLASK_ENV', 'development')
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="PodLearn API",
+        description="Headless API for PodLearn",
+        version="2.0.0",
+        lifespan=lifespan
+    )
 
+    # CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Global Error Handler
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        # Determine status code
+        status_code = 500
+        if hasattr(exc, "status_code"):
+            status_code = exc.status_code
+        
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": "error",
+                "code": status_code,
+                "message": str(exc)
+            }
+        )
+
+    # Module Router Registration
+    from app.modules.identity.routes import router as identity_router
+    from app.modules.content.routes import router as content_router
+    from app.modules.engagement.routes import router as engagement_router
+    from app.modules.study.routes import router as study_router, tracking_router
+    from app.modules.admin.routes import router as admin_router
+
+    app.include_router(identity_router)
+    app.include_router(content_router)
+    app.include_router(engagement_router)
+    app.include_router(study_router)
+    app.include_router(tracking_router)
+    app.include_router(admin_router)
+
+    # SSO Setup
+    from app.modules.identity.routes.api import setup_sso
+    setup_sso(app)
+
+    # SPA catch-all and static files
     base_dir = os.path.abspath(os.path.dirname(__file__))
     dist_folder = os.path.join(base_dir, 'core', 'static', 'dist')
-
-    # Headless + SPA Configuration
-    app = Flask(__name__, 
-                static_folder=dist_folder, 
-                static_url_path='/static/dist')
-                
-    app.config.from_object(config_by_name[config_name])
     
-    # ENSURE CSRF IS DISABLED FOR HEADLESS JWT
-    app.config['WTF_CSRF_ENABLED'] = False
+    if os.path.exists(dist_folder):
+        app.mount("/static/dist", StaticFiles(directory=dist_folder), name="static")
 
-    # ── JWT Configuration ─────────────────────────────────────
-    app.config["JWT_SECRET_KEY"] = app.config.get("SECRET_KEY", "podlearn-jwt-secret-888")
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 3600 * 24 
-    jwt = JWTManager(app)
-    
-    # ── Extensions & Security ─────────────────────────────────
-    CORS(app, supports_credentials=True)
-    db.init_app(app)
-    migrate.init_app(app, db)
-    # csrf.init_app(app) # Completely disabled for pure API architecture
-
-    from .core.celery_app import celery_init_app
-    celery_init_app(app)
-
-    # ── Global Error Handler ──────────────────────────────────
-    @app.errorhandler(Exception)
-    def handle_exception(e):
-        from werkzeug.exceptions import HTTPException
-        code = 500
-        message = str(e)
-        if isinstance(e, HTTPException):
-            code = e.code
-            message = e.description
+    @app.get("/{path:path}")
+    async def serve_spa(path: str):
+        if path.startswith("api/") or path.startswith("media/"):
+             return JSONResponse(status_code=404, content={"status": "error", "message": "API not found"})
         
-        # Simple JSON response for all errors
-        return jsonify({
-            "status": "error",
-            "code": code,
-            "message": message
-        }), code
-
-    # JWT User Lookup
-    from app.modules.identity.models import User
-    @jwt.user_lookup_loader
-    def user_lookup_callback(_jwt_header, jwt_data):
-        identity = jwt_data["sub"]
-        return db.session.get(User, identity)
-
-    # ── Module Initialization ─────────────────────────────────
-    from .modules.identity import setup_module as setup_identity
-    from .modules.content import setup_module as setup_content
-    from .modules.study import setup_module as setup_study
-    from .modules.engagement import setup_module as setup_engagement
-    from .modules.admin import setup_module as setup_admin
-    
-    setup_content(app)
-    setup_study(app)
-    setup_engagement(app)
-    setup_admin(app)
-    
-    # setup_identity should be LAST because its SSO initialization triggers DB queries 
-    # that require all other models (like Video) to be already mapped.
-    setup_identity(app)
-
-    # ── Database Migration (Auto-fix) ──────────────────────────
-    with app.app_context():
-        try:
-            from app.modules.study.migrations.db_fix import migrate_flashcards
-            db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-            if 'sqlite' in db_uri:
-                # Extract path from sqlite:///...
-                db_path = db_uri.split('///')[-1]
-                # If path is relative, make it absolute relative to instance/root
-                if not os.path.isabs(db_path):
-                    # In this project, relative paths are usually relative to the root or app dir
-                    # But we'll trust the URI for now
-                    pass
-                migrate_flashcards(db_path)
-        except Exception as e:
-            app.logger.error(f"Auto-migration failed: {e}")
-
-    # ── SPA Bridge (Catch-all) ─────────────────────────────────
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
-    def serve_spa(path):
-        """Serve the production SPA assets."""
-        if path.startswith('api/') or path.startswith('media/'):
-            return jsonify({"status": "error", "code": 404, "message": "API not found"}), 404
+        # Check if file exists in dist
+        file_path = os.path.join(dist_folder, path)
+        if path and os.path.isfile(file_path):
+            return FileResponse(file_path)
             
-        full_path = os.path.join(app.static_folder, path)
-        if path and os.path.exists(full_path) and os.path.isfile(full_path):
-            return send_from_directory(app.static_folder, path)
+        # Admin handle
+        if path == "admin" or path.startswith("admin/"):
+            admin_index = os.path.join(dist_folder, "admin.html")
+            if os.path.exists(admin_index):
+                return FileResponse(admin_index)
+                
+        # Default index
+        index_path = os.path.join(dist_folder, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
             
-        if path.startswith('static/dist/'):
-            file_path = path.replace('static/dist/', '')
-            return send_from_directory(app.static_folder, file_path)
-
-        if path == 'admin' or path.startswith('admin/'):
-            return send_from_directory(app.static_folder, 'admin.html')
-
-        return send_from_directory(app.static_folder, 'index.html')
+        return JSONResponse(status_code=404, content={"status": "error", "message": "SPA Assets not found"})
 
     return app
+
+# For uvicorn and worker
+app = create_app()
+from .core.celery_app import celery_app

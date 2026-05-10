@@ -1,6 +1,8 @@
-from flask import Blueprint, request, redirect, current_app, url_for, jsonify, session
+from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi.responses import RedirectResponse
 import requests
 import urllib.parse
+from typing import Callable
 
 class EcosystemAuth:
     """
@@ -56,47 +58,56 @@ class EcosystemAuth:
             url += f"?{params}"
         return url
 
-def create_sso_blueprint(server_url, client_id, client_secret, on_user_provision, login_success_redirect_fn):
+    def validate_client(self):
+        """Validates the client credentials with the Central Auth server."""
+        validate_url = f"{self.server_url}/api/auth/validate-client"
+        payload = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret
+        }
+        try:
+            r = requests.post(validate_url, json=payload, timeout=5)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+def create_sso_router(server_url: str, client_id: str, client_secret: str, on_user_provision: Callable, login_success_redirect_fn: Callable):
     """
-    Factory to create a standardized SSO Blueprint for any satellite app.
-    
-    Args:
-        server_url: URL of CentralAuth
-        client_id: App's client ID
-        client_secret: App's client secret
-        on_user_provision: Callback function(user_data, tokens) -> user_object
-        login_success_redirect_fn: Callback function(user_object, tokens) -> redirect_response
+    Factory to create a standardized SSO Router for any satellite app.
     """
-    bp = Blueprint('ecosystem_sso', __name__)
+    router = APIRouter(prefix="/auth-center")
     auth = EcosystemAuth(server_url, client_id, client_secret)
 
-    @bp.route('/auth-center/login')
-    def login():
-        callback_url = url_for('ecosystem_sso.callback', _external=True)
+    @router.get('/login')
+    async def login(request: Request):
+        # We need to build the callback URL
+        # For simplicity, we can use the request URL and replace the path
+        base_url = str(request.base_url).rstrip('/')
+        callback_url = f"{base_url}/auth-center/callback"
         if 'mindstack.click' in callback_url:
             callback_url = callback_url.replace('http://', 'https://')
-        return redirect(auth.get_login_url(callback_url))
+        return RedirectResponse(auth.get_login_url(callback_url))
 
-    @bp.route('/auth-center/callback')
-    def callback():
-        code = request.args.get('code')
+    @router.get('/callback')
+    async def callback(request: Request, code: str = None):
         if not code:
-            return redirect(url_for('ecosystem_sso.login'))
+            return RedirectResponse(url="/auth-center/login")
             
-        callback_url = url_for('ecosystem_sso.callback', _external=True)
+        base_url = str(request.base_url).rstrip('/')
+        callback_url = f"{base_url}/auth-center/callback"
         if 'mindstack.click' in callback_url:
             callback_url = callback_url.replace('http://', 'https://')
             
         result = auth.handle_callback(code, callback_url=callback_url)
         if not result['success']:
-            return f"SSO Error: {result.get('error')}", 400
+            raise HTTPException(status_code=400, detail=f"SSO Error: {result.get('error')}")
             
-        user = on_user_provision(result['user'], result['tokens'])
-        return login_success_redirect_fn(user, result['tokens'])
+        user = await on_user_provision(result['user'], result['tokens'])
+        return await login_success_redirect_fn(request, user, result['tokens'])
 
-    @bp.route('/auth-center/webhook/backchannel-log', methods=['POST'])
-    def backchannel_logout():
-        # Standard implementation for global logout notification
-        return jsonify({"success": True}), 200
+    @router.post('/webhook/backchannel-log')
+    async def backchannel_logout():
+        return {"success": True}
 
-    return bp, auth
+    return router, auth

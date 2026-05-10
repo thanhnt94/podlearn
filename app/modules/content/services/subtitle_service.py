@@ -9,8 +9,9 @@ import tempfile
 import time
 import webvtt
 import yt_dlp
+import threading
 
-from app.core.extensions import db
+from app.core.database import SessionLocal
 from app.modules.content.models import SubtitleTrack
 from app.modules.engagement.models import AppSetting
 from deep_translator import GoogleTranslator
@@ -18,25 +19,18 @@ from deep_translator import GoogleTranslator
 logger = logging.getLogger(__name__)
 
 # --- GLOBAL METADATA CACHE ---
-# Stores {video_id: (timestamp, info_dict, is_flat)}
 YT_INFO_CACHE = {}
 YT_CACHE_TTL = 3600 # 1 hour
 
 
 def _get_ytdlp_opts(extra_opts=None):
     """Centralized yt-dlp options with cookies."""
-    # Robust path resolution: find project root
     current_file = os.path.abspath(__file__)
-    # Go up from app/modules/content/services/subtitle_service.py to PodLearn root (5 levels)
     base_dir = current_file
     for _ in range(5):
         base_dir = os.path.dirname(base_dir)
     
     cookie_path = os.path.join(base_dir, 'youtube_cookies.txt')
-
-    sys.stderr.write(f"\n[YT-CONFIG] Project Root detected: {base_dir}\n")
-    sys.stderr.write(f"[YT-CONFIG] Checking for cookies at: {cookie_path}\n")
-    sys.stderr.write(f"[YT-CONFIG] yt-dlp version: {yt_dlp.version.__version__}\n")
 
     opts = {
         'quiet': True,
@@ -53,11 +47,6 @@ def _get_ytdlp_opts(extra_opts=None):
         'geo_bypass': True,
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'en-US,en;q=0.9,vi;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://www.youtube.com/',
-            'Origin': 'https://www.youtube.com/',
         },
         'ignoreerrors': True,
         'ignore_no_formats_error': True,
@@ -73,32 +62,19 @@ def _get_ytdlp_opts(extra_opts=None):
     }
 
     # Dynamic Proxy Support
-    proxy_url = AppSetting.get('YOUTUBE_PROXY_URL')
+    with SessionLocal() as db:
+        proxy_setting = db.query(AppSetting).filter_by(key='YOUTUBE_PROXY_URL').first()
+        proxy_url = proxy_setting.value if proxy_setting else None
+        
     if proxy_url:
         opts['proxy'] = proxy_url
-        sys.stderr.write(f"[YT-CONFIG] Using PROXY: {proxy_url}\n")
 
     if os.path.exists(cookie_path):
-        if not os.access(cookie_path, os.R_OK):
-            sys.stderr.write(f">>> [PODLEARN ERROR] Cookie file FOUND but NOT READABLE (Permissions issue) <<<\n")
-        else:
-            try:
-                with open(cookie_path, 'r', encoding='utf-8') as f:
-                    first_line = f.readline()
-                    if "# Netscape HTTP Cookie File" not in first_line:
-                        sys.stderr.write(f">>> [PODLEARN ERROR] Cookie file FOUND but INVALID FORMAT (Not Netscape) <<<\n")
-                    else:
-                        sys.stderr.write(f">>> [PODLEARN SUCCESS] Cookie file LOADED correctly <<<\n")
-                        opts['cookiefile'] = cookie_path
-            except Exception as e:
-                sys.stderr.write(f">>> [PODLEARN ERROR] Exception reading cookies: {e} <<<\n")
-    else:
-        sys.stderr.write(f">>> [PODLEARN WARN] Cookie file NOT FOUND at {cookie_path} <<<\n")
+        opts['cookiefile'] = cookie_path
     
     if extra_opts:
         opts.update(extra_opts)
         
-    sys.stderr.flush()
     return opts
 
 def fetch_info_cached(video_id: str, extra_opts=None):
@@ -111,15 +87,13 @@ def fetch_info_cached(video_id: str, extra_opts=None):
         if now - ts < YT_CACHE_TTL:
             has_sub_keys = 'subtitles' in info or 'automatic_captions' in info
             if not req_is_flat and (cached_is_flat or not has_sub_keys):
-                pass # Upgrade needed
+                pass 
             else:
                 return info
     
     url = f"https://www.youtube.com/watch?v={video_id}"
     
-    # Attempt 1: Default/Standard
     try:
-        print(f">>> [YT FETCH] Attempt 1 for {video_id} (Flat={req_is_flat})... <<<")
         ydl_opts = _get_ytdlp_opts(extra_opts)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -127,11 +101,9 @@ def fetch_info_cached(video_id: str, extra_opts=None):
                 is_flat_result = info.get('_type') == 'url_composite' or ('formats' not in info and 'subtitles' not in info)
                 YT_INFO_CACHE[video_id] = (now, info, is_flat_result)
                 return info
-    except Exception as e:
-        print(f">>> [YT FETCH] Attempt 1 failed: {str(e)} <<<")
+    except Exception:
+        pass
 
-    # Attempt 2: Resilient Fallback (for VPS/Data Centers)
-    print(f">>> [YT FETCH] Attempt 2 (Resilient) for {video_id}... <<<")
     import random
     time.sleep(random.uniform(1.5, 3.0))
     
@@ -149,8 +121,8 @@ def fetch_info_cached(video_id: str, extra_opts=None):
                 is_flat_result = info.get('_type') == 'url_composite' or ('formats' not in info and 'subtitles' not in info)
                 YT_INFO_CACHE[video_id] = (now, info, is_flat_result)
                 return info
-    except Exception as e:
-        print(f">>> [YT FETCH] Attempt 2 failed: {str(e)} <<<")
+    except Exception:
+        pass
 
     return None
 
@@ -158,7 +130,6 @@ def fetch_info_cached(video_id: str, extra_opts=None):
 def get_available_subs_from_youtube(video_id: str):
     """Fetch available subtitle languages from YouTube using yt-dlp."""
     try:
-        sys.stderr.write(f"\n[YT-DEBUG] get_available_subs_from_youtube called for {video_id}\n")
         info = fetch_info_cached(video_id, extra_opts={'listsubtitles': True})
         
         def extract_from_info(info_dict):
@@ -173,88 +144,56 @@ def get_available_subs_from_youtube(video_id: str):
             return available
         available = extract_from_info(info) if info else []
         
-        # If still empty, clear cache and try one more time with listsubtitles forced
         if not available:
-            sys.stderr.write(f"[YT-DEBUG] No subs for {video_id}. Final attempt... \n")
             if video_id in YT_INFO_CACHE:
                 del YT_INFO_CACHE[video_id]
-            
             info = fetch_info_cached(video_id, extra_opts={'listsubtitles': True, 'extract_flat': False})
             available = extract_from_info(info) if info else []
 
-            
         if not info:
-            return {"error": "NotFound", "message": "Video not found hoặc bị chặn (Failed to extract player response). Vui lòng thử lại sau hoặc dùng Proxy."}
+            return {"error": "NotFound", "message": "Video not found hoặc bị chặn."}
 
-        subs_count = len(info.get('subtitles', {}) or {})
-        auto_count = len(info.get('automatic_captions', {}) or {})
-        sys.stderr.write(f"[YT-DEBUG] SUCCESS: Found {subs_count} manual, {auto_count} auto. Total tracks: {len(available)}\n")
-        sys.stderr.flush()
         return {'subtitles': available}
-    except yt_dlp.utils.DownloadError as e:
-        error_msg = str(e)
-        # Check if we should still try the retry even after a DownloadError
-        if "Failed to extract any player response" in error_msg or "429" in error_msg:
-             # This part is technically unreachable now if ignoreerrors=True, 
-             # but we keep it for robustness if fetch_info_cached is called elsewhere.
-             pass 
-        sys.stderr.write(f"[YT-DEBUG] DL ERROR: {error_msg}\n")
-        sys.stderr.flush()
-        if '429' in error_msg or 'Too Many Requests' in error_msg:
-            return {"error": "429", "message": "YouTube đang chặn yêu cầu của máy chủ (Lỗi 429). Vui lòng thử lại sau hoặc Upload file thủ công."}
-        return {"error": "YouTube Error", "message": error_msg}
     except Exception as e:
-        sys.stderr.write(f"[YT-DEBUG] CRITICAL EXCEPTION: {str(e)}\n")
-        sys.stderr.flush()
         return {"error": "Error", "message": str(e)}
 
 def download_and_parse_youtube_sub(video_id: str, lang_code: str, is_auto: bool = False):
     """Download and parse a specific YouTube subtitle track using direct HTTP download."""
-    print(f"\n>>> [YT-SUB] Initiating direct-download for {'auto' if is_auto else 'manual'} subtitles: {video_id} ({lang_code}) <<<")
-    
     try:
-        # 1. Get info (hardened/cached)
         info = fetch_info_cached(video_id, extra_opts={'listsubtitles': True})
         if not info:
-            return {"error": "MetadataFail", "message": "Failed to retrieve video metadata for track download"}
+            return {"error": "MetadataFail", "message": "Failed to retrieve video metadata"}
 
-        # 2. Locate the track in the info dict
         tracks = info.get('automatic_captions' if is_auto else 'subtitles', {})
         if lang_code not in tracks:
-            # Fallback for name mismatch (e.g. en-US vs en)
             alt_lang = lang_code.split('-')[0]
             if alt_lang in tracks:
-                print(f">>> [YT-SUB] Redirecting {lang_code} -> {alt_lang} <<<")
                 lang_code = alt_lang
             else:
-                return {"error": "TrackNotFound", "message": f"Track {lang_code} not found in YouTube metadata"}
+                return {"error": "TrackNotFound", "message": f"Track {lang_code} not found"}
 
         track_formats = tracks[lang_code]
-        # 3. Find VTT URL (YouTube provides this)
         vtt_entry = next((f for f in track_formats if f.get('ext') == 'vtt'), None)
         if not vtt_entry:
-            # If no VTT, try any entry (srv3, etc) and hope webvtt or future logic handles it
             vtt_entry = track_formats[0]
-            print(f">>> [YT-SUB] WARN: No VTT format found. Trying {vtt_entry.get('ext')}... <<<")
         
         vtt_url = vtt_entry.get('url')
         if not vtt_url:
-            return {"error": "UrlMissing", "message": "Subtitle download URL missing in metadata"}
+            return {"error": "UrlMissing", "message": "Subtitle download URL missing"}
 
-        # 4. Direct Download via requests
-        print(f">>> [YT-SUB] Fetching VTT from: {vtt_url[:60]}... <<<")
-        proxy_url = AppSetting.get('YOUTUBE_PROXY_URL')
+        with SessionLocal() as db:
+            proxy_setting = db.query(AppSetting).filter_by(key='YOUTUBE_PROXY_URL').first()
+            proxy_url = proxy_setting.value if proxy_setting else None
+            
         proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
         response = requests.get(vtt_url, timeout=15, proxies=proxies)
         response.raise_for_status()
         vtt_content = response.text
 
-        # 5. Save and Parse
         temp_file = os.path.join(tempfile.gettempdir(), f"sub_{video_id}_{lang_code}.vtt")
         with open(temp_file, 'w', encoding='utf-8') as f:
             f.write(vtt_content)
 
-        print(f">>> [YT-SUB] Parsing VTT content ({len(vtt_content)} chars)... <<<")
         parsed_lines = []
         try:
             for caption in webvtt.read(temp_file):
@@ -266,26 +205,16 @@ def download_and_parse_youtube_sub(video_id: str, lang_code: str, is_auto: bool 
                     'duration': round(e - s, 3),
                     'text': caption.text.replace('\n', ' ').strip()
                 })
-        except Exception as parse_err:
-            print(f">>> [YT-SUB] PARSE ERROR: {str(parse_err)} <<<")
-            # Fallback if VTT parsing fails - might be a different format
-            if 'WEBVTT' not in vtt_content[:100]:
-                 return {"error": "InvalidFormat", "message": "Downloaded content is not a valid VTT file"}
-            raise
-
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        finally:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
         
         if not parsed_lines:
-            return {"error": "EmptyResult", "message": "No subtitles lines extracted from file"}
+            return {"error": "EmptyResult", "message": "No subtitles lines extracted"}
 
-        print(f">>> [YT-SUB] SUCCESS: {len(parsed_lines)} lines extracted <<<")
-        sys.stdout.flush()
         return {"success": True, "lines": parsed_lines}
 
     except Exception as e:
-        print(f">>> [YT-SUB] CRITICAL ERROR: {str(e)} <<<")
-        sys.stdout.flush()
         return {"error": "Error", "message": str(e)}
 
 def _parse_timestamp(ts):
@@ -300,16 +229,13 @@ def _parse_timestamp(ts):
 def _parse_srt(content: str):
     """Simple regex-based SRT parser from string content."""
     import re
-    
     content = content.replace('\r\n', '\n')
     blocks = content.split('\n\n')
     entries = []
-    
     for block in blocks:
         if not block.strip(): continue
         lines = block.strip().split('\n')
         if len(lines) < 3: continue
-        
         times = lines[1]
         text = " ".join(lines[2:])
         match = re.search(r'(\d+:\d+:\d+[.,]\d+)\s*-->\s*(\d+:\d+:\d+[.,]\d+)', times)
@@ -324,20 +250,10 @@ def _parse_srt(content: str):
             })
     return entries
 
-def parse_uploaded_subtitle(file_path, ext):
-    """Parse an uploaded subtitle file (.srt or .vtt)."""
-    try:
-        with open(file_path, 'r', encoding='utf-8-sig') as f:
-            content = f.read()
-        return parse_subtitle_text(content, ext)
-    except Exception as e:
-        return {"error": "ParseError", "message": str(e)}
-
 def parse_subtitle_text(content: str, ext: str = None):
     """Parse subtitle content string (.srt or .vtt)."""
     parsed_lines = []
     try:
-        # Auto-detect if ext not provided
         if not ext:
             if 'WEBVTT' in content[:100]:
                 ext = '.vtt'
@@ -345,13 +261,9 @@ def parse_subtitle_text(content: str, ext: str = None):
                 ext = '.srt'
 
         if ext == '.vtt':
-            import tempfile
-            import os
-            # webvtt library unfortunately often needs a file or a specialized stream
             with tempfile.NamedTemporaryFile(mode='w', suffix='.vtt', delete=False, encoding='utf-8') as tmp:
                 tmp.write(content)
                 tmp_path = tmp.name
-            
             try:
                 for caption in webvtt.read(tmp_path):
                     s = caption.start_in_seconds
@@ -371,63 +283,55 @@ def parse_subtitle_text(content: str, ext: str = None):
             return {"error": "UnsupportedFormat", "message": "Unsupported format"}
         
         if not parsed_lines:
-            return {"error": "EmptyContent", "message": "No lines found in content"}
+            return {"error": "EmptyContent", "message": "No lines found"}
             
         return {"success": True, "lines": parsed_lines}
     except Exception as e:
         return {"error": "ParseError", "message": str(e)}
 
 def get_subtitle_track(video_id: int, youtube_id: str, language_code: str) -> SubtitleTrack | None:
-    # 1) Check DB cache
-    cached = SubtitleTrack.query.filter_by(
-        video_id=video_id,
-        language_code=language_code
-    ).first()
+    with SessionLocal() as db:
+        cached = db.query(SubtitleTrack).filter_by(
+            video_id=video_id,
+            language_code=language_code
+        ).first()
 
-    if cached and (cached.content_json and len(cached.content_json) > 0):
-        logger.info(f'Cache hit: {language_code} subs for video {youtube_id}')
-        return cached
+        if cached and cached.content_json:
+            return cached
 
-    # 2) Fetch from YouTube via yt-dlp
-    logger.info(f'Cache miss: manually downloading {language_code} subs for video {youtube_id}')
-    
-    res = download_and_parse_youtube_sub(youtube_id, language_code, is_auto=True)
-    if res.get('error'):
-        # Try again with manual subs?
-        res = download_and_parse_youtube_sub(youtube_id, language_code, is_auto=False)
-        
-    entries = res.get('lines')
-    if not entries:
-        return None
+        res = download_and_parse_youtube_sub(youtube_id, language_code, is_auto=True)
+        if res.get('error'):
+            res = download_and_parse_youtube_sub(youtube_id, language_code, is_auto=False)
+            
+        entries = res.get('lines')
+        if not entries:
+            return None
 
-    try:
-        # 3) Save to DB
-        track = cached  
-        if not track:
-            base_name = f"{language_code.upper()}_Original"
-            track = SubtitleTrack(
-                video_id=video_id,
-                language_code=language_code,
-                is_auto_generated=True,
-                is_original=True,
-                name=generate_unique_track_name(video_id, base_name)
-            )
-            db.session.add(track)
-            db.session.flush()
+        try:
+            track = cached  
+            if not track:
+                base_name = f"{language_code.upper()}_Original"
+                track = SubtitleTrack(
+                    video_id=video_id,
+                    language_code=language_code,
+                    is_auto_generated=True,
+                    is_original=True,
+                    name=generate_unique_track_name(video_id, base_name)
+                )
+                db.add(track)
+                db.flush()
 
-        track.content_json = entries
-        db.session.commit()
-        logger.info(f'Cached {len(entries)} lines for {language_code} / {youtube_id}')
-        return track
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f'Failed to save fetched subtitles for {youtube_id}/{language_code}: {e}')
-        return None
+            track.content_json = entries
+            db.commit()
+            db.refresh(track)
+            return track
+        except Exception:
+            db.rollback()
+            return None
 
 def generate_unique_track_name(video_id: int, base_name: str) -> str:
-    """Ensure a subtitle track name is unique for a given video."""
-    existing_names = {t.name for t in SubtitleTrack.query.filter_by(video_id=video_id).all()}
+    with SessionLocal() as db:
+        existing_names = {t.name for t in db.query(SubtitleTrack).filter_by(video_id=video_id).all()}
     if base_name not in existing_names:
         return base_name
     
@@ -438,84 +342,47 @@ def generate_unique_track_name(video_id: int, base_name: str) -> str:
         new_name = f"{base_name} ({counter})"
     return new_name
 
-def translate_track_content(track_id: int, target_lang: str = 'vi', source_lang: str = 'auto'):
-    """Translate all lines in a track line-by-line in background."""
-    from app.core.extensions import db
-    from app.modules.content.models import SubtitleTrack
-    import threading
-    
-    def _run_translation(tid, t_lang, s_lang):
-        with db.app.app_context():
-            track = SubtitleTrack.query.get(tid)
-            if not track or not track.content_json:
-                return
-            
-            lines = track.content_json
-            track.total_lines = len(lines)
-            track.status = 'translating'
-            db.session.commit()
-            
-            translator = GoogleTranslator(source=s_lang, target=t_lang)
-            translated_lines = []
-            
-            # Process line by line to keep timelines 100% intact
-            for i, line in enumerate(lines):
-                try:
-                    text = line.get('text', '').strip()
-                    if text:
-                        # Single line translation as requested
-                        t_text = translator.translate(text)
-                    else:
-                        t_text = ""
-                    
-                    new_line = dict(line)
-                    new_line['text'] = t_text
-                    translated_lines.append(new_line)
-                    
-                    # Update progress every 5 lines to reduce DB load
-                    if i % 5 == 0 or i == len(lines) - 1:
-                        track.progress = i + 1
-                        db.session.commit()
-                except Exception as e:
-                    logger.error(f"Translation error at line {i}: {e}")
-                    # Fallback to original text if error
-                    translated_lines.append(dict(line))
-            
-            track.content_json = translated_lines
-            track.status = 'completed'
-            track.progress = len(lines)
-            db.session.commit()
-
-    # Start thread
-    thread = threading.Thread(target=_run_translation, args=(track_id, target_lang, source_lang))
-    thread.daemon = True
-    thread.start()
-
-def get_lines_as_dicts(track: SubtitleTrack) -> list[dict]:
-    # ... existing implementation ...
-    if track.content_json and len(track.content_json) > 0:
-        return [
-            {
-                'index': idx,
-                'start': entry.get('start', 0),
-                'duration': entry.get('duration', round(entry.get('end', 0) - entry.get('start', 0), 3)),
-                'end': entry.get('end', round(entry.get('start', 0) + entry.get('duration', 0), 3)),
-                'text': entry.get('text', ''),
-            }
-            for idx, entry in enumerate(track.content_json)
-        ]
-
-    return []
+def run_translation_background(track_id: int, target_lang: str, source_lang: str):
+    """Background task for translation."""
+    with SessionLocal() as db:
+        track = db.query(SubtitleTrack).get(track_id)
+        if not track or not track.content_json:
+            return
+        
+        lines = track.content_json
+        track.total_lines = len(lines)
+        track.status = 'translating'
+        db.commit()
+        
+        translator = GoogleTranslator(source=source_lang, target=target_lang)
+        translated_lines = []
+        
+        for i, line in enumerate(lines):
+            try:
+                text = line.get('text', '').strip()
+                t_text = translator.translate(text) if text else ""
+                new_line = dict(line)
+                new_line['text'] = t_text
+                translated_lines.append(new_line)
+                
+                if i % 5 == 0 or i == len(lines) - 1:
+                    track.progress = i + 1
+                    db.commit()
+            except Exception:
+                translated_lines.append(dict(line))
+        
+        track.content_json = translated_lines
+        track.status = 'completed'
+        track.progress = len(lines)
+        db.commit()
 
 def translate_track_content(lines: list[dict], target_lang: str = 'vi', source_lang: str = 'auto') -> list[dict]:
-    """Translate all lines in a track using Google Translate."""
     if not lines:
         return []
     
     translator = GoogleTranslator(source=source_lang, target=target_lang)
     translated_lines = []
     
-    # Process in chunks to avoid API limits (approx 4000 chars per request)
     chunk_text = []
     chunk_indices = []
     current_length = 0
@@ -523,13 +390,11 @@ def translate_track_content(lines: list[dict], target_lang: str = 'vi', source_l
     for i, line in enumerate(lines):
         text = line.get('text', '')
         if current_length + len(text) > 3500:
-            # Translate current chunk
             batch_result = translator.translate_batch(chunk_text)
             for idx, t_text in zip(chunk_indices, batch_result):
                 new_line = dict(lines[idx])
                 new_line['text'] = t_text
                 translated_lines.append(new_line)
-            
             chunk_text = []
             chunk_indices = []
             current_length = 0
@@ -545,12 +410,10 @@ def translate_track_content(lines: list[dict], target_lang: str = 'vi', source_l
             new_line['text'] = t_text
             translated_lines.append(new_line)
             
-    # Re-sort just in case
     translated_lines.sort(key=lambda x: x.get('start', 0))
     return translated_lines
 
 def export_track_to_string(track: SubtitleTrack, format: str = 'srt') -> str:
-    """Export a subtitle track to SRT or VTT string."""
     lines = track.content_json
     if not lines:
         return ""
@@ -570,7 +433,7 @@ def export_track_to_string(track: SubtitleTrack, format: str = 'srt') -> str:
             start = format_time(line['start'], True)
             end = format_time(line['end'], True)
             output.append(f"{start} --> {end}\n{line['text']}\n")
-    else: # Default SRT
+    else: 
         for i, line in enumerate(lines):
             start = format_time(line['start'], False)
             end = format_time(line['end'], False)

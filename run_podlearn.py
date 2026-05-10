@@ -1,16 +1,13 @@
-"""PodLearn entry point."""
+"""PodLearn entry point (FastAPI version)."""
 
 import os
 import sys
 import subprocess
 import atexit
-from app import create_app
-
+import uvicorn
 import time
 from urllib.parse import urlparse
-
-app = create_app()
-celery_app = app.extensions.get("celery")
+from app import app, celery_app
 
 celery_process = None
 redis_process = None
@@ -18,9 +15,9 @@ redis_process = None
 def check_redis():
     """Check if Redis is running before starting Celery."""
     import socket
-    from urllib.parse import urlparse
+    from app.core.config import settings
     
-    redis_url = app.config.get('CELERY', {}).get('broker_url', 'redis://localhost:6379/0')
+    redis_url = settings.CELERY_BROKER_URL
     parsed = urlparse(redis_url)
     host = parsed.hostname or 'localhost'
     port = parsed.port or 6379
@@ -35,8 +32,9 @@ def check_redis():
 def start_redis_server():
     """Attempt to start a dedicated Redis instance for this project."""
     global redis_process
+    from app.core.config import settings
     
-    redis_url = app.config.get('CELERY', {}).get('broker_url', 'redis://localhost:6379/0')
+    redis_url = settings.CELERY_BROKER_URL
     parsed = urlparse(redis_url)
     port = str(parsed.port or 6379)
     
@@ -46,15 +44,12 @@ def start_redis_server():
 
     print(f"Starting dedicated Redis server on port {port}...")
     try:
-        # We try to call redis-server. 
-        # If it's not in PATH, this will fail and we'll show a helpful message.
         redis_process = subprocess.Popen(
             ['redis-server', '--port', port],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
         )
-        # Give it a moment to bind to the port
         time.sleep(2)
         
         if check_redis():
@@ -65,23 +60,20 @@ def start_redis_server():
             return False
     except Exception as e:
         print(f" [!] Could not start redis-server automatically: {e}")
-        print(f" [!] Please ensure 'redis-server' is in your PATH or start it manually on port {port}.")
         return False
 
 def start_celery():
     global celery_process
+    from app.core.config import settings
     
-    redis_url = app.config.get('CELERY', {}).get('broker_url', '')
+    redis_url = settings.CELERY_BROKER_URL
     if 'redis' in redis_url:
-        # If user explicitly wants redis, try to start it
         if not start_redis_server():
             print(" [!] WARNING: Redis requested but not found. Celery might fail.")
     else:
-        print(" [!] Celery is using SQLite (Database) as broker. No Redis needed.")
+        print(" [!] Celery is using Database as broker. No Redis needed.")
 
-    # 2. Start Celery
     print("Starting Celery worker in background...")
-    # pool=solo is used for better Windows compatibility
     cmd = [
         sys.executable, "-m", "celery", 
         "-A", "run_podlearn:celery_app", 
@@ -90,10 +82,7 @@ def start_celery():
         "--pool=solo", 
         "--loglevel=info"
     ]
-    # Use CREATE_NEW_PROCESS_GROUP on Windows to avoid signals killing Flask process killing Celery process abruptly
-    kwargs = {
-        'cwd': os.path.dirname(os.path.abspath(__file__))
-    }
+    kwargs = {'cwd': os.path.dirname(os.path.abspath(__file__))}
     if os.name == 'nt':
         kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
 
@@ -118,30 +107,24 @@ atexit.register(cleanup)
 if __name__ == '__main__':
     # 1. Ensure essential directories exist
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    storage_dir = os.path.abspath(os.path.join(base_dir, '..', 'Storage'))
-    db_dir = os.path.join(storage_dir, 'database')
-    media_dir = os.path.join(storage_dir, 'uploads', 'PodLearnMedia')
     logs_dir = os.path.join(base_dir, 'logs')
-    
-    for d in [db_dir, media_dir, logs_dir]:
-        if not os.path.exists(d):
-            os.makedirs(d, exist_ok=True)
-            print(f"Created directory: {d}")
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir, exist_ok=True)
 
-    # 2. Database check (Handled automatically in create_app)
-    print("Environment ready.")
-
-    # 3. Build Frontend (Windows only, and only in main process)
-    if os.name == 'nt' and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+    # 2. Build Frontend (Optional, Windows only)
+    if os.name == 'nt':
         try:
             import build_vite
             build_vite.build_frontend()
         except ImportError:
-            print(" [!] build_vite.py not found. Skipping automatic build.")
+            pass
 
-    # 4. Start Celery
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+    # 3. Start Celery if needed
+    from app.core.config import settings
+    if settings.TASK_RUNNER == 'celery':
         if not os.environ.get('SKIP_CELERY'):
             start_celery()
 
-    app.run(debug=True, port=5020)
+    # 4. Start FastAPI
+    print(f"Starting PodLearn FastAPI on port 5020...")
+    uvicorn.run("app:app", host="0.0.0.0", port=5020, reload=True)

@@ -1,433 +1,270 @@
-from flask import Blueprint, jsonify, request, current_app
-from flask_jwt_extended import jwt_required, current_user
-from functools import wraps
-from app.core.extensions import db
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.orm import Session
+from typing import List, Optional, Dict, Any
+import logging
+import uuid
+
+from app.core.database import get_db
+from app.core.security import get_current_user
+from app.core.config import settings
+from app.core.utils.auth_decorators import require_admin
 from app.modules.identity.models import User
-from app.modules.content.models import Video
+from app.modules.content.models import Video, SubtitleTrack
 from app.modules.study.models import Lesson
-from app.modules.content.models import SubtitleTrack
 from app.modules.engagement.models import AppSetting
-import time
-import requests
-from app.core.utils.sso_helper import EcosystemAuth
-from app.core.utils.auth_decorators import admin_required, vip_required
+from app.modules.admin.schemas import (
+    AdminStats, UserAdminInfo, UserCreateAdmin, UserUpdateAdmin,
+    AppSettingsResponse, GeminiSettingsUpdate, AuthSettingsUpdate,
+    ProxySettingsUpdate, VideoAdminInfo, TaskRunnerToggle
+)
+from app.core.utils.ecosystem_sso import EcosystemAuth
 
-admin_api_bp = Blueprint('admin_api', __name__, 
-                        url_prefix='/api/admin',
-                        template_folder='../templates',
-                        static_folder='../static')
+logger = logging.getLogger(__name__)
 
+router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-
-
-@admin_api_bp.route('/stats')
-@jwt_required()
-@admin_required
-def get_stats():
+@router.get('/stats', response_model=AdminStats)
+def get_stats(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """Aggregate statistics for the modern dashboard."""
-    stats = {
-        'users_count': User.query.count(),
-        'videos_count': Video.query.count(),
-        'lessons_count': Lesson.query.count(),
-        'subtitles_count': SubtitleTrack.query.count(),
-        # Add basic growth data if needed later
-    }
-    return jsonify(stats)
+    return AdminStats(
+        users_count=db.query(User).count(),
+        videos_count=db.query(Video).count(),
+        lessons_count=db.query(Lesson).count(),
+        subtitles_count=db.query(SubtitleTrack).count()
+    )
 
-@admin_api_bp.route('/users')
-@jwt_required()
-@admin_required
-def list_users():
+@router.get('/users', response_model=List[UserAdminInfo])
+def list_users(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """List all users with basic info."""
-    users = User.query.order_by(User.created_at.desc()).all()
-    return jsonify([{
-        'id': u.id,
-        'username': u.username,
-        'email': u.email,
-        'full_name': u.full_name,
-        'role': u.role,
-        'is_admin': u.is_admin,
-        'created_at': u.created_at.isoformat() if u.created_at else None,
-        'central_auth_id': getattr(u, 'central_auth_id', None)
-    } for u in users])
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    return users
 
-@admin_api_bp.route('/users', methods=['POST'])
-@jwt_required()
-@admin_required
-def create_user():
+@router.post('/users', response_model=Dict[str, Any], status_code=201)
+def create_user(data: UserCreateAdmin, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """Create a new local user."""
-    data = request.get_json()
-    username = data.get('username')
-    email = data.get('email')
-    full_name = data.get('full_name')
-    password = data.get('password')
-    role = data.get('role', 'free')
+    if db.query(User).filter((User.username == data.username) | (User.email == data.email)).first():
+        raise HTTPException(status_code=400, detail="Username or Email already exists")
 
-    if not username or not email or not password:
-        return jsonify({"error": "Missing required fields"}), 400
+    user = User(username=data.username, email=data.email, full_name=data.full_name, role=data.role)
+    user.set_password(data.password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
 
-    if User.query.filter((User.username == username) | (User.email == email)).first():
-        return jsonify({"error": "Username or Email already exists"}), 400
-
-    user = User(username=username, email=email, full_name=full_name, role=role)
-    user.set_password(password)
-    db.session.add(user)
-    db.session.commit()
-
-    return jsonify({
+    return {
         "success": True,
-        "message": f"User {username} created successfully",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role
-        }
-    }), 201
+        "message": f"User {data.username} created successfully",
+        "user": user
+    }
 
-@admin_api_bp.route('/users/<int:user_id>', methods=['PUT', 'PATCH'])
-@jwt_required()
-@admin_required
-def update_user(user_id):
+@router.put('/users/{user_id}')
+@router.patch('/users/{user_id}')
+def update_user(user_id: int, data: UserUpdateAdmin, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """Full update for a user's profile."""
-    data = request.get_json()
-    user = User.query.get_or_404(user_id)
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
-    # 1. Identity updates
-    username = data.get('username')
-    email = data.get('email')
-    full_name = data.get('full_name')
-    role = data.get('role')
-    password = data.get('password')
+    if data.username and data.username != user.username:
+        if db.query(User).filter_by(username=data.username).first():
+            raise HTTPException(status_code=400, detail="Username already taken")
+        user.username = data.username
+        
+    if data.email and data.email != user.email:
+        if db.query(User).filter_by(email=data.email).first():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        user.email = data.email
+        
+    if data.full_name is not None:
+        user.full_name = data.full_name
+        
+    if data.role:
+        if data.role not in ['free', 'vip', 'admin']:
+            raise HTTPException(status_code=400, detail="Invalid role. Use: free, vip, admin")
+        user.role = data.role
+        
+    if data.password:
+        user.set_password(data.password)
+        
+    db.commit()
+    return {"success": True, "message": f"User {user.username} updated successfully"}
 
-    if username and username != user.username:
-        if User.query.filter_by(username=username).first():
-            return jsonify({"error": "Username already taken"}), 400
-        user.username = username
-        
-    if email and email != user.email:
-        if User.query.filter_by(email=email).first():
-            return jsonify({"error": "Email already registered"}), 400
-        user.email = email
-        
-    if full_name is not None:
-        user.full_name = full_name
-        
-    if role:
-        if role not in ['free', 'vip', 'admin']:
-            return jsonify({"error": "Invalid role. Use: free, vip, admin"}), 400
-        user.role = role
-        
-    if password:
-        user.set_password(password)
-        
-    db.session.commit()
-    return jsonify({"success": True, "message": f"User {user.username} updated successfully"})
-
-@admin_api_bp.route('/users/<int:user_id>', methods=['DELETE'])
-@jwt_required()
-@admin_required
-def delete_user(user_id):
+@router.delete('/users/{user_id}')
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """Delete a user."""
     if user_id == current_user.id:
-        return jsonify({"error": "Cannot delete yourself"}), 400
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
         
-    user = User.query.get_or_404(user_id)
-    db.session.delete(user)
-    db.session.commit()
-    return jsonify({"success": True, "message": f"User {user.username} deleted"})
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return {"success": True, "message": f"User {user.username} deleted"}
 
-@admin_api_bp.route('/settings')
-@jwt_required()
-@admin_required
-def get_settings():
+@router.get('/settings', response_model=AppSettingsResponse)
+def get_settings(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """Fetch AI and Auth settings."""
-    return jsonify({
-        'GEMINI_API_KEY': AppSetting.get('GEMINI_API_KEY', ''),
-        'GEMINI_MODEL': AppSetting.get('GEMINI_MODEL', 'gemini-2.0-flash'),
-        'AUTH_PROVIDER': AppSetting.get('AUTH_PROVIDER', 'local'),
-        'CENTRAL_AUTH_SERVER_ADDRESS': AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', ''),
-        'CENTRAL_AUTH_CLIENT_ID': AppSetting.get('CENTRAL_AUTH_CLIENT_ID', ''),
-        'CENTRAL_AUTH_CLIENT_SECRET': AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', ''),
-        'YOUTUBE_PROXY_URL': AppSetting.get('YOUTUBE_PROXY_URL', '')
-    })
+    return AppSettingsResponse(
+        GEMINI_API_KEY=AppSetting.get('GEMINI_API_KEY', ''),
+        GEMINI_MODEL=AppSetting.get('GEMINI_MODEL', 'gemini-2.0-flash'),
+        AUTH_PROVIDER=AppSetting.get('AUTH_PROVIDER', 'local'),
+        CENTRAL_AUTH_SERVER_ADDRESS=AppSetting.get('CENTRAL_AUTH_SERVER_ADDRESS', ''),
+        CENTRAL_AUTH_CLIENT_ID=AppSetting.get('CENTRAL_AUTH_CLIENT_ID', ''),
+        CENTRAL_AUTH_CLIENT_SECRET=AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', ''),
+        YOUTUBE_PROXY_URL=AppSetting.get('YOUTUBE_PROXY_URL', ''),
+        TASK_RUNNER=AppSetting.get('TASK_RUNNER', 'celery')
+    )
 
-@admin_api_bp.route('/settings/gemini', methods=['POST'])
-@jwt_required()
-@admin_required
-def save_gemini_settings():
-    data = request.get_json()
-    api_key = data.get('api_key')
-    model = data.get('model')
-    
-    if api_key is not None:
-        AppSetting.set('GEMINI_API_KEY', api_key, category='ai')
-    if model:
-        AppSetting.set('GEMINI_MODEL', model, category='ai')
-        
-    return jsonify({'success': True, 'message': 'Đã cập nhật cấu hình Gemini.'})
+@router.post('/settings/gemini')
+def save_gemini_settings(data: GeminiSettingsUpdate, current_user: User = Depends(require_admin)):
+    if data.api_key is not None:
+        AppSetting.set('GEMINI_API_KEY', data.api_key, category='ai')
+    if data.model:
+        AppSetting.set('GEMINI_MODEL', data.model, category='ai')
+    return {'success': True, 'message': 'Đã cập nhật cấu hình Gemini.'}
 
-@admin_api_bp.route('/settings/gemini/models')
-@jwt_required()
-@admin_required
-def get_gemini_models():
-    from app.modules.content.services.ai_service import list_available_models
-    models = list_available_models()
-    return jsonify({'success': True, 'models': models})
+@router.post('/settings/task-runner')
+def set_task_runner(data: TaskRunnerToggle, current_user: User = Depends(require_admin)):
+    if data.runner not in ['celery', 'background']:
+        raise HTTPException(status_code=400, detail="Invalid runner. Use: celery, background")
+    AppSetting.set('TASK_RUNNER', data.runner, category='infrastructure')
+    return {'success': True, 'message': f'Đã chuyển sang: {data.runner}'}
 
-@admin_api_bp.route('/video/<int:video_id>/ai-analyze', methods=['POST'])
-@jwt_required()
-@admin_required
-def trigger_ai_analysis(video_id):
-    from app.modules.content.services.ai_service import generate_full_video_analysis
-    
-    video = Video.query.get_or_404(video_id)
-    # Get the Japanese track (assuming priority for analysis)
-    track = SubtitleTrack.query.filter_by(video_id=video_id, language_code='ja').first()
-    if not track:
-        return jsonify({'success': False, 'message': 'Không tìm thấy phụ đề tiếng Nhật để phân tích.'}), 404
-        
-    content = track.content_json
-    if not content:
-        return jsonify({'success': False, 'message': 'Dữ liệu phụ đề trống.'}), 400
-        
-    model_name = AppSetting.get('GEMINI_MODEL', 'gemini-2.0-flash')
-    success = generate_full_video_analysis(video_id, content, model_name=model_name)
-    
-    if success:
-        return jsonify({'success': True, 'message': 'Đã hoàn thành phân tích AI cho video này.'})
-    else:
-        return jsonify({'success': False, 'message': 'Quá trình phân tích AI thất bại.'}), 500
-
-@admin_api_bp.route('/save-auth-settings', methods=['POST'])
-@jwt_required()
-@admin_required
-def save_auth_settings():
-    data = request.get_json()
-    base_url = data.get('base_url', '').strip().rstrip('/')
-    
-    # Auto-prepend scheme if missing
+@router.post('/save-auth-settings')
+def save_auth_settings(data: AuthSettingsUpdate, current_user: User = Depends(require_admin)):
+    base_url = data.base_url.strip().rstrip('/')
     if base_url and not base_url.startswith(('http://', 'https://')):
         base_url = f"https://{base_url}"
         
-    client_id = str(data.get('client_id', '')).strip().strip('"').strip("'")
-    client_secret = str(data.get('client_secret', '')).strip().strip('"').strip("'")
+    client_id = data.client_id.strip().strip('"').strip("'")
+    client_secret = data.client_secret.strip().strip('"').strip("'")
 
-    # If secret is literally just dots or stars and we have a saved secret, 
-    # then it's a UI mask and we should use the DB value.
-    current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
-    if not client_secret or client_secret.count('.') > 5 or client_secret.count('*') > 5:
-        # Don't overwrite if masked
-        pass
-    else:
+    if not (client_secret.count('.') > 5 or client_secret.count('*') > 5):
         AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
 
     AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
     AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
 
-    return jsonify({'success': True, 'message': 'Đã lưu cấu hình kết nối Ecosystem.'})
+    return {'success': True, 'message': 'Đã lưu cấu hình kết nối Ecosystem.'}
 
-@admin_api_bp.route('/settings/proxy', methods=['POST'])
-@jwt_required()
-@admin_required
-def save_proxy_settings():
-    data = request.get_json()
-    proxy_url = data.get('proxy_url', '').strip()
-    
-    AppSetting.set('YOUTUBE_PROXY_URL', proxy_url, category='infrastructure')
-    
-    return jsonify({'success': True, 'message': 'Đã cập nhật proxy cho YouTube.'})
+@router.post('/settings/proxy')
+def save_proxy_settings(data: ProxySettingsUpdate, current_user: User = Depends(require_admin)):
+    AppSetting.set('YOUTUBE_PROXY_URL', data.proxy_url.strip(), category='infrastructure')
+    return {'success': True, 'message': 'Đã cập nhật proxy cho YouTube.'}
 
-@admin_api_bp.route('/test-auth', methods=['POST'])
-@jwt_required()
-@admin_required
-def test_auth_connection():
+@router.post('/test-auth')
+def test_auth_connection(data: AuthSettingsUpdate, current_user: User = Depends(require_admin)):
     import requests
-    data = request.get_json()
-    base_url = data.get('base_url', '').strip().rstrip('/')
-    
-    # Auto-prepend scheme if missing
+    base_url = data.base_url.strip().rstrip('/')
     if base_url and not base_url.startswith(('http://', 'https://')):
         base_url = f"https://{base_url}"
         
-    client_id = str(data.get('client_id', '')).strip().strip('"').strip("'")
-    client_secret = str(data.get('client_secret', '')).strip().strip('"').strip("'")
+    client_id = data.client_id.strip().strip('"').strip("'")
+    client_secret = data.client_secret.strip().strip('"').strip("'")
 
-    # If secret is literally just dots or stars and we have a saved secret, 
-    # then it's a UI mask and we should use the DB value.
-    # Otherwise, use what the user typed.
     current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
     if not client_secret or client_secret.count('.') > 5 or client_secret.count('*') > 5:
-        if current_secret:
-            print(f"[AUTH_TEST] Using SAVED secret from DB (Input was empty or masked)")
-            client_secret = current_secret
-    
-    print(f"[AUTH_TEST] FINAL -> URL: {base_url}, ID: |{client_id}|, Secret Len: {len(client_secret)}", flush=True)
+        client_secret = current_secret
 
-    # 1. ALWAYS SAVE SETTINGS FIRST
     AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', base_url, category='auth')
     AppSetting.set('CENTRAL_AUTH_CLIENT_ID', client_id, category='auth')
     if client_secret:
         AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', client_secret, category='auth')
 
     try:
-        # 2. Discovery Check (Server up?)
         discovery_response = requests.get(f"{base_url}/api/auth/discovery", timeout=5)
         if discovery_response.status_code != 200:
-            return jsonify({'success': False, 'message': 'Không thể kết nối tới Discovery endpoint của Central Auth.'}), 400
+            raise HTTPException(status_code=400, detail="Không thể kết nối tới Discovery endpoint")
         
-        # Use the provided secret for validation
-        validation_secret = client_secret if client_secret else current_secret
-        
-        auth_helper = EcosystemAuth(base_url, client_id, validation_secret)
+        auth_helper = EcosystemAuth(base_url, client_id, client_secret)
         validation = auth_helper.validate_client()
         
         if not validation.get('success'):
-            err_msg = validation.get('error', 'Unknown Error')
-            print(f"[AUTH_TEST] Handshake FAILED: {err_msg}")
-            return jsonify({"success": False, "message": f"Bắt tay thất bại: {err_msg}"}), 401
+            raise HTTPException(status_code=401, detail=f"Bắt tay thất bại: {validation.get('error')}")
             
-        return jsonify({
+        return {
             'success': True, 
             'message': f'Kết nối thành công! Đã xác thực client: {validation.get("client_name")}', 
             'discovery': discovery_response.json()
-        })
+        }
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Lỗi hệ thống: {str(e)}'}), 500
+        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
 
-@admin_api_bp.route('/ecosystem-sync', methods=['POST'])
-def ecosystem_sync_webhook():
+@router.post('/ecosystem-sync')
+def ecosystem_sync_webhook(data: Dict[str, Any], db: Session = Depends(get_db)):
     """Incoming sync from CentralAuth Hub."""
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "message": "Missing data"}), 400
-        
     hub_secret = data.get('hub_secret')
-    # Verify using current saved secret OR the system's master SECRET_KEY
     current_secret = AppSetting.get('CENTRAL_AUTH_CLIENT_SECRET', '')
-    master_key = current_app.config.get('SECRET_KEY')
     
-    if not hub_secret or (hub_secret != current_secret and hub_secret != master_key):
-        return jsonify({"success": False, "message": "Unauthorized Hub Sync"}), 401
+    if not hub_secret or (hub_secret != current_secret and hub_secret != settings.SECRET_KEY):
+        raise HTTPException(status_code=401, detail="Unauthorized Hub Sync")
         
-    # 1. Update settings
     if 'server_address' in data:
-        val = str(data['server_address']).strip().strip('"').strip("'")
-        AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', val, category='auth')
+        AppSetting.set('CENTRAL_AUTH_SERVER_ADDRESS', str(data['server_address']).strip(), category='auth')
     if 'client_id' in data:
-        val = str(data['client_id']).strip().strip('"').strip("'")
-        AppSetting.set('CENTRAL_AUTH_CLIENT_ID', val, category='auth')
+        AppSetting.set('CENTRAL_AUTH_CLIENT_ID', str(data['client_id']).strip(), category='auth')
     if 'client_secret' in data:
-        val = str(data['client_secret']).strip().strip('"').strip("'")
-        AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', val, category='auth')
+        AppSetting.set('CENTRAL_AUTH_CLIENT_SECRET', str(data['client_secret']).strip(), category='auth')
 
-    # 2. Update Users (Bulk Provisioning)
     users_data = data.get('users', [])
     if users_data:
-        from app.modules.identity.models import User
         sync_count = 0
         for u_info in users_data:
-            # Check if user already exists by email OR username
-            user = User.query.filter(
-                (User.email == u_info['email']) | 
-                (User.username == u_info['username'])
-            ).first()
-            
+            user = db.query(User).filter((User.email == u_info['email']) | (User.username == u_info['username'])).first()
             if not user:
-                # Create new shadow user
-                user = User(
-                    username=u_info['username'],
-                    email=u_info['email'],
-                    full_name=u_info.get('full_name', ''),
-                    role=u_info.get('role', 'free')
-                )
-                import uuid
+                user = User(username=u_info['username'], email=u_info['email'], full_name=u_info.get('full_name', ''), role=u_info.get('role', 'free'))
                 user.set_password(str(uuid.uuid4()))
-                db.session.add(user)
+                db.add(user)
                 sync_count += 1
             else:
-                # Update existing user info if Hub is master, 
-                # but keep local identity if there's a conflict
                 if user.email == u_info['email']:
                     user.username = u_info['username']
                 user.full_name = u_info.get('full_name', user.full_name)
         
         if sync_count > 0:
-            db.session.commit()
-            return jsonify({"success": True, "message": f"Ecosystem Sync Successful. Provisioned {sync_count} users."})
+            db.commit()
+            return {"success": True, "message": f"Ecosystem Sync Successful. Provisioned {sync_count} users."}
         
-    return jsonify({"success": True, "message": "Ecosystem Sync Successful (Settings only)"})
+    return {"success": True, "message": "Ecosystem Sync Successful (Settings only)"}
 
-@admin_api_bp.route('/toggle-sso', methods=['POST'])
-@jwt_required()
-@admin_required
-def toggle_sso():
-    data = request.get_json()
-    enabled = data.get('enabled', False)
-    new_provider = 'central' if enabled else 'local'
-    AppSetting.set('AUTH_PROVIDER', new_provider, category='auth')
-    return jsonify({'success': True, 'message': f'Đã chuyển sang: {new_provider}'})
-
-@admin_api_bp.route('/videos')
-@jwt_required()
-@admin_required
-def list_videos():
+@router.get('/videos', response_model=List[VideoAdminInfo])
+def list_videos(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """List videos, including pending approvals."""
-    videos = Video.query.order_by(Video.created_at.desc()).all()
-    return jsonify([{
-        'id': v.id,
-        'title': v.title,
-        'visibility': v.visibility,
-        'created_at': v.created_at.isoformat() if v.created_at else None,
-        'uploader_id': v.uploader_id
-    } for v in videos])
+    videos = db.query(Video).order_by(Video.created_at.desc()).all()
+    return videos
 
-@admin_api_bp.route('/pending-videos')
-@jwt_required()
-@admin_required
-def pending_videos():
-    videos_list = Video.query.filter_by(visibility='pending_public').order_by(Video.created_at.desc()).all()
-    return jsonify([{
-        'id': v.id,
-        'title': v.title,
-        'created_at': v.created_at.isoformat() if v.created_at else None
-    } for v in videos_list])
+@router.get('/pending-videos', response_model=List[VideoAdminInfo])
+def pending_videos(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    videos_list = db.query(Video).filter_by(visibility='pending_public').order_by(Video.created_at.desc()).all()
+    return videos_list
 
-@admin_api_bp.route('/video/<int:video_id>/approve-public', methods=['POST'])
-@jwt_required()
-@admin_required
-def approve_public_video(video_id):
-    """Confirm a video is high quality and allow it in the public community gallery."""
-    video = Video.query.get_or_404(video_id)
+@router.post('/video/{video_id}/approve-public')
+def approve_public_video(video_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    video = db.query(Video).get(video_id)
+    if not video: raise HTTPException(status_code=404)
     video.visibility = 'public'
-    db.session.commit()
-    return jsonify({'success': True, 'message': f'Video "{video.title}" is now public!'})
+    db.commit()
+    return {'success': True, 'message': f'Video "{video.title}" is now public!'}
 
-@admin_api_bp.route('/video/<int:video_id>/reject-public', methods=['POST'])
-@jwt_required()
-@admin_required
-def reject_public_video(video_id):
-    """Reject a public request, keeping the video private to those who added it."""
-    video = Video.query.get_or_404(video_id)
+@router.post('/video/{video_id}/reject-public')
+def reject_public_video(video_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+    video = db.query(Video).get(video_id)
+    if not video: raise HTTPException(status_code=404)
     video.visibility = 'private'
-    db.session.commit()
-    return jsonify({'success': True, 'message': f'Video "{video.title}" request rejected (set to private).'})
+    db.commit()
+    return {'success': True, 'message': f'Video "{video.title}" request rejected (set to private).'}
 
-@admin_api_bp.route('/video/<int:video_id>/visibility', methods=['POST'])
-@jwt_required()
-@admin_required
-def set_video_visibility(video_id):
-    """Directly toggle visibility (private/public/pending_public)."""
-    data = request.get_json() or {}
+@router.post('/video/{video_id}/visibility')
+def set_video_visibility(video_id: int, data: Dict[str, str], db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     visibility = data.get('visibility')
-    
     if visibility not in ['private', 'public', 'pending_public']:
-        return jsonify({'error': 'Invalid visibility status'}), 400
-        
-    video = Video.query.get_or_404(video_id)
+        raise HTTPException(status_code=400, detail="Invalid visibility status")
+    video = db.query(Video).get(video_id)
+    if not video: raise HTTPException(status_code=404)
     video.visibility = visibility
-    db.session.commit()
-    return jsonify({'success': True, 'visibility': video.visibility})
+    db.commit()
+    return {'success': True, 'visibility': video.visibility}
 
 
 

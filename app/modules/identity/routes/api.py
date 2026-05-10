@@ -1,149 +1,163 @@
-from flask import Blueprint, jsonify, request, current_app, redirect, url_for
-from flask_jwt_extended import (
-    create_access_token, 
-    create_refresh_token, 
-    jwt_required, 
-    get_jwt_identity, 
-    current_user,
-    verify_jwt_in_request
-)
-from app.core.extensions import db
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import RedirectResponse
+from sqlalchemy.orm import Session
+from datetime import timedelta
+
+from app.core.database import get_db
+from app.core.security import create_access_token, create_refresh_token, get_current_user
 from app.modules.identity.models import User
+from app.modules.identity.schemas import UserSchema, UserLogin, UserRegister
 from app.modules.identity.services.sso_service import SSOService
-from app.modules.identity.schemas import UserSchema
 from app.modules.engagement import interface as engagement_interface
+from app.core.config import settings
 
-identity_api = Blueprint('identity_api', __name__, url_prefix='/api/identity')
-sso_bridge = Blueprint('sso_bridge', __name__)
-user_schema = UserSchema()
+router = APIRouter(prefix="/api/identity", tags=["Identity"])
 
-@identity_api.route('/config', methods=['GET'])
-def get_auth_config():
+@router.get('/config')
+def get_auth_config(db: Session = Depends(get_db)):
     """Returns public auth configuration for the frontend."""
     auth_provider = engagement_interface.get_app_setting_dto('AUTH_PROVIDER', 'local')
-    return jsonify({
+    return {
         "auth_provider": auth_provider,
         "sso_enabled": auth_provider == 'central'
-    })
+    }
 
 # ── Local Auth ────────────────────────────────────────────────
 
-@identity_api.route('/register', methods=['POST'])
-def register():
+@router.post('/register', status_code=status.HTTP_201_CREATED)
+def register(user_in: UserRegister, db: Session = Depends(get_db)):
     """Register a new user (Local)."""
     if engagement_interface.get_app_setting_dto('AUTH_PROVIDER') == 'central':
-        return jsonify({"status": "error", "message": "Registration is handled by Central Auth."}), 403
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is handled by Central Auth."
+        )
 
-    data = request.get_json() or {}
-    username = data.get('username', '').strip()
-    email = data.get('email', '').strip().lower()
-    password = data.get('password', '')
+    if db.query(User).filter(User.username == user_in.username).first() or \
+       db.query(User).filter(User.email == user_in.email).first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username or Email already exists"
+        )
 
-    if not username or not email or not password:
-        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+    user = User(username=user_in.username, email=str(user_in.email), full_name=user_in.full_name)
+    user.set_password(user_in.password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
 
-    if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
-        return jsonify({"status": "error", "message": "Username or Email already exists"}), 400
-
-    user = User(username=username, email=email)
-    user.set_password(password)
-    db.session.add(user)
-    db.session.commit()
-
-    return jsonify({
+    return {
         "status": "success", 
         "message": "User registered successfully",
-        "user": user_schema.dump(user)
-    }), 201
+        "user": UserSchema.model_validate(user)
+    }
 
-@identity_api.route('/login', methods=['POST'])
-def login():
+@router.post('/login')
+def login(login_data: UserLogin, db: Session = Depends(get_db)):
     """Login and receive JWT tokens."""
-    data = request.get_json() or {}
-    username = data.get('username')
-    password = data.get('password')
+    user = db.query(User).filter(User.username == login_data.username).first()
 
-    user = User.query.filter_by(username=username).first()
-
-    if user and user.check_password(password):
-        access_token = create_access_token(identity=str(user.id))
-        refresh_token = create_refresh_token(identity=str(user.id))
-        return jsonify({
+    if user and user.check_password(login_data.password):
+        from datetime import timedelta
+        expires_delta = timedelta(days=30) if login_data.remember_me else None
+        
+        access_token = create_access_token(data={"sub": str(user.id)}, expires_delta=expires_delta)
+        refresh_token = create_refresh_token(data={"sub": str(user.id)})
+        return {
             "status": "success",
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "user": user_schema.dump(user)
-        })
+            "user": UserSchema.model_validate(user)
+        }
     
-    return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid credentials"
+    )
 
-@identity_api.route('/logout', methods=['POST', 'GET'])
+@router.post('/logout')
 def logout():
     """Bypass JWT for logout to help stuck users."""
-    return jsonify({"status": "success", "message": "Logged out successfully (Please clear client tokens)"}), 200
+    return {"status": "success", "message": "Logged out successfully (Please clear client tokens)"}
 
-@identity_api.route('/me', methods=['GET'])
-def get_me():
+@router.get('/me')
+async def get_me(request: Request, db: Session = Depends(get_db)):
     """Get current user information (Graceful fallback)."""
-    try:
-        verify_jwt_in_request()
-        return jsonify({
-            "status": "success",
-            "logged_in": True,
-            "user": user_schema.dump(current_user)
-        })
-    except:
-        return jsonify({
+    from jose import jwt, JWTError
+    from app.core.security import ALGORITHM
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return {
             "status": "success",
             "logged_in": False,
             "user": None
-        }), 200
+        }
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise JWTError()
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            raise JWTError()
+            
+        return {
+            "status": "success",
+            "logged_in": True,
+            "user": UserSchema.model_validate(user)
+        }
+    except JWTError:
+        return {
+            "status": "success",
+            "logged_in": False,
+            "user": None
+        }
 
 # ── SSO (Central Auth) ────────────────────────────────────────
 
-def on_sso_user_provision(user_payload, tokens):
+async def on_sso_user_provision(user_payload, tokens):
     """Callback for ecosystem_sso to handle JIT provisioning."""
-    return SSOService.provision_user(user_payload)
+    return await SSOService.provision_user(user_payload)
 
-def on_sso_login_success(user, tokens):
+async def on_sso_login_success(request, user, tokens):
     """Callback for ecosystem_sso to handle frontend redirect."""
-    from flask import request
-    from flask_jwt_extended import create_access_token, create_refresh_token
-    access_token = create_access_token(identity=str(user.id))
-    refresh_token = create_refresh_token(identity=str(user.id))
+    access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = create_refresh_token(data={"sub": str(user.id)})
     
-    frontend_url = current_app.config.get('FRONTEND_URL', request.host_url.rstrip('/'))
-    return redirect(f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}")
+    # Get frontend URL from settings or host
+    frontend_url = settings.FRONTEND_URL or f"{request.url.scheme}://{request.url.netloc}"
+    return RedirectResponse(url=f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}")
 
 def setup_sso(app):
-    """Initialize SSO bridge within app context."""
-    sso_bridge, sso_auth = SSOService.get_modular_bp(app, on_sso_user_provision, on_sso_login_success)
-    app.register_blueprint(sso_bridge)
-    return sso_bridge
+    """Initialize SSO bridge."""
+    router_sso, _ = SSOService.get_modular_router(on_sso_user_provision, on_sso_login_success)
+    app.include_router(router_sso)
+    return router_sso
 
-@identity_api.route('/sso/login')
+@router.get('/sso/login')
 def sso_login():
     """Legacy route for backward compatibility."""
-    from flask import url_for
-    return redirect(url_for('ecosystem_sso.login'))
+    return RedirectResponse(url="/auth-center/login")
 
-@identity_api.route('/profile', methods=['PATCH'])
-@jwt_required()
-def update_profile():
+@router.patch('/profile')
+def update_profile(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update user profile."""
-    data = request.get_json() or {}
     email = data.get('email', '').strip().lower()
     new_password = data.get('new_password', '')
 
     if email and email != current_user.email:
-        if User.query.filter_by(email=email).first():
-            return jsonify({"status": "error", "message": "Email already taken"}), 400
+        if db.query(User).filter(User.email == email).first():
+            raise HTTPException(status_code=400, detail="Email already taken")
         current_user.email = email
 
     if new_password:
         if len(new_password) < 6:
-            return jsonify({"status": "error", "message": "Password too short"}), 400
+            raise HTTPException(status_code=400, detail="Password too short")
         current_user.set_password(new_password)
 
-    db.session.commit()
-    return jsonify({"status": "success", "message": "Profile updated", "user": user_schema.dump(current_user)})
+    db.commit()
+    db.refresh(current_user)
+    return {"status": "success", "message": "Profile updated", "user": UserSchema.model_validate(current_user)}

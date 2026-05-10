@@ -1,124 +1,149 @@
-from flask import Blueprint, jsonify, request, current_app, Response
-from flask_jwt_extended import jwt_required, current_user
-from app.core.extensions import db
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, BackgroundTasks, UploadFile, File, Form
+from fastapi.responses import JSONResponse, FileResponse
+from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+import json
+import os
+import unicodedata
+from urllib.parse import quote
+from typing import List, Optional
+
+from app.core.database import get_db
+from app.core.security import get_current_user
 from app.modules.content.models import SubtitleTrack, Video, VideoCollaborator
 from app.modules.study.models import Lesson
-import os
-import json
+from app.modules.content.schemas import (
+    PlayerDataResponse, LessonPlayerInfo, SubtitlesPlayerInfo, TrackMetadata,
+    SubtitleUpdateName, SubtitleTranslateRequest, HandsFreeGenerateRequest,
+    SubtitleFullUpdate, SubtitleLineUpdate, CuratedSection, VideoVisibilityUpdate
+)
+from app.modules.content.services.subtitle_service import (
+    export_track_to_string, parse_subtitle_text, run_translation_background
+)
+from app.modules.content.services.handsfree_service import (
+    start_generation_task, handsfree_tasks, build_handsfree_audio,
+    get_direct_audio_url, get_original_audio_info
+)
+from app.modules.identity.models import User
+from app.core.config import settings
 
-content_api = Blueprint('content_api', __name__, url_prefix='/api/content')
+router = APIRouter(prefix="/api/content", tags=["Content"])
 
 # ── Player & Subtitles ────────────────────────────────────────
 
-@content_api.route('/player/lesson/<int:lesson_id>', methods=['GET'])
-@jwt_required(optional=True)
-def get_player_data(lesson_id):
+@router.get('/player/lesson/{lesson_id}', response_model=PlayerDataResponse)
+def get_player_data(lesson_id: int, current_user: Optional[User] = Depends(get_current_user), db: Session = Depends(get_db)):
     """Retrieve all data needed for the Video Player SPA."""
-    # 1. Fetch lesson
-    lesson = Lesson.query.get_or_404(lesson_id)
+    lesson = db.query(Lesson).get(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
     
-    # 2. Permission Check: Owner or Public Video
+    video = db.query(Video).get(lesson.video_id)
     is_owner = current_user and lesson.user_id == current_user.id
-    from app.modules.content.models import Video
-    video = Video.query.get(lesson.video_id)
     is_public = video and video.visibility == 'public'
     
     if not is_owner and not is_public:
-        return jsonify({"status": "error", "message": "Unauthorized or Private Content"}), 404
+        raise HTTPException(status_code=403, detail="Unauthorized or Private Content")
     
-    # Get available tracks for the video
-    all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
-    available_tracks = [{
-        'id': t.id,
-        'language_code': t.language_code,
-        'is_auto_generated': t.is_auto_generated,
-        'name': t.name or f"{t.language_code.upper()}_Original",
-        'uploader_name': t.uploader_name or ("YouTube" if not t.uploader_id else "Unknown"),
-        'status': t.status
-    } for t in all_tracks]
+    all_tracks = db.query(SubtitleTrack).filter_by(video_id=video.id).all()
+    available_tracks = [
+        TrackMetadata(
+            id=t.id,
+            language_code=t.language_code,
+            is_auto_generated=t.is_auto_generated,
+            name=t.name or f"{t.language_code.upper()}_Original",
+            uploader_name=t.uploader_name or ("YouTube" if not t.uploader_id else "Unknown"),
+            status=t.status
+        ) for t in all_tracks
+    ]
 
-    return jsonify({
-        "status": "success",
-        "lesson": {
-            "id": lesson.id,
-            "title": lesson.video.title,
-            "video_id": lesson.video.youtube_id,
-            "total_time_spent": lesson.time_spent or 0,
-            "settings": json.loads(lesson.settings_json or '{}') if isinstance(lesson.settings_json, str) else (lesson.settings_json or {}),
-        },
-        "subtitles": {
-            "track_1_id": lesson.s1_track_id,  # Primary (Target)
-            "track_2_id": lesson.s2_track_id,  # Secondary (Native)
-            "track_3_id": lesson.s3_track_id,  # Tertiary (Analysis)
-            "available_tracks": available_tracks,
-            "youtube_original_available": True  # Client can still pull from YT if needed
-        }
-    })
+    settings_dict = {}
+    if lesson.settings_json:
+        if isinstance(lesson.settings_json, str):
+            try:
+                settings_dict = json.loads(lesson.settings_json)
+            except:
+                pass
+        else:
+            settings_dict = lesson.settings_json
 
-@content_api.route('/subtitles/available/<int:lesson_id>', methods=['GET'])
-@jwt_required(optional=True)
-def get_available_subtitles(lesson_id):
+    return PlayerDataResponse(
+        lesson=LessonPlayerInfo(
+            id=lesson.id,
+            title=video.title,
+            video_id=video.youtube_id,
+            total_time_spent=lesson.time_spent or 0,
+            settings=settings_dict
+        ),
+        subtitles=SubtitlesPlayerInfo(
+            track_1_id=lesson.s1_track_id,
+            track_2_id=lesson.s2_track_id,
+            track_3_id=lesson.s3_track_id,
+            available_tracks=available_tracks
+        )
+    )
+
+@router.get('/subtitles/available/{lesson_id}')
+def get_available_subtitles(lesson_id: int, current_user: Optional[User] = Depends(get_current_user), db: Session = Depends(get_db)):
     """List all available subtitle tracks for a lesson's video with full metadata."""
-    lesson = Lesson.query.get_or_404(lesson_id)
+    lesson = db.query(Lesson).get(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
     
-    # Permission Check
+    video = db.query(Video).get(lesson.video_id)
     is_owner = current_user and lesson.user_id == current_user.id
-    from app.modules.content.models import Video
-    video = Video.query.get(lesson.video_id)
     is_public = video and video.visibility == 'public'
     
     if not is_owner and not is_public:
-        return jsonify({"status": "error", "message": "Unauthorized"}), 404
+        raise HTTPException(status_code=403, detail="Unauthorized")
         
-    all_tracks = SubtitleTrack.query.filter_by(video_id=lesson.video.id).all()
+    all_tracks = db.query(SubtitleTrack).filter_by(video_id=video.id).all()
     
-    return jsonify({
-        "subtitles": [{
-            'id': t.id,
-            'language_code': t.language_code,
-            'is_auto_generated': t.is_auto_generated,
-            'is_original': t.is_original,
-            'name': t.name or f"{t.language_code.upper()}_Original",
-            'uploader_name': t.uploader_name or ("YouTube" if not t.uploader_id else "Unknown"),
-            'uploader_id': t.uploader_id,
-            'fetched_at': t.fetched_at.isoformat() if hasattr(t, 'fetched_at') and t.fetched_at else None,
-            'line_count': len(t.content_json) if t.content_json else 0,
-            'status': t.status,
-            'note': t.note
-        } for t in all_tracks]
-    })
+    return {
+        "subtitles": [
+            {
+                'id': t.id,
+                'language_code': t.language_code,
+                'is_auto_generated': t.is_auto_generated,
+                'is_original': t.is_original,
+                'name': t.name or f"{t.language_code.upper()}_Original",
+                'uploader_name': t.uploader_name or ("YouTube" if not t.uploader_id else "Unknown"),
+                'uploader_id': t.uploader_id,
+                'fetched_at': t.fetched_at.isoformat() if t.fetched_at else None,
+                'line_count': len(t.content_json) if t.content_json else 0,
+                'status': t.status,
+                'note': t.note
+            } for t in all_tracks
+        ]
+    }
 
-@content_api.route('/subtitles/<int:track_id>', methods=['GET'])
-def get_subtitle_content(track_id):
+@router.get('/subtitles/{track_id}')
+def get_subtitle_content(track_id: int, db: Session = Depends(get_db)):
     """Fetch the actual content_json of a subtitle track."""
-    track = SubtitleTrack.query.get_or_404(track_id)
-    return jsonify({
+    track = db.query(SubtitleTrack).get(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+    return {
         "id": track.id,
         "language_code": track.language_code,
         "content": track.content_json
-    })
+    }
 
-@content_api.route('/subtitles/<int:track_id>/export', methods=['GET'])
-def export_subtitle_track(track_id):
+@router.get('/subtitles/{track_id}/export')
+def export_subtitle_track(track_id: int, format: str = 'srt', db: Session = Depends(get_db)):
     """Export a subtitle track as SRT or VTT file."""
-    from flask import Response
-    from app.modules.content.services.subtitle_service import export_track_to_string
-    
-    track = SubtitleTrack.query.get_or_404(track_id)
-    fmt = request.args.get('format', 'srt').lower()
-    
+    track = db.query(SubtitleTrack).get(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+        
+    fmt = format.lower()
     if fmt not in ('srt', 'vtt'):
-        return jsonify({"error": "Unsupported format. Use 'srt' or 'vtt'."}), 400
+        raise HTTPException(status_code=400, detail="Unsupported format. Use 'srt' or 'vtt'.")
     
     content = export_track_to_string(track, fmt)
-    mime = 'text/vtt' if fmt == 'vtt' else 'application/x-subrip'
+    media_type = 'text/vtt' if fmt == 'vtt' else 'application/x-subrip'
     filename = f"{track.name or f'track_{track_id}'}.{fmt}"
     
-    from urllib.parse import quote
-    import unicodedata
-
-    # Create an ASCII-safe filename for the fallback 'filename=' parameter
-    # This removes accents and special characters
     def slugify(text):
         normalized = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
         return normalized if normalized else "subtitle"
@@ -127,115 +152,107 @@ def export_subtitle_track(track_id):
     encoded_filename = quote(filename)
     
     return Response(
-        content,
-        mimetype=mime,
+        content=content,
+        media_type=media_type,
         headers={"Content-Disposition": f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{encoded_filename}"}
     )
 
-@content_api.route('/subtitles/<int:track_id>', methods=['PATCH'])
-@jwt_required()
-def update_subtitle_name(track_id):
+@router.patch('/subtitles/{track_id}')
+def update_subtitle_name(track_id: int, data: SubtitleUpdateName, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update track name or metadata."""
-    track = SubtitleTrack.query.get_or_404(track_id)
-    data = request.get_json() or {}
+    track = db.query(SubtitleTrack).get(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
     
-    if 'name' in data:
-        track.name = data['name']
-    if 'language_code' in data:
-        track.language_code = data['language_code']
+    if data.name is not None:
+        track.name = data.name
+    if data.language_code is not None:
+        track.language_code = data.language_code
     
-    db.session.commit()
-    return jsonify({"success": True})
+    db.commit()
+    return {"success": True}
 
-@content_api.route('/subtitles/<int:track_id>', methods=['DELETE'])
-@jwt_required()
-def delete_subtitle_track(track_id):
+@router.delete('/subtitles/{track_id}')
+def delete_subtitle_track(track_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Permanently remove a subtitle track."""
-    track = SubtitleTrack.query.get_or_404(track_id)
-    db.session.delete(track)
-    db.session.commit()
-    return jsonify({"success": True})
+    track = db.query(SubtitleTrack).get(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+    db.delete(track)
+    db.commit()
+    return {"success": True}
 
-@content_api.route('/subtitles/<int:track_id>/translate', methods=['POST'])
-@jwt_required()
-def translate_subtitle_track(track_id):
-    """Translate an entire subtitle track using AI (Google Translate)."""
-    track = SubtitleTrack.query.get_or_404(track_id)
-    data = request.get_json() or {}
-    target_lang = data.get('target_lang', 'vi')
-    new_name = data.get('name') or f"{track.name} ({target_lang.upper()})"
+@router.post('/subtitles/{track_id}/translate')
+def translate_subtitle_track(track_id: int, data: SubtitleTranslateRequest, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Translate an entire subtitle track using AI."""
+    track = db.query(SubtitleTrack).get(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
 
     if not track.content_json:
-        return jsonify({"error": "Track has no content to translate"}), 400
+        raise HTTPException(status_code=400, detail="Track has no content to translate")
 
-    from deep_translator import GoogleTranslator
-    translator = GoogleTranslator(source='auto', target=target_lang)
-    
-    new_content = []
-    for line in track.content_json:
-        translated_text = translator.translate(line.get('text', ''))
-        new_content.append({
-            **line,
-            'text': translated_text
-        })
+    target_lang = data.target_lang
+    new_name = data.name or f"{track.name} ({target_lang.upper()})"
     
     new_track = SubtitleTrack(
         video_id=track.video_id,
         language_code=target_lang,
         name=new_name,
-        content_json=new_content,
+        content_json=[],
         uploader_id=current_user.id,
-        status='completed'
+        status='pending'
     )
-    db.session.add(new_track)
-    db.session.commit()
+    db.add(new_track)
+    db.commit()
+    db.refresh(new_track)
     
-    return jsonify({"success": True, "track_id": new_track.id})
+    # Run translation in background
+    background_tasks.add_task(run_translation_background, new_track.id, target_lang, track.language_code)
+    
+    return {"success": True, "track_id": new_track.id}
 
 # ── Hands-Free Audio ──────────────────────────────────────────
 
-@content_api.route('/handsfree/generate', methods=['POST'])
-@jwt_required()
-def generate_handsfree():
+@router.post('/handsfree/generate')
+def generate_handsfree(data: HandsFreeGenerateRequest, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Start a background task to generate podcast-style audio."""
-    from app.modules.content.services.handsfree_service import start_generation_task
-    from app.modules.content.models import SubtitleTrack
+    video_id = data.video_id
+    lang = data.lang
     
-    data = request.get_json() or {}
-    video_id = data.get('video_id')
-    lesson_id = data.get('lesson_id')
-    track_source = data.get('track_source', 'original')
-    lang = data.get('lang', 'vi')
-    
-    if not video_id:
-        return jsonify({"error": "video_id is required"}), 400
-        
     # Get subtitles for generation
-    # Primary (original)
-    original_track = SubtitleTrack.query.filter_by(video_id=video_id, language_code='ja').first()
-    # Secondary (translation)
-    trans_track = SubtitleTrack.query.filter_by(video_id=video_id, language_code=lang).first()
+    original_track = db.query(SubtitleTrack).filter_by(video_id=video_id, language_code='ja').first()
+    trans_track = db.query(SubtitleTrack).filter_by(video_id=video_id, language_code=lang).first()
     
     if not original_track:
-        return jsonify({"error": "Original subtitles not found"}), 404
+        raise HTTPException(status_code=404, detail="Original subtitles not found")
         
-    task_id = start_generation_task(
-        video_id=video_id,
-        subtitles=original_track.content_json,
-        translation_lines=trans_track.content_json if trans_track else None,
-        lang=lang
+    task_id = f"hf_{hashlib.md5(f'{video_id}{time.time()}'.encode()).hexdigest()[:12]}"
+    handsfree_tasks[task_id] = {
+        'status': 'processing',
+        'step': 'queued',
+        'progress': 0.0,
+        'result': None,
+        'error': None
+    }
+    
+    background_tasks.add_task(
+        build_handsfree_audio, 
+        video_id, 
+        original_track.content_json, 
+        trans_track.content_json if trans_track else None, 
+        lang, 
+        task_id
     )
     
-    return jsonify({"status": "processing", "task_id": task_id})
+    return {"status": "processing", "task_id": task_id}
 
-@content_api.route('/handsfree/status/<task_id>', methods=['GET'])
-@jwt_required()
-def get_handsfree_status(task_id):
+@router.get('/handsfree/status/{task_id}')
+def get_handsfree_status(task_id: str, current_user: User = Depends(get_current_user)):
     """Check the status of an audio generation task."""
-    from app.modules.content.services.handsfree_service import handsfree_tasks
     task = handsfree_tasks.get(task_id)
     if not task:
-        return jsonify({"error": "Task not found"}), 404
+        raise HTTPException(status_code=404, detail="Task not found")
         
     response = {
         "status": task['status'],
@@ -248,124 +265,140 @@ def get_handsfree_status(task_id):
     elif task['status'] == 'failed':
         response['error'] = task['error']
         
-    return jsonify(response)
+    return response
 
-@content_api.route('/handsfree/cached/<video_id>', methods=['GET'])
-@jwt_required()
-def get_handsfree_cached(video_id):
+@router.get('/handsfree/cached/{video_id}')
+def get_handsfree_cached(video_id: str, lang: str = 'vi', current_user: User = Depends(get_current_user)):
     """Check if a generated audio file already exists for this video."""
-    from app.modules.content.services.handsfree_service import build_handsfree_audio
-    from app.modules.content.models import SubtitleTrack
-    
-    lang = request.args.get('lang', 'vi')
-    # Use empty subtitles to just check cache in build_handsfree_audio
     result = build_handsfree_audio(video_id, [], [], lang)
     if result:
-        return jsonify({"cached": True, **result})
-    return jsonify({"cached": False})
+        return {"cached": True, **result}
+    return {"cached": False}
 
-@content_api.route('/handsfree/original/<video_id>', methods=['GET'])
-@jwt_required()
-def get_handsfree_original(video_id):
-    """Get the original YouTube audio info (download if needed)."""
-    from app.modules.content.services.handsfree_service import get_original_audio_info
+@router.get('/handsfree/original/{video_id}')
+def get_handsfree_original(video_id: str, current_user: User = Depends(get_current_user)):
+    """Get the original YouTube audio info."""
     result = get_original_audio_info(video_id)
     if result:
-        return jsonify(result)
-    return jsonify({"error": "Failed to fetch original audio"}), 500
+        return result
+    raise HTTPException(status_code=500, detail="Failed to fetch original audio")
 
-@content_api.route('/audio-stream/<video_id>', methods=['GET'])
-@jwt_required()
-def get_audio_stream_url(video_id):
-    """Extract a direct audio stream URL for background playback mode.
-    Returns a temporary YouTube audio URL that can be played via <audio> element.
-    NOTE: Does NOT download anything — just extracts a direct streaming URL.
-    """
-    from app.modules.content.services.handsfree_service import get_direct_audio_url
-    
+@router.get('/audio-stream/{video_id}')
+def get_audio_stream_url(video_id: str, current_user: User = Depends(get_current_user)):
+    """Extract a direct audio stream URL."""
     result = get_direct_audio_url(video_id)
     if result:
-        return jsonify({"success": True, **result})
+        return {"success": True, **result}
+    raise HTTPException(status_code=500, detail="Could not extract audio stream.")
+
+@router.post('/subtitles/upload/{video_id}')
+async def upload_subtitle(
+    video_id: int, 
+    file: UploadFile = File(...), 
+    language_code: str = Form(...), 
+    name: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Manual upload for SRT/VTT subtitle files."""
+    video = db.get(Video, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+        
+    content_bytes = await file.read()
+    try:
+        content_text = content_bytes.decode('utf-8')
+    except UnicodeDecodeError:
+        content_text = content_bytes.decode('latin-1', errors='replace')
+        
+    res = parse_subtitle_text(content_text)
+    if res.get('error'):
+        raise HTTPException(status_code=400, detail=res.get('message'))
+        
+    track = SubtitleTrack(
+        video_id=video.id,
+        language_code=language_code,
+        name=name or f"Manual_{language_code.upper()}",
+        content_json=res['lines'],
+        is_auto_generated=False,
+        is_original=True,
+        uploader_id=current_user.id,
+        uploader_name=current_user.username,
+        status='completed',
+        fetched_at=datetime.now(timezone.utc)
+    )
+    db.add(track)
+    db.commit()
+    db.refresh(track)
     
-    return jsonify({"success": False, "error": "Could not extract audio stream. Try again later."}), 500
+    return {"success": True, "track_id": track.id, "line_count": len(res['lines'])}
 
-# ── AI ASSESSMENT STUBS (Cost Optimization) ───────────────────
+# ── AI ASSESSMENT STUBS ───────────────────
 
-@content_api.route('/ai/analyze-sentence', methods=['POST'])
-@jwt_required()
-def ai_analyze_sentence():
-    """AI analysis of a single sentence (Currently on hold)."""
-    return jsonify({
+@router.post('/ai/analyze-sentence')
+def ai_analyze_sentence(current_user: User = Depends(get_current_user)):
+    return {
         "status": "pending",
         "message": "AI assessment features are currently on hold to optimize costs.",
         "data": None
-    })
+    }
 
-@content_api.route('/ai/pronunciation-score', methods=['POST'])
-@jwt_required()
-def ai_pronunciation_score():
-    """AI scoring for pronunciation (Currently on hold)."""
-    return jsonify({
+@router.post('/ai/pronunciation-score')
+def ai_pronunciation_score(current_user: User = Depends(get_current_user)):
+    return {
         "status": "pending",
         "message": "Pronunciation scoring via AI is currently on hold."
-    })
+    }
 
 # ── Subtitle Management (CRUD) ───────────────────────────────
-# (Merging essential subtitle_api.py routes)
 
-@content_api.route('/subtitles/<int:track_id>/full', methods=['PATCH'])
-@jwt_required()
-def update_subtitle_full(track_id):
+@router.patch('/subtitles/{track_id}/full')
+def update_subtitle_full(track_id: int, data: SubtitleFullUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Update entire track content from pasted SRT/VTT text."""
-    from app.modules.content.services.subtitle_service import parse_subtitle_text
-    from sqlalchemy.orm.attributes import flag_modified
-    
-    track = SubtitleTrack.query.get_or_404(track_id)
-    data = request.get_json() or {}
-    content = data.get('content', '').strip()
-    
-    if not content:
-        return jsonify({"error": "Content is empty"}), 400
+    track = db.query(SubtitleTrack).get(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
         
-    # Auto-detect format and parse
+    content = data.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Content is empty")
+        
     res = parse_subtitle_text(content)
     if res.get('error'):
-        return jsonify(res), 400
+        raise HTTPException(status_code=400, detail=res.get('message'))
         
     track.content_json = res['lines']
-    flag_modified(track, 'content_json')
-    db.session.commit()
+    db.commit()
     
-    return jsonify({"status": "success", "count": len(res['lines'])})
+    return {"status": "success", "count": len(res['lines'])}
 
-@content_api.route('/subtitles/<int:track_id>/line/<int:line_index>', methods=['PATCH'])
-@jwt_required()
-def update_subtitle_line(track_id, line_index):
-    track = SubtitleTrack.query.get_or_404(track_id)
-    data = request.get_json() or {}
+@router.patch('/subtitles/{track_id}/line/{line_index}')
+def update_subtitle_line(track_id: int, line_index: int, data: SubtitleLineUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    track = db.query(SubtitleTrack).get(track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
     
     if not isinstance(track.content_json, list) or line_index >= len(track.content_json):
-        return jsonify({"error": "Invalid index"}), 400
+        raise HTTPException(status_code=400, detail="Invalid index")
         
     lines = list(track.content_json)
     line = dict(lines[line_index])
-    if 'text' in data: line['text'] = data['text']
+    line['text'] = data.text
     lines[line_index] = line
     
-    from sqlalchemy.orm.attributes import flag_modified
     track.content_json = lines
-    flag_modified(track, 'content_json')
-    db.session.commit()
+    db.commit()
     
-    return jsonify({"status": "success", "line": line})
+    return {"status": "success", "line": line}
 
-@content_api.route('/curated/<string:youtube_id>', methods=['GET'])
-def get_curated_content(youtube_id):
-    video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
+@router.get('/curated/{youtube_id}')
+def get_curated_content(youtube_id: str, db: Session = Depends(get_db)):
+    video = db.query(Video).filter_by(youtube_id=youtube_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
     
     sections = video.curated_sections
     if not sections:
-        # Check if we have legacy data to migrate
         if video.curated_overview or video.curated_grammar or video.curated_vocabulary:
             sections = [
                 {"id": "overview", "title": "Tổng quan", "content": video.curated_overview or ""},
@@ -373,74 +406,61 @@ def get_curated_content(youtube_id):
                 {"id": "vocabulary", "title": "Từ vựng", "content": video.curated_vocabulary or ""}
             ]
         else:
-            # Fresh start: only Overview
-            sections = [
-                {"id": "overview", "title": "Tổng quan", "content": ""}
-            ]
+            sections = [{"id": "overview", "title": "Tổng quan", "content": ""}]
     
-    return jsonify(sections)
+    return sections
 
-@content_api.route('/curated/<string:youtube_id>', methods=['PATCH'])
-@jwt_required()
-def update_curated_content(youtube_id):
+@router.patch('/curated/{youtube_id}')
+def update_curated_content(youtube_id: str, data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    video = db.query(Video).filter_by(youtube_id=youtube_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+        
     # Only admins or collaborators should be able to edit
     if current_user.role != 'admin':
-        # Check if collaborator
-        video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
-        collab = VideoCollaborator.query.filter_by(video_id=video.id, user_id=current_user.id).first()
+        collab = db.query(VideoCollaborator).filter_by(video_id=video.id, user_id=current_user.id).first()
         if not collab:
-            return jsonify({"error": "Unauthorized"}), 403
-    else:
-        video = Video.query.filter_by(youtube_id=youtube_id).first_or_404()
+            raise HTTPException(status_code=403, detail="Unauthorized")
 
-    data = request.get_json() or {}
-    
-    # Support both old keys (for backward compatibility during transition) and new 'sections'
     if 'sections' in data:
         video.curated_sections = data['sections']
     else:
-        # Fallback to old fields if they are sent individually
         if 'overview' in data: video.curated_overview = data['overview']
         if 'grammar' in data: video.curated_grammar = data['grammar']
         if 'vocabulary' in data: video.curated_vocabulary = data['vocabulary']
         
-        # Also sync to sections if we want to force migration on first save
         video.curated_sections = [
             {"id": "overview", "title": "Tổng quan", "content": video.curated_overview or ""},
             {"id": "grammar", "title": "Ngữ pháp", "content": video.curated_grammar or ""},
             {"id": "vocabulary", "title": "Từ vựng", "content": video.curated_vocabulary or ""}
         ]
     
-    db.session.commit()
-    return jsonify({"status": "success"})
+    db.commit()
+    return {"status": "success"}
 
-@content_api.route('/video/<int:video_id>/visibility', methods=['PATCH', 'POST'])
-@jwt_required()
-def set_video_visibility(video_id):
-    """Update video visibility. Admins can set directly; users can request public."""
-    video = Video.query.get_or_404(video_id)
-    data = request.get_json() or {}
+@router.patch('/video/{video_id}/visibility')
+def set_video_visibility(video_id: int, data: VideoVisibilityUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update video visibility."""
+    video = db.query(Video).get(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
     
-    # If using the old 'is_public' flag from some frontend versions
-    if 'is_public' in data:
-        target_visibility = 'public' if data['is_public'] else 'private'
-    else:
-        target_visibility = data.get('visibility')
+    target_visibility = data.visibility
+    if data.is_public is not None:
+        target_visibility = 'public' if data.is_public else 'private'
 
     if not target_visibility:
-        return jsonify({"error": "Missing visibility parameter"}), 400
+        raise HTTPException(status_code=400, detail="Missing visibility parameter")
 
     if current_user.role == 'admin':
-        # Admin can do anything
         video.visibility = target_visibility
     else:
-        # Regular user can only request public or go back to private
         if target_visibility == 'public':
             video.visibility = 'pending_public'
         elif target_visibility == 'private':
             video.visibility = 'private'
         else:
-            return jsonify({"error": "Unauthorized visibility change"}), 403
+            raise HTTPException(status_code=403, detail="Unauthorized visibility change")
             
-    db.session.commit()
-    return jsonify({"success": True, "visibility": video.visibility})
+    db.commit()
+    return {"success": True, "visibility": video.visibility}

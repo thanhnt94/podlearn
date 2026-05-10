@@ -1,12 +1,27 @@
-from marshmallow import Schema, fields
+from pydantic import BaseModel, EmailStr, ConfigDict
+from datetime import datetime
+from typing import Optional
 
-class UserSchema(Schema):
-    id = fields.Int(dump_only=True)
-    username = fields.Str()
-    email = fields.Str()
-    full_name = fields.Str()
-    avatar_url = fields.Str()
-    role = fields.Str()
-    is_admin = fields.Bool(dump_only=True)
-    is_vip = fields.Bool(dump_only=True)
-    created_at = fields.DateTime(dump_only=True)
+class UserSchema(BaseModel):
+    id: int
+    username: str
+    email: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: str
+    is_admin: bool
+    is_vip: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+    remember_me: Optional[bool] = False
+
+class UserRegister(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    full_name: Optional[str] = None
