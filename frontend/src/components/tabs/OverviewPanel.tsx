@@ -1,11 +1,97 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Plus, ChevronDown, Trash2, Edit3, Save, X, Edit2 } from 'lucide-react';
+import { BookOpen, Plus, ChevronDown, Trash2, Edit3, Save, X, Edit2, Copy, Sparkles, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { useAppStore } from '../../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const OVERVIEW_PROMPTS = [
+    {
+        id: 'study_guide',
+        label: 'Study Guide',
+        icon: '📚',
+        prompt: `Vai trò: Bạn là một chuyên gia ngôn ngữ học tiếng Nhật và là một giáo viên biên soạn tài liệu học tập.
+Nhiệm vụ: Hãy đọc nội dung bài (transcript/SRT) vừa rồi và viết một đoạn tổng quan tóm tắt nội dung chính dưới dạng "Dàn ý học tập" (Study Guide).
+Yêu cầu nghiêm ngặt:
+1. Trình bày mạch lạc, chia thành các phần rõ ràng.
+2. Lồng ghép từ vựng tiếng Nhật bằng cách sử dụng các cụm từ/từ khóa quan trọng được trích xuất trực tiếp từ bài gốc làm TIÊU ĐỀ PHỤ cho mỗi ý.
+3. CHÈN FURIGANA TRÊN ĐẦU KANJI bằng thẻ HTML <ruby>.
+4. TUYỆT ĐỐI tuân thủ cấu trúc: **[Từ khóa có ruby] (Nghĩa tiếng Việt):** [Diễn giải].
+5. Đặt TOÀN BỘ nội dung vào bên trong một code block Markdown.
+
+Nội dung cần xử lý:
+`
+    },
+    {
+        id: 'grammar',
+        label: 'Grammar',
+        icon: '⛩️',
+        prompt: `Vai trò: Bạn là một chuyên gia ngôn ngữ học tiếng Nhật kiêm biên tập viên giáo trình học thuật.
+Nhiệm vụ: Dựa vào nội dung bài (transcript/SRT) vừa rồi , hãy trích xuất TOÀN BỘ các cấu trúc ngữ pháp quan trọng (tối thiểu 20 mẫu).
+Yêu cầu trình bày:
+1. Định dạng danh sách từ trên xuống dưới.
+2. Mỗi mục bao gồm: Tên ngữ pháp, Cách kết hợp, Ý nghĩa, Ví dụ, Dịch tiếng Việt.
+Yêu cầu định dạng:
+1. FURIGANA CHUẨN HTML cho Kanji trong phần ví dụ.
+2. NHẤN MẠNH NGỮ PHÁP bằng thẻ <span style="color: yellow; font-weight: bold;">nội dung</span>.
+3. Đặt toàn bộ kết quả vào code block Markdown.
+
+Nội dung cần xử lý:
+`
+    },
+    {
+        id: 'collocations',
+        label: 'Collocations',
+        icon: '🔗',
+        prompt: `Vai trò: Bạn là một chuyên gia ngôn ngữ học tiếng Nhật kiêm biên tập viên giáo trình học thuật.
+Nhiệm vụ: Dựa vào nội dung bài (transcript/SRT) vừa rồi , hãy trích xuất các cụm từ đi liền nhau (tối thiểu 20 mẫu) (Collocations).
+Yêu cầu trình bày:
+1. Định dạng danh sách từ trên xuống dưới.
+2. Mỗi mục bao gồm: Cụm từ, Ý nghĩa, Ví dụ, Dịch tiếng Việt.
+Yêu cầu định dạng:
+1. FURIGANA CHUẨN HTML cho Kanji.
+2. NHẤN MẠNH CỤM TỪ bằng thẻ <span style="color: yellow; font-weight: bold;">nội dung</span>.
+3. Đặt toàn bộ kết quả vào code block Markdown.
+
+Nội dung cần xử lý:
+`
+    },
+    {
+        id: 'adverbs',
+        label: 'Adverbs',
+        icon: '⚡',
+        prompt: `Vai trò: Bạn là một chuyên gia ngôn ngữ học tiếng Nhật kiêm biên tập viên giáo trình học thuật.
+Nhiệm vụ: Dựa vào nội dung bài (transcript/SRT) vừa rồi , hãy trích xuất các TRẠNG TỪ (Adverbs/Phó từ) quan trọng.
+Yêu cầu trình bày:
+1. Định dạng danh sách từ trên xuống dưới.
+2. Mỗi mục bao gồm: Trạng từ + Động từ/Tính từ bổ nghĩa, Ý nghĩa, Ví dụ, Dịch tiếng Việt.
+Yêu cầu định dạng:
+1. FURIGANA CHUẨN HTML cho Kanji.
+2. NHẤN MẠNH TRẠNG TỪ bằng thẻ <span style="color: yellow; font-weight: bold;">nội dung</span>.
+3. Đặt toàn bộ kết quả vào code block Markdown.
+
+Nội dung cần xử lý:
+`
+    },
+    {
+        id: 'vocabulary',
+        label: 'Vocabulary Table',
+        icon: '📋',
+        prompt: `Vai trò: Bạn là một chuyên gia ngôn ngữ học tiếng Nhật kiêm biên tập viên giáo trình học thuật.
+Nhiệm vụ: Dựa vào nội dung bài (transcript/SRT) vừa rồi, hãy trích xuất danh sách các TỪ VỰNG QUAN TRỌNG VÀ KHÓ (tối thiểu 20 từ).
+Yêu cầu trình bày:
+1. Bắt buộc trình bày bằng BẢNG Markdown (6 cột: Từ vựng, Loại từ, Hán Việt/Từ mượn, Nghĩa, Câu trong bài, Dịch câu).
+Yêu cầu định dạng:
+1. FURIGANA CHUẨN HTML cho Kanji.
+2. NHẤN MẠNH TỪ VỰNG bằng thẻ <span style="color: yellow; font-weight: bold;">nội dung</span>.
+3. Đặt toàn bộ BẢNG vào trong một code block Markdown.
+
+Nội dung cần xử lý:
+`
+    }
+];
 
 export const OverviewPanel: React.FC = () => {
     const { user } = useAppStore();
@@ -15,11 +101,14 @@ export const OverviewPanel: React.FC = () => {
         setEditingCurated,
         draftCuratedContent: editedContent,
         setDraftCuratedContent: setEditedContent,
-        updateCuratedContent
+        updateCuratedContent,
+        subtitles, originalLang
     } = usePlayerStore();
 
     const [activeTabId, setActiveTabId] = useState<string>('overview');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isPromptMenuOpen, setIsPromptMenuOpen] = useState(false);
+    const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
 
     const isAdmin = user?.is_vip || user?.is_admin;
 
@@ -82,6 +171,24 @@ export const OverviewPanel: React.FC = () => {
 
     const handleUpdateContent = (content: string) => {
         setEditedContent(editedContent.map(s => s.id === activeTabId ? { ...s, content } : s));
+    };
+
+    const handleCopyPrompt = async (promptId: string) => {
+        const template = OVERVIEW_PROMPTS.find(p => p.id === promptId);
+        if (!template) return;
+
+        // Create transcript text from subtitles
+        const transcript = subtitles.map(s => s.text).join('\n');
+        const fullPrompt = template.prompt + '\n' + transcript;
+
+        try {
+            await navigator.clipboard.writeText(fullPrompt);
+            setCopiedPromptId(promptId);
+            setTimeout(() => setCopiedPromptId(null), 2000);
+            setIsPromptMenuOpen(false);
+        } catch (err) {
+            alert("Failed to copy prompt.");
+        }
     };
 
     const sections = isEditing ? editedContent : curatedContent;
@@ -166,6 +273,47 @@ export const OverviewPanel: React.FC = () => {
                 {/* ALWAYS VISIBLE ADD BUTTON */}
                 {isAdmin && (
                     <div className="flex items-center gap-2">
+                        {/* Copy Prompt Dropdown (only for Japanese - permissive check) */}
+                        { (originalLang?.toLowerCase().includes('ja') || originalLang?.toLowerCase().includes('jp')) && (
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsPromptMenuOpen(!isPromptMenuOpen)}
+                                    className="p-2.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-2xl border border-emerald-500/30 transition-all flex items-center justify-center"
+                                    title="Copy AI Prompt"
+                                >
+                                    <Sparkles size={16} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {isPromptMenuOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute top-full left-0 mt-2 w-56 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl z-[101] overflow-hidden p-1 backdrop-blur-xl"
+                                        >
+                                            <div className="px-3 py-2 text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 border-b border-white/5 mb-1">
+                                                Chọn loại Prompt
+                                            </div>
+                                            {OVERVIEW_PROMPTS.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => handleCopyPrompt(p.id)}
+                                                    className="w-full text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all flex items-center justify-between group"
+                                                >
+                                                    <span className="flex items-center gap-3">
+                                                        <span className="text-sm">{p.icon}</span>
+                                                        {p.label}
+                                                    </span>
+                                                    {copiedPromptId === p.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                </button>
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+
                         <button
                             onClick={handleAddTab}
                             className="p-2.5 bg-white/5 text-slate-500 hover:text-sky-400 hover:bg-sky-500/10 rounded-2xl border border-dashed border-white/10 hover:border-sky-500/30 transition-all active:scale-90 flex items-center justify-center"

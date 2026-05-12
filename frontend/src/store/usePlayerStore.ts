@@ -893,7 +893,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           }));
           const primaryLines = processLines(primaryRes.data.content || []);
           // Set both s1Lines (display) and subtitles (transcript tracking) from primary track
-          set({ subtitles: primaryLines, s1Lines: primaryLines });
+          set({ subtitles: primaryLines, s1Lines: primaryLines, originalLang: primaryRes.data.language_code });
           set(state => ({ trackMetadata: { ...state.trackMetadata, s1: primaryRes.data } }));
         } catch (e) {
           console.error('[PlayerStore] Failed to fetch primary track:', e);

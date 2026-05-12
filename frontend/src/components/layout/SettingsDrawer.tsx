@@ -3,7 +3,8 @@ import {
     X, Palette, Check, Clock, 
     Globe, Download, Trash2, RefreshCw, Upload,
     Layers, Languages, Edit3, ChevronLeft,
-    Zap, Gauge, Users, AlignLeft, AlignCenter, AlignRight, Shield, Package
+    Zap, Gauge, Users, AlignLeft, AlignCenter, AlignRight, Shield, Package,
+    Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayerStore } from '../../store/usePlayerStore';
@@ -11,6 +12,28 @@ import { useAppStore } from '../../store/useAppStore';
 import axios from 'axios';
 
 interface YTTrack { lang_code: string; name: string; is_auto: boolean; }
+
+const SUBTITLE_PROMPT_TEMPLATE = `Bạn là một chuyên gia Ngôn ngữ học tiếng Nhật. Hãy xử lý nội dung phụ đề SRT dưới đây theo các quy tắc nghiêm ngặt:
+
+1. GIỮ NGUYÊN định dạng SRT (số thứ tự và timestamps).
+2. Dùng dấu gạch đứng \`|\` để phân tách từ (KHÔNG có khoảng trắng).
+3. Furigana cho Kanji (RẤT QUAN TRỌNG): 
+   - CHỈ thêm Furigana cho phần chữ Hán (Kanji). 
+   - Đặt dấu { } ngay sau chữ Hán đó. 
+   - TUYỆT ĐỐI không bao gồm phần chữ mềm Hiragana đi kèm (Okurigana) vào trong dấu { }.
+   - Ví dụ ĐÚNG: 聞{き}きたくて, 食べ{た}べました, 日{に}本{hon}語{go}
+   - Ví dụ SAI: 聞きたくて{ききたくて}, 食べました{たべました}, 日本語{日本語}
+4. Furigana cho Katakana:
+   - Nếu là từ mượn: Thêm từ gốc ngoại ngữ (viết thường) vào { }. Ví dụ: ポッドキャスト{podcast}.
+   - Nếu là từ thuần Nhật/Tượng thanh: Thêm Hiragana vào { }. Ví dụ: コロコロ{ころころ}.
+5. Lemma: Với Động từ/Tính từ, khôi phục về thể từ điển trong [ ]. Ví dụ: 食べたい[食べる].
+6. Nhãn Skip [-]:
+   - Dùng cho trợ từ, dấu câu, từ đệm.
+   - QUY TẮC GỘP: Gộp các thành phần skip cạnh nhau thành 1 cụm duy nhất rồi mới gán nhãn [-]. Ví dụ: "さんは、[-]"
+7. TRẢ VỀ: Đặt kết quả vào trong một code block Markdown.
+
+Nội dung cần xử lý:
+`;
 
 export const SettingsDrawer: React.FC = () => {
     const { 
@@ -57,6 +80,7 @@ export const SettingsDrawer: React.FC = () => {
     const [editContentText, setEditContentText] = useState('');
     const [isFetchingContent, setIsFetchingContent] = useState(false);
     const [isSavingContent, setIsSavingContent] = useState(false);
+    const [isCopyingId, setIsCopyingId] = useState<number | null>(null);
 
     // Custom Dict state
     const [customDictText, setCustomDictText] = useState('');
@@ -215,6 +239,18 @@ export const SettingsDrawer: React.FC = () => {
         } catch (err: any) {
             alert(err.response?.data?.error || "Failed to save content.");
         } finally { setIsSavingContent(false); }
+    };
+
+    const handleCopySubtitlePrompt = async (tid: number) => {
+        setIsCopyingId(tid);
+        try {
+            const res = await axios.get(`/api/content/subtitles/${tid}/export?format=srt`);
+            const fullPrompt = SUBTITLE_PROMPT_TEMPLATE + res.data;
+            await navigator.clipboard.writeText(fullPrompt);
+            alert("Prompt with SRT content copied to clipboard!");
+        } catch (err) {
+            alert("Failed to copy prompt.");
+        } finally { setIsCopyingId(null); }
     };
 
     const handleDeleteTrack = async (tid: number) => {
@@ -444,6 +480,17 @@ export const SettingsDrawer: React.FC = () => {
                                                                     {isTranslatingId === track.id ? <RefreshCw size={14} className="animate-spin" /> : <Languages size={14} />}
                                                                 </button>
                                                                 <button onClick={() => exportTrack(track.id, 'srt')} className="p-2 text-slate-400 hover:text-white"><Download size={14} /></button>
+
+                                                                {/* AI Prompt Button (Permissive check for JA) */}
+                                                                { (track.language_code?.toLowerCase().includes('ja') || track.name?.toLowerCase().includes('ja')) && (
+                                                                    <button 
+                                                                        onClick={() => handleCopySubtitlePrompt(track.id)} 
+                                                                        className="p-2 text-emerald-500 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20"
+                                                                        title="Copy AI Prompt for Japanese"
+                                                                    >
+                                                                        {isCopyingId === track.id ? <RefreshCw size={14} className="animate-spin" /> : <Copy size={14} />}
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                             <button onClick={() => handleDeleteTrack(track.id)} disabled={track.is_original && user?.role !== 'admin'} className="p-2 text-slate-700 hover:text-rose-500 disabled:opacity-20"><Trash2 size={14} /></button>
                                                         </div>

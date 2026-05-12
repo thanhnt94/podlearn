@@ -55,12 +55,28 @@ export const VideoControls: React.FC = () => {
         requestSeek(time);
     };
 
-    const toggleFullscreen = () => {
+    const toggleFullscreen = async () => {
         const container = document.getElementById('player-container');
         if (!document.fullscreenElement) {
-            container?.requestFullscreen();
+            try {
+                await container?.requestFullscreen();
+                // Attempt to lock orientation to landscape on mobile devices
+                if (screen.orientation && (screen.orientation as any).lock) {
+                    await (screen.orientation as any).lock('landscape').catch((err: any) => {
+                        console.warn("Orientation lock not supported or failed:", err);
+                    });
+                }
+            } catch (err) {
+                console.error("Fullscreen failed:", err);
+            }
         } else {
-            document.exitFullscreen();
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+            // Unlock orientation when exiting
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
         }
     };
 
