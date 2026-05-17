@@ -80,9 +80,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
             await axios.post('/api/identity/logout').catch(() => {});
         } finally {
+            const isSSO = get().authConfig?.sso_enabled;
             localStorage.removeItem('access_token');
             set({ user: null, isLoggedIn: false, lessons: [], stats: null });
-            window.location.href = '/';
+            if (isSSO) {
+                window.location.href = '/logout';
+            } else {
+                window.location.href = '/';
+            }
         }
     },
 

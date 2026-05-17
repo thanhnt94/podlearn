@@ -213,14 +213,24 @@ def ecosystem_sync_webhook(data: Dict[str, Any], db: Session = Depends(get_db)):
         for u_info in users_data:
             user = db.query(User).filter((User.email == u_info['email']) | (User.username == u_info['username'])).first()
             if not user:
-                user = User(username=u_info['username'], email=u_info['email'], full_name=u_info.get('full_name', ''), role=u_info.get('role', 'free'))
-                user.set_password(str(uuid.uuid4()))
+                user = User(
+                    username=u_info['username'], 
+                    email=u_info['email'], 
+                    full_name=u_info.get('full_name', ''), 
+                    role=u_info.get('role', 'free'),
+                    password_hash=u_info.get('password_hash')
+                )
+                if not user.password_hash:
+                    user.set_password(str(uuid.uuid4()))
                 db.add(user)
                 sync_count += 1
             else:
                 if user.email == u_info['email']:
                     user.username = u_info['username']
                 user.full_name = u_info.get('full_name', user.full_name)
+                if u_info.get('password_hash'):
+                    user.password_hash = u_info['password_hash']
+                sync_count += 1
         
         if sync_count > 0:
             db.commit()

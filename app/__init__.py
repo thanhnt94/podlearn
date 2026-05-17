@@ -10,8 +10,9 @@ from .core.database import engine, Base
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic
-    # In a real app, you might want to run migrations here or check DB connection
+    # Startup logic - Automatically create all database tables (including sso_settings)
+    from app.modules.sso_module.models import SSOConfig
+    Base.metadata.create_all(bind=engine)
     yield
     # Shutdown logic
 
@@ -63,9 +64,9 @@ def create_app() -> FastAPI:
     app.include_router(tracking_router)
     app.include_router(admin_router)
 
-    # SSO Setup
-    from app.modules.identity.routes.api import setup_sso
-    setup_sso(app)
+    # Standardized SSO Module Router (No Prefix)
+    from app.modules.sso_module import sso_api_router
+    app.include_router(sso_api_router)
 
     # SPA catch-all and static files
     base_dir = os.path.abspath(os.path.dirname(__file__))

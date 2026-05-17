@@ -7,8 +7,6 @@ from app.core.database import get_db
 from app.core.security import create_access_token, create_refresh_token, get_current_user
 from app.modules.identity.models import User
 from app.modules.identity.schemas import UserSchema, UserLogin, UserRegister
-from app.modules.identity.services.sso_service import SSOService
-from app.modules.engagement import interface as engagement_interface
 from app.core.config import settings
 
 router = APIRouter(prefix="/api/identity", tags=["Identity"])
@@ -16,10 +14,11 @@ router = APIRouter(prefix="/api/identity", tags=["Identity"])
 @router.get('/config')
 def get_auth_config(db: Session = Depends(get_db)):
     """Returns public auth configuration for the frontend."""
-    auth_provider = engagement_interface.get_app_setting_dto('AUTH_PROVIDER', 'local')
+    from app.modules.sso_module.service import SSOService
+    sso_cfg = SSOService.get_config(db)
     return {
-        "auth_provider": auth_provider,
-        "sso_enabled": auth_provider == 'central'
+        "auth_provider": "central" if sso_cfg.is_enabled else "local",
+        "sso_enabled": sso_cfg.is_enabled
     }
 
 # ── Local Auth ────────────────────────────────────────────────
@@ -27,7 +26,9 @@ def get_auth_config(db: Session = Depends(get_db)):
 @router.post('/register', status_code=status.HTTP_201_CREATED)
 def register(user_in: UserRegister, db: Session = Depends(get_db)):
     """Register a new user (Local)."""
-    if engagement_interface.get_app_setting_dto('AUTH_PROVIDER') == 'central':
+    from app.modules.sso_module.service import SSOService
+    sso_cfg = SSOService.get_config(db)
+    if sso_cfg.is_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Registration is handled by Central Auth."
@@ -58,6 +59,15 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == login_data.username).first()
 
     if user and user.check_password(login_data.password):
+        # Enforce SSO backdoor policy if SSO is enabled!
+        from app.modules.sso_module.service import SSOService
+        sso_cfg = SSOService.get_config(db)
+        if sso_cfg.is_enabled and user.role != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="SSO is active. Non-admin accounts must log in via Central SSO."
+            )
+
         from datetime import timedelta
         expires_delta = timedelta(days=30) if login_data.remember_me else None
         
@@ -116,31 +126,12 @@ async def get_me(request: Request, db: Session = Depends(get_db)):
             "user": None
         }
 
-# ── SSO (Central Auth) ────────────────────────────────────────
-
-async def on_sso_user_provision(user_payload, tokens):
-    """Callback for ecosystem_sso to handle JIT provisioning."""
-    return await SSOService.provision_user(user_payload)
-
-async def on_sso_login_success(request, user, tokens):
-    """Callback for ecosystem_sso to handle frontend redirect."""
-    access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
-    # Get frontend URL from settings or host
-    frontend_url = settings.FRONTEND_URL or f"{request.url.scheme}://{request.url.netloc}"
-    return RedirectResponse(url=f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}")
-
-def setup_sso(app):
-    """Initialize SSO bridge."""
-    router_sso, _ = SSOService.get_modular_router(on_sso_user_provision, on_sso_login_success)
-    app.include_router(router_sso)
-    return router_sso
+# ── SSO (Central Auth) ──
 
 @router.get('/sso/login')
 def sso_login():
     """Legacy route for backward compatibility."""
-    return RedirectResponse(url="/auth-center/login")
+    return RedirectResponse(url="/login")
 
 @router.patch('/profile')
 def update_profile(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
