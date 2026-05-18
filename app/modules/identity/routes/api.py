@@ -16,9 +16,24 @@ def get_auth_config(db: Session = Depends(get_db)):
     """Returns public auth configuration for the frontend."""
     from app.modules.sso_module.service import SSOService
     sso_cfg = SSOService.get_config(db)
+    sso_enabled = sso_cfg.is_enabled
+    
+    server_url = sso_cfg.server_url.rstrip('/') if sso_cfg.server_url else "http://localhost:5000"
+    client_id = sso_cfg.client_id or "podlearn-v1"
+    
+    base_url = "http://localhost:5020"  # PodLearn Port 5020
+    redirect_uri = f"{base_url}/auth-center/callback"
+    jump_url = (
+        f"{server_url}/api/auth/authorize"
+        f"?client_id={client_id}"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code"
+    ) if sso_enabled else None
+
     return {
-        "auth_provider": "central" if sso_cfg.is_enabled else "local",
-        "sso_enabled": sso_cfg.is_enabled
+        "auth_provider": "central" if sso_enabled else "local",
+        "sso_enabled": sso_enabled,
+        "jump_url": jump_url
     }
 
 # ── Local Auth ────────────────────────────────────────────────
@@ -62,11 +77,18 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
         # Enforce SSO backdoor policy if SSO is enabled!
         from app.modules.sso_module.service import SSOService
         sso_cfg = SSOService.get_config(db)
-        if sso_cfg.is_enabled and user.role != 'admin':
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="SSO is active. Non-admin accounts must log in via Central SSO."
-            )
+        if sso_cfg.is_enabled:
+            if not login_data.is_backdoor:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Security Alert: SSO is active. Please log in using the Central Single Sign-On service."
+                )
+            else:
+                if user.role != 'admin':
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Security Alert: SSO is active. Local backdoor access is strictly restricted to Administrators."
+                    )
 
         from datetime import timedelta
         expires_delta = timedelta(days=30) if login_data.remember_me else None
@@ -86,9 +108,18 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
     )
 
 @router.post('/logout')
-def logout():
-    """Bypass JWT for logout to help stuck users."""
-    return {"status": "success", "message": "Logged out successfully (Please clear client tokens)"}
+def logout(db: Session = Depends(get_db)):
+    """Clear session and return SSO redirect if enabled."""
+    from app.modules.sso_module.service import SSOService
+    sso_cfg = SSOService.get_config(db)
+    if sso_cfg.is_enabled:
+        server_url = sso_cfg.server_url.rstrip('/') if sso_cfg.server_url else "http://localhost:5000"
+        client_id = sso_cfg.client_id or "podlearn-v1"
+        return {
+            "status": "success",
+            "redirect_url": f"{server_url}/auth/logout?client_id={client_id}"
+        }
+    return {"status": "success", "message": "Logged out successfully"}
 
 @router.get('/me')
 async def get_me(request: Request, db: Session = Depends(get_db)):

@@ -72,7 +72,7 @@ import { LandingView } from './components/layout/LandingView';
 import { SSOCallback } from './components/auth/SSOCallback';
 
 const App: React.FC = () => {
-  const { fetchDashboard, fetchAuthConfig, isLoggedIn, isLoading, authConfig } = useAppStore();
+  const { fetchDashboard, fetchAuthConfig, isLoggedIn, isLoading } = useAppStore();
 
   useEffect(() => {
     fetchAuthConfig();
@@ -81,15 +81,6 @@ const App: React.FC = () => {
 
   // Handle unauthenticated routes
   if (!isLoggedIn && !isLoading) {
-    const isLoginPath = window.location.pathname === '/login';
-    const isSSOEnabled = authConfig?.sso_enabled;
-
-    // Auto-redirect to SSO if on /login and SSO is enabled
-    if (isLoginPath && isSSOEnabled) {
-      window.location.href = '/api/identity/sso/login';
-      return null;
-    }
-
     return (
       <BrowserRouter basename="/">
         <Routes>

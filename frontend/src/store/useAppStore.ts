@@ -24,7 +24,7 @@ interface AppState {
     stats: any;
     notifications: any[];
     communityVideos: any[];
-    authConfig: { auth_provider: string; sso_enabled: boolean } | null;
+    authConfig: { auth_provider: string; sso_enabled: boolean; jump_url?: string | null } | null;
     
     // Actions
     login: (credentials: any) => Promise<boolean>;
@@ -78,16 +78,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     logout: async () => {
         try {
-            await axios.post('/api/identity/logout').catch(() => {});
-        } finally {
-            const isSSO = get().authConfig?.sso_enabled;
+            const res = await axios.post('/api/identity/logout');
             localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
             set({ user: null, isLoggedIn: false, lessons: [], stats: null });
-            if (isSSO) {
-                window.location.href = '/logout';
+            if (res.data && res.data.redirect_url) {
+                window.location.href = res.data.redirect_url;
             } else {
                 window.location.href = '/';
             }
+        } catch (e) {
+            console.error("Logout failed", e);
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            set({ user: null, isLoggedIn: false, lessons: [], stats: null });
+            window.location.href = '/';
         }
     },
 

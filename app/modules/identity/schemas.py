@@ -19,6 +19,7 @@ class UserLogin(BaseModel):
     username: str
     password: str
     remember_me: Optional[bool] = False
+    is_backdoor: Optional[bool] = False
 
 class UserRegister(BaseModel):
     username: str
