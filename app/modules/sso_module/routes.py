@@ -142,3 +142,39 @@ def logout(request: Request, db: Session = Depends(get_db)):
         
     res.delete_cookie("user_id", path="/")
     return res
+
+from pydantic import BaseModel
+
+class HandshakeRequest(BaseModel):
+    client_id: str
+    client_secret: str
+
+@router.post("/api/admin/sso/handshake")
+def sso_handshake(req: HandshakeRequest, db: Session = Depends(get_db)):
+    """Dynamic DB discovery endpoint for CentralAuth Hub."""
+    config = SSOService.get_config(db)
+    
+    # Fallback to config settings if DB values aren't set
+    from app.core.config import settings
+    expected_client_id = config.client_id or settings.CENTRAL_AUTH_CLIENT_ID
+    expected_client_secret = config.client_secret or settings.CENTRAL_AUTH_CLIENT_SECRET
+    
+    if expected_client_id != req.client_id:
+        raise HTTPException(status_code=401, detail="Client ID mismatch")
+        
+    if expected_client_secret != req.client_secret:
+        raise HTTPException(status_code=401, detail="Client Secret mismatch")
+        
+    # Get absolute DB path
+    db_url = settings.DATABASE_URL
+    import os
+    # SQLite prefix cleanup
+    db_path = db_url.split("///")[-1] if "///" in db_url else db_url
+    if not os.path.isabs(db_path):
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        db_path = os.path.abspath(os.path.join(project_root, db_path))
+        
+    return {
+        "success": True,
+        "db_path": db_path
+    }
