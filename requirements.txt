@@ -31,3 +31,4 @@ marshmallow
 marshmallow-sqlalchemy
 # Infrastructure
 gunicorn
+httpx
