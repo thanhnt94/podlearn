@@ -39,6 +39,19 @@ export const LoginView: React.FC = () => {
         setIsSubmitting(false);
     };
 
+    // If loading SSO configuration
+    if (!authConfig) {
+        return (
+            <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center space-y-6 z-[200]">
+                <div className="w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_30px_rgba(99,102,241,0.2)]" />
+                <div className="flex flex-col items-center space-y-2">
+                    <h2 className="text-xl font-black text-white uppercase tracking-widest text-center">Initializing Auth Engine</h2>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] animate-pulse text-center">Please wait...</p>
+                </div>
+            </div>
+        );
+    }
+
     // If SSO is active and we are NOT using the backdoor, show a premium redirecting screen
     if (authConfig?.sso_enabled && !isBackdoor) {
         return (

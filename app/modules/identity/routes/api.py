@@ -16,8 +16,27 @@ def get_auth_config(db: Session = Depends(get_db)):
     """Returns public auth configuration for the frontend."""
     from app.modules.sso_module.service import SSOService
     sso_cfg = SSOService.get_config(db)
-    sso_enabled = sso_cfg.is_enabled
     
+    sso_active = sso_cfg.is_enabled
+    if sso_active and sso_cfg.server_url:
+        import urllib.parse
+        import socket
+        try:
+            parsed = urllib.parse.urlparse(sso_cfg.server_url)
+            host = parsed.hostname
+            port = parsed.port
+            if not host:
+                sso_active = False
+            else:
+                if not port:
+                    port = 443 if parsed.scheme == "https" else 80
+                # Fast TCP ping check (0.5 second timeout) to avoid blockages
+                socket.gethostbyname(host)
+                with socket.create_connection((host, port), timeout=0.5):
+                    pass
+        except Exception:
+            sso_active = False
+            
     server_url = sso_cfg.server_url.rstrip('/') if sso_cfg.server_url else "http://localhost:5000"
     client_id = sso_cfg.client_id or "podlearn-v1"
     
@@ -28,11 +47,11 @@ def get_auth_config(db: Session = Depends(get_db)):
         f"?client_id={client_id}"
         f"&redirect_uri={redirect_uri}"
         f"&response_type=code"
-    ) if sso_enabled else None
+    ) if sso_active else None
 
     return {
-        "auth_provider": "central" if sso_enabled else "local",
-        "sso_enabled": sso_enabled,
+        "auth_provider": "central" if sso_active else "local",
+        "sso_enabled": sso_active,
         "jump_url": jump_url
     }
 
