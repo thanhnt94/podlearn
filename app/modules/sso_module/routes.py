@@ -21,9 +21,17 @@ def sso_login_redirect(request: Request, db: Session = Depends(get_db)):
     error = request.query_params.get("error")
     
     if config.is_enabled and not is_backdoor and not error:
-        # SSO active & no backdoor -> Redirect to CentralAuth SSO jump endpoint
-        jump_url = f"{config.server_url.rstrip('/')}/api/auth/jump/{config.client_id}"
-        return RedirectResponse(url=jump_url, status_code=303)
+        # Check if SSO server is alive
+        import requests
+        try:
+            requests.head(config.server_url, timeout=1.0)
+            # SSO active & no backdoor -> Redirect to CentralAuth SSO jump endpoint
+            jump_url = f"{config.server_url.rstrip('/')}/api/auth/jump/{config.client_id}"
+            return RedirectResponse(url=jump_url, status_code=303)
+        except requests.RequestException:
+            logger.warning(f"SSO Server {config.server_url} is unreachable. Falling back to local login.")
+            pass # Fallback to local login
+
     
     # Otherwise, serve the SPA index.html so React Router handles the route
     base_dir = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -40,7 +48,17 @@ def sso_login_redirect(request: Request, db: Session = Depends(get_db)):
 def get_sso_config(db: Session = Depends(get_db)):
     """API for the sub-project's Admin Panel to show current settings."""
     config = SSOService.get_config(db)
-    return config.to_dict()
+    result = config.to_dict()
+    
+    if result.get("is_enabled") and result.get("server_url"):
+        import requests
+        try:
+            requests.head(result["server_url"], timeout=1.0)
+        except requests.RequestException:
+            logger.warning(f"SSO Server {result['server_url']} is unreachable. Disabling SSO in frontend.")
+            result["is_enabled"] = False
+            
+    return result
 
 @router.post("/api/sso/config")
 def update_sso_config(data: dict, db: Session = Depends(get_db)):

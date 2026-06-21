@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     ArrowLeft, Lock, CreditCard, RefreshCw, Settings, MoveHorizontal, Scissors, Edit2, Save, X, Zap
 } from 'lucide-react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoSection } from './VideoSection';
 import { HandsFreeEngine } from './HandsFreeEngine';
@@ -11,10 +11,9 @@ import { SidebarContainer } from './sidebar/SidebarContainer';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { useAppStore } from '../../store/useAppStore';
 import { SettingsDrawer } from '../layout/SettingsDrawer';
-import { SubtitleSyncStudio } from './SubtitleSyncStudio';
 import { LearningFocusBar } from './LearningFocusBar';
+import { DailyGoalTracker } from './DailyGoalTracker';
 
-import { VocabStudio } from './VocabStudio';
 import { DictManagerStudio } from './DictManagerStudio';
 import { ExportModal } from './ExportModal';
 import { useSwipe } from '../../hooks/useSwipe';
@@ -26,12 +25,10 @@ interface PlayerViewProps {
   initialVocabMode?: boolean;
 }
 
-export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = false, initialVocabMode = false }) => {
+export const PlayerView: React.FC<PlayerViewProps> = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const isSyncStudioOpen = initialStudioMode;
   
   const { 
     isLoaded, videoId, lessonTitle, lessonId,
@@ -41,14 +38,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
     isPlaying, addListeningTime, flushTrackingData,
     handsFreeModeEnabled, toggleHandsFreeMode, handsFreeStatus, handsFreeProgress,
     isLocked, lockMessage,
-    isVocabStudioOpen, setVocabStudioOpen,
     requestSeek, currentTime,
     activeSidebarTab, isEditingCurated, setEditingCurated,
     isFocusBarCollapsed, setFocusBarCollapsed,
     curatedContent, draftCuratedContent, setDraftCuratedContent, updateCuratedContent,
     timelineSub, notes, comments,
     showDictManager, setShowDictManager,
-    setIsSettingsOpen, setSettingsTab
+    setIsSettingsOpen, setSettingsTab,
+    isBackgroundMode, setBackgroundMode
   } = usePlayerStore();
 
   const { user } = useAppStore();
@@ -81,17 +78,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
 
   // Expose control to window for child components (e.g. TranscriptBody empty state)
   useEffect(() => {
-    setVocabStudioOpen(initialVocabMode);
-    if (initialVocabMode) {
-        // Ensure settings are closed if studio is open
-        setIsSettingsOpen(false);
-    }
     (window as any).openSettings = () => {
         setSettingsTab('hub');
         setIsSettingsOpen(true);
     };
     return () => { delete (window as any).openSettings; };
-  }, [initialVocabMode, setVocabStudioOpen, setIsSettingsOpen]);
+  }, [setIsSettingsOpen]);
 
   const progressLine = activeLineIndex !== -1 ? activeLineIndex + 1 : 0;
   const totalLines = subtitles.length;
@@ -259,8 +251,22 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                       <ArrowLeft size={20} />
                   </button>
                   <h1 className="text-sm font-bold text-slate-200 line-clamp-1 flex-1 min-w-0">{lessonTitle || 'Untitled Lesson'}</h1>
+                  <DailyGoalTracker />
               </div>
               <div className="flex items-center gap-2">
+
+                  {/* Audio-only Mode Toggle */}
+                  <button 
+                      onClick={() => setBackgroundMode(!isBackgroundMode)}
+                      className={`hidden md:flex relative items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black tracking-widest transition-all ${
+                          isBackgroundMode 
+                          ? 'bg-amber-500 text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.3)]' 
+                          : 'bg-slate-900 text-slate-500 hover:text-white border border-white/5'
+                      }`}
+                      title={isBackgroundMode ? "Chuyển sang chế độ Video" : "Chuyển sang chế độ Audio-only"}
+                  >
+                      <span className="hidden sm:inline">AUDIO ONLY</span>
+                  </button>
 
                   {/* Hands-Free Toggle (Header) - Hidden on Mobile */}
                   <button 
@@ -291,23 +297,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
                           </button>
                       ))}
                   </div>
-                  <button 
-                    onClick={() => navigate(`/player/lesson/syncstudio/${lessonId}`)} 
-                    className="hidden md:block p-2 text-slate-400 hover:text-sky-400 transition-colors bg-slate-900 border border-white/5 rounded-lg"
-                    title="Open Sync Studio"
-                  >
-                      <MoveHorizontal size={20} />
-                  </button>
-                  <Link 
-                    to={location.pathname.includes('/vocab') 
-                        ? `/player/lesson/${lessonId}` 
-                        : `/player/lesson/${lessonId}/vocab`
-                    }
-                    className={`hidden md:block p-2 transition-colors bg-slate-900 border border-white/5 rounded-lg ${isVocabStudioOpen ? 'text-amber-400' : 'text-slate-400 hover:text-amber-400'}`}
-                    title="Open Vocab Studio"
-                  >
-                      <Scissors size={20} />
-                  </Link>
 
                   {/* Analysis Bar Toggle (Mobile Only) */}
                   <button 
@@ -329,7 +318,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
           {/* Video Wrapper - Maximized but constrained to view height */}
           <div className="w-full aspect-video md:aspect-auto md:flex-1 flex flex-col items-center justify-center p-0 md:p-4 relative min-h-0 overflow-hidden z-10">
                <div className="w-full h-full max-w-[1700px] md:rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border-b border-white/5 md:border bg-black relative">
-                  {handsFreeModeEnabled ? (
+                  {isBackgroundMode ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900">
+                          <div className="w-32 h-32 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin flex items-center justify-center">
+                              <div className="w-16 h-16 rounded-full bg-amber-500/10" />
+                          </div>
+                          <p className="mt-8 text-amber-500/70 font-black tracking-widest text-sm uppercase">Audio Only Mode</p>
+                          <div className="opacity-0 pointer-events-none absolute w-1 h-1 overflow-hidden">
+                              <VideoSection />
+                          </div>
+                      </div>
+                  ) : handsFreeModeEnabled ? (
                       <PodcastOverlay />
                   ) : (
                       <VideoSection />
@@ -500,22 +499,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ initialStudioMode = fals
       </div>
 
       <HandsFreeEngine />
-      <VocabStudio 
-        isOpen={isVocabStudioOpen} 
-        onClose={() => {
-            setVocabStudioOpen(false);
-            if (window.location.pathname.includes('/vocab')) {
-                navigate(`/player/lesson/${lessonId}`);
-            }
-        }} 
-      />
       <SettingsDrawer />
       <DictManagerStudio isOpen={showDictManager} onClose={() => setShowDictManager(false)} />
-      <AnimatePresence>
-        {isSyncStudioOpen && (
-          <SubtitleSyncStudio isOpen={isSyncStudioOpen} onClose={() => navigate(`/player/lesson/${lessonId}`)} />
-        )}
-      </AnimatePresence>
       <AnimatePresence>
         {isExportOpen && (
           <ExportModal isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />

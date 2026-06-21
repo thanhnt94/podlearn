@@ -1,6 +1,7 @@
 from app.modules.content.models import Video, SubtitleTrack, Playlist
 from app.core.database import SessionLocal
 from typing import List, Dict, Any, Optional
+from sqlalchemy.orm import joinedload
 
 def get_video_dto(video_id: int) -> Optional[Dict[str, Any]]:
     with SessionLocal() as db:
@@ -18,6 +19,7 @@ def get_video_dto(video_id: int) -> Optional[Dict[str, Any]]:
             "owner_id": video.owner_id,
             "visibility": video.visibility,
             "youtube_id": video.youtube_id,
+            "category": video.category,
             "available_languages": video.available_languages
         }
 
@@ -44,8 +46,20 @@ def create_private_video(youtube_id: str, owner_id: int) -> Dict[str, Any]:
 
 def get_public_videos_dto(limit: int = 24) -> List[Dict[str, Any]]:
     with SessionLocal() as db:
-        videos = db.query(Video).filter_by(visibility='public').limit(limit).all()
-        return [get_video_dto(v.id) for v in videos]
+        videos = db.query(Video).options(joinedload(Video.owner)).filter_by(visibility='public').limit(limit).all()
+        return [{
+            "id": video.id,
+            "title": video.title,
+            "channel_title": video.channel_title,
+            "thumbnail_url": video.thumbnail_url,
+            "duration_seconds": video.duration_seconds or 1,
+            "owner_name": video.owner.username if video.owner else "System",
+            "owner_id": video.owner_id,
+            "visibility": video.visibility,
+            "youtube_id": video.youtube_id,
+            "category": video.category,
+            "available_languages": video.available_languages
+        } for video in videos]
 
 def get_playlist_dto(playlist_id: int) -> Optional[Dict[str, Any]]:
     with SessionLocal() as db:

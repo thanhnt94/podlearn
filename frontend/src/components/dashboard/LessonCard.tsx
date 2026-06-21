@@ -1,6 +1,6 @@
 import React from 'react';
-import { Play, CheckCircle2, Clock, Trash2, Layers, Plus, Globe, Lock, ShieldCheck, Hourglass, Package, RefreshCw } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Play, CheckCircle2, Clock, Trash2, Layers, Plus, Lock, ShieldCheck, Package, RefreshCw } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import axios from 'axios';
 
@@ -8,12 +8,13 @@ interface LessonCardProps {
     lesson: any;
     onDelete?: (id: number) => void;
     onDeleteGlobal?: (id: number) => void;
-    onToggleVisibility?: (videoId: number, visibility: 'public' | 'private') => void;
+    onChannelClick?: (channelTitle: string) => void;
 }
 
-export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDeleteGlobal, onToggleVisibility }) => {
+export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDeleteGlobal, onChannelClick }) => {
     const { video, time_spent, is_completed, last_accessed } = lesson;
     const { user, playlists, addVideoToPlaylist } = useAppStore();
+    const navigate = useNavigate();
     const [showPlaylistSelector, setShowPlaylistSelector] = React.useState(false);
     const [isExporting, setIsExporting] = React.useState(false);
 
@@ -85,14 +86,10 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                             <Lock size={12} strokeWidth={3} /> 10m Limit
                         </div>
                     )}
-                    {video.visibility === 'public' && (
-                        <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg backdrop-blur-md">
-                            <Globe size={12} strokeWidth={3} /> Featured
-                        </div>
-                    )}
-                    {video.visibility === 'pending_public' && (
-                        <div className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg backdrop-blur-md">
-                            <Hourglass size={12} strokeWidth={3} /> Pending Review
+
+                    {video.category && video.category !== 'podcast' && (
+                        <div className="bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg backdrop-blur-md">
+                            <Layers size={12} strokeWidth={3} /> {video.category}
                         </div>
                     )}
                 </div>
@@ -132,10 +129,22 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                         </h3>
                     </Link>
                     <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                        <div className="flex items-center gap-1.5 truncate max-w-[150px]">
-                            <ShieldCheck size={12} className="text-sky-500" />
+                        <button 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (onChannelClick && video.channel_title) {
+                                    onChannelClick(video.channel_title);
+                                } else if (video.channel_title) {
+                                    navigate(`/explore?channel=${encodeURIComponent(video.channel_title)}`);
+                                }
+                            }}
+                            className="flex items-center gap-1.5 truncate max-w-[150px] hover:text-sky-400 transition-colors cursor-pointer"
+                            title="Filter by Channel"
+                        >
+                            <ShieldCheck size={12} className="text-sky-500 hover:text-sky-400 transition-colors" />
                             {video.channel_title || 'PodLearn Library'}
-                        </div>
+                        </button>
                         <div className="flex items-center gap-1.5 font-mono">
                             {progressPercent}% Done
                         </div>
@@ -240,39 +249,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({ lesson, onDelete, onDele
                             {isExporting ? <RefreshCw size={16} className="animate-spin" /> : <Package size={16} />}
                         </button>
 
-                        {onToggleVisibility && (isAdmin || video.visibility !== 'public') && (
-                            <button 
-                                type="button"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    // Admins toggle directly; Users request public
-                                    if (isAdmin) {
-                                        const nextStatus = video.visibility === 'public' ? 'private' : 'public';
-                                        onToggleVisibility(video.id, nextStatus);
-                                    } else if (video.visibility === 'private') {
-                                        onToggleVisibility(video.id, 'public'); // API will handle setting to pending_public
-                                    } else if (video.visibility === 'pending_public') {
-                                        onToggleVisibility(video.id, 'private'); // Cancel request
-                                    }
-                                }}
-                                className={`p-2 rounded-xl transition-all border ${
-                                    video.visibility === 'public' 
-                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                                        : video.visibility === 'pending_public'
-                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                                            : 'bg-slate-800 text-slate-400 border-white/10'
-                                }`}
-                                title={
-                                    isAdmin 
-                                        ? (video.visibility === 'public' ? "Set to Private" : "Feature in Discovery")
-                                        : (video.visibility === 'public' ? "Public Content" : video.visibility === 'pending_public' ? "Cancel Approval Request" : "Share with Community")
-                                }
-                                disabled={!isAdmin && video.visibility === 'public'}
-                            >
-                                {video.visibility === 'public' ? <Globe size={16} /> : video.visibility === 'pending_public' ? <Hourglass size={16} /> : <Lock size={16} />}
-                            </button>
-                        )}
+
                     </div>
                 </div>
             </div>

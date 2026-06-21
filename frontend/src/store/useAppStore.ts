@@ -12,6 +12,17 @@ interface User {
     is_vip: boolean;
 }
 
+export interface Video {
+    id: string | number;
+    title: string;
+    owner_name: string;
+    visibility: string;
+    channel_title?: string;
+    channel_id?: string;
+    category?: string;
+    available_languages: string[];
+}
+
 interface AppState {
     user: User | null;
     isLoggedIn: boolean;

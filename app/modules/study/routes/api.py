@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from app.core.database import get_db
@@ -58,7 +58,7 @@ def dispatch_tracking_task(background_tasks: BackgroundTasks, **kwargs):
 def get_dashboard_init(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Unified endpoint to initialize the React dashboard with all necessary data."""
     # 1. My Lessons
-    lessons = db.query(Lesson).filter_by(user_id=current_user.id).order_by(Lesson.last_accessed.desc()).all()
+    lessons = db.query(Lesson).options(joinedload(Lesson.video).joinedload(Video.owner)).filter_by(user_id=current_user.id).order_by(Lesson.last_accessed.desc()).all()
     lessons_data = []
     for l in lessons:
         is_locked = False
@@ -79,6 +79,7 @@ def get_dashboard_init(current_user: User = Depends(get_current_user), db: Sessi
                 'duration_seconds': l.video.duration_seconds or 1,
                 'owner_name': l.video.owner.username if l.video.owner else "System",
                 'visibility': l.video.visibility,
+                'category': l.video.category,
                 'available_languages': l.video.available_languages
             }
         })
@@ -1266,7 +1267,7 @@ def import_video(data: Dict[str, str], background_tasks: BackgroundTasks, curren
     if not v_id: raise HTTPException(status_code=400, detail="Invalid URL")
     video = db.query(Video).filter_by(youtube_id=v_id).first()
     if not video:
-        video = Video(youtube_id=v_id, title="Processing...", status='pending', language_code=data.get('language_code', 'en'))
+        video = Video(youtube_id=v_id, title="Processing...", status='pending', language_code=data.get('language_code', 'en'), visibility='public')
         db.add(video); db.commit()
     if video.status != 'completed':
         from app.modules.content.tasks import process_video_metadata

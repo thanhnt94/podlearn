@@ -38,11 +38,12 @@ class Video(Base):
     id = Column(Integer, primary_key=True)
     youtube_id = Column(String(20), nullable=False, index=True)
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    visibility = Column(String(20), default='private') 
+    visibility = Column(String(20), default='public') 
 
     title = Column(String(500), nullable=False)
     channel_title = Column(String(255))
     channel_id = Column(String(100))
+    category = Column(String(50), default='podcast')
     description = Column(Text)
     
     thumbnail_url = Column(String(500))

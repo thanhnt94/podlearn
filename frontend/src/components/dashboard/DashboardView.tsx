@@ -12,8 +12,7 @@ export const DashboardView: React.FC = () => {
         lessons = [], stats = { current_streak: 0, completed_count: 0, total_lessons: 0 }, 
         communityVideos = [],
         notifications = [], isLoading, 
-        fetchDashboard, deleteLesson, deleteVideoGlobal,
-        toggleVideoVisibility
+        fetchDashboard, deleteLesson, deleteVideoGlobal
     } = useAppStore();
 
     const [isInboxOpen, setIsInboxOpen] = React.useState(false);
@@ -116,7 +115,6 @@ export const DashboardView: React.FC = () => {
                                 lesson={lesson} 
                                 onDelete={deleteLesson}
                                 onDeleteGlobal={deleteVideoGlobal}
-                                onToggleVisibility={toggleVideoVisibility}
                             />
                         ))}
                         {lessons.length === 0 && (
@@ -146,7 +144,6 @@ export const DashboardView: React.FC = () => {
                             <LessonCard 
                                 key={`discovery-${item.id}`} 
                                 lesson={item} 
-                                onToggleVisibility={toggleVideoVisibility}
                             />
                         ))}
                         {(communityVideos || []).length === 0 && (

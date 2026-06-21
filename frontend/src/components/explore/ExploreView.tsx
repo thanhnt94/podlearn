@@ -1,19 +1,41 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { LessonCard } from '../dashboard/LessonCard';
-import { Compass, Search, Filter } from 'lucide-react';
+import { Compass, Search, X } from 'lucide-react';
+
+const CATEGORIES = [
+    { id: 'all', label: 'All' },
+    { id: 'podcast', label: 'Podcast' },
+    { id: 'song', label: 'Song' },
+    { id: 'interview', label: 'Interview' },
+    { id: 'news', label: 'News' }
+];
 
 export const ExploreView: React.FC = () => {
     const { communityVideos, fetchDashboard, isLoading } = useAppStore();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    
+    const selectedChannelTitle = searchParams.get('channel');
+    const setSelectedChannelTitle = (val: string | null) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (val) newParams.set('channel', val);
+        else newParams.delete('channel');
+        setSearchParams(newParams);
+    };
 
     useEffect(() => {
         fetchDashboard();
     }, []);
 
-    const filteredVideos = communityVideos.filter(v => 
-        v.video.title.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredVideos = communityVideos.filter(v => {
+        const matchesSearch = v.video.title.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = selectedCategory === 'all' || (v.video.category || 'podcast') === selectedCategory;
+        const matchesChannel = !selectedChannelTitle || v.video.channel_title === selectedChannelTitle;
+        return matchesSearch && matchesCategory && matchesChannel;
+    });
 
     if (isLoading) {
         return (
@@ -48,13 +70,44 @@ export const ExploreView: React.FC = () => {
                             placeholder="Search podcasts by title or topic..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-slate-900 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm focus:border-sky-500/50 outline-none transition-all shadow-xl"
+                            className="w-full bg-slate-900 border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm focus:border-sky-500/50 outline-none transition-all shadow-xl text-white"
                         />
                     </div>
-                    <button className="px-6 py-4 bg-slate-900 border border-white/5 rounded-2xl flex items-center justify-center gap-2 text-slate-400 hover:text-white transition-colors">
-                        <Filter size={20} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Filter By Genre</span>
-                    </button>
+                </div>
+
+                {/* Categories & Channel Filter */}
+                <div className="flex flex-col gap-4 mt-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {CATEGORIES.map(c => (
+                            <button
+                                key={c.id}
+                                onClick={() => setSelectedCategory(c.id)}
+                                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    selectedCategory === c.id
+                                        ? 'bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/20'
+                                        : 'bg-slate-900 border border-white/5 text-slate-400 hover:text-white hover:border-white/20'
+                                }`}
+                            >
+                                {c.label}
+                            </button>
+                        ))}
+                    </div>
+                    
+                    {selectedChannelTitle && (
+                        <div className="flex items-center gap-2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                                    Channel: {selectedChannelTitle}
+                                </span>
+                                <button 
+                                    onClick={() => setSelectedChannelTitle(null)}
+                                    className="p-0.5 hover:bg-indigo-500/20 rounded-md text-indigo-400 transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -69,7 +122,10 @@ export const ExploreView: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {filteredVideos.map(video => (
                             <div key={video.id} className="hover:-translate-y-2 transition-transform duration-500">
-                                <LessonCard lesson={video} />
+                                <LessonCard 
+                                    lesson={video} 
+                                    onChannelClick={setSelectedChannelTitle} 
+                                />
                             </div>
                         ))}
                         {filteredVideos.length === 0 && (

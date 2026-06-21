@@ -47,8 +47,6 @@ interface PlayerState {
   s3Lines: SubtitleLine[];
   notes: Note[];
   activeLineIndex: number;
-  isVocabStudioOpen: boolean;
-  setVocabStudioOpen: (open: boolean) => void;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
   settingsTab: 'hub' | 'subtitles' | 'display' | 'vocab';
@@ -472,7 +470,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isManualAnalysis: false,
   useOfflineDict: true,
   savedVocab: [],
-  isVocabStudioOpen: false,
 
   autoSegmentationEnabled: true,
   preferredDictionary: 'mazii_offline',
@@ -494,7 +491,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  setVocabStudioOpen: (open) => set({ isVocabStudioOpen: open }),
   activeSidebarTab: 'Overview',
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
   activeTrackId: null,

@@ -97,17 +97,26 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
         from app.modules.sso_module.service import SSOService
         sso_cfg = SSOService.get_config(db)
         if sso_cfg.is_enabled:
-            if not login_data.is_backdoor:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Security Alert: SSO is active. Please log in using the Central Single Sign-On service."
-                )
-            else:
-                if user.role != 'admin':
+            is_alive = True
+            if sso_cfg.server_url:
+                import requests
+                try:
+                    requests.head(sso_cfg.server_url, timeout=1.0)
+                except requests.RequestException:
+                    is_alive = False
+                    
+            if is_alive:
+                if not login_data.is_backdoor:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Security Alert: SSO is active. Local backdoor access is strictly restricted to Administrators."
+                        detail="Security Alert: SSO is active. Please log in using the Central Single Sign-On service."
                     )
+                else:
+                    if user.role != 'admin':
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Security Alert: SSO is active. Local backdoor access is strictly restricted to Administrators."
+                        )
 
         from datetime import timedelta
         expires_delta = timedelta(days=30) if login_data.remember_me else None
