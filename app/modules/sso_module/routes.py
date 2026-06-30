@@ -142,7 +142,9 @@ async def sso_callback(request: Request, response: Response, code: Optional[str]
         callback_redirect_url = callback_redirect_url.replace('http://', 'https://')
         
     res = RedirectResponse(url=callback_redirect_url, status_code=303)
-    res.set_cookie(key="user_id", value=str(user.id), httponly=True, path="/", samesite="lax")
+    from app.modules.sso_module.cookie_signer import sign_cookie
+    signed_id = sign_cookie(str(user.id), settings.SECRET_KEY)
+    res.set_cookie(key="user_id", value=signed_id, httponly=True, path="/", samesite="lax", max_age=1800)
     return res
 
 # Global Logout Endpoint
@@ -150,8 +152,9 @@ async def sso_callback(request: Request, response: Response, code: Optional[str]
 def logout(request: Request, db: Session = Depends(get_db)):
     """Logs the user out of the local cookie session and CentralAuth SSO globally."""
     config = SSOService.get_config(db)
+    local_only = request.query_params.get("local_only") == "1"
     
-    if config.is_enabled:
+    if config.is_enabled and not local_only:
         # Logout globally from CentralAuth
         ca_logout_url = f"{config.server_url.rstrip('/')}/api/auth/logout"
         res = RedirectResponse(url=ca_logout_url, status_code=303)
